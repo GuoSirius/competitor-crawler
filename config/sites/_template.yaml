@@ -1,63 +1,82 @@
 # ============================================================================
-# 站点适配器配置模板（config/sites/<domain>.yaml）
+# 模板 A · 单规则站点配置（config/sites/<domain>.yaml）
 # ----------------------------------------------------------------------------
-# 新增站点：复制本文件、改名为 <domain>.yaml、改选择器即可，无需写代码；
-# 模型通用适配器（见 05.3.2）作为最后兜底。
+# 适用：一个域名只有「一套」抓取规则（一个列表页/一组同构列表页 + 一种详情页）。
+# 用法：复制本文件 → 改名为 <domain>.yaml → 改选择器 → `pnpm probe` 验证。
+#      全程无需写代码；模型通用适配器（见 docs/04、docs/05）作为最后兜底。
 #
-# ★ 字段抽取规范 FieldSpec：每个字段只有「三种取值方式 + 两种结构修饰」★
+# ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
+#   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
+#
+# ★★ FieldSpec 字段抽取规范（每个字段只有「三种取值方式 + 两种结构修饰」）★★
 #   取值方式（三选一）：
-#     1) 取文本        → 不填 attr（或写 text: true）
+#     1) 取文本        → 不填 attr（或显式 text: true）
 #     2) 取属性值      → attr: "href" / "src" / "data-src" …
-#     3) 取文本/属性里的「一段」 → regex: '...'（优先第 1 捕获组，无捕获组取全匹配）
+#     3) 取「一段」    → regex: '...'（优先第 1 捕获组，无捕获组取全匹配）
 #   结构修饰（可叠加）：
 #     list: true     → 收集所有匹配为「数组」（默认只取第一个）
 #     map: {…}       → 在匹配元素内再抽子字段，形成「对象」（配合 list 即「对象数组」）
-#   以上可任意组合，例如 list + map + attr + regex 一起上。
+#   取值方式 × 结构修饰可任意组合，例如 list + map + attr + regex 一起上。
 # ============================================================================
 
-domain: example.com
+# ---------- 1) 站点标识 ----------
+domain: example.com              # 必填；同时是 YAML 文件名与适配器路由键
+startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
+
+# ---------- 2) 列表遍历（翻页策略）----------
+# strategy 四选一：
+#   pagination-html : Playwright 点击页码 → 整页重渲染 → cheerio 解析（最常用）
+#   pagination-api  : 点击触发 XHR，Playwright 监听 network 取 JSON（稳定无签名时可选）
+#   scroll-api      : 滚动到底 → 等待新节点（无限滚动）
+#   model-generic   : 找不到稳定结构时，交给模型通用适配器兜底
 listTraversal:
-  strategy: pagination-html      # pagination-html | pagination-api | scroll-api | model-generic
-  nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination 类必填）
-  maxPages: 50
-  fallbackToUi: true             # 接口模式失败自动回退 UI 驱动（默认优先浏览器渲染，不主动逆向接口）
+  strategy: pagination-html      # 见上；默认 pagination-html
+  nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination-* 类必填）
+  maxPages: 50                   # 最大翻页数（防死循环；默认 50）
+  fallbackToUi: true             # 接口/模型模式失败自动回退 UI 驱动（默认 true，优先浏览器渲染）
 
+# ---------- 3) 列表页解析（每个产品条目 → detailUrl + name）----------
 parseList:
-  itemSelector: ".product-item"  # 每个产品条目容器的选择器
+  itemSelector: ".product-item"  # 必填：每个产品条目「容器」的选择器
   fields:
-    # —— 取值方式 1：取文本 ——
-    name: { sel: "h3", text: true }
-    # —— 取值方式 2：取属性 ——
+    # detailUrl 必填：条目里指向详情页的链接（多规则路由 / 去重都用它）
     detailUrl: { sel: "a", attr: href }
+    # name 建议填：列表阶段就能拿到名称，便于样本核对
+    name:      { sel: "h3", text: true }
+    # —— 列表页也能顺手抽更多字段（可选，写法同 parseDetail）——
+    # sku:     { sel: ".sku", text: true, regex: 'SKU[:：]\s*([\w-]+)' }
+    # cover:   { sel: "img", attr: "data-src" }
+    # tags:    { sel: ".tag", list: true }        # 列表条目上的多标签数组
 
+# ---------- 4) 详情页解析（归一化为 NormalizedProduct）----------
 parseDetail:
   fields:
-    # ====================================================================
+    # ======================================================================
     # 一、三种取值方式（最常用，先吃透这三个）
-    # ====================================================================
-    # 1) 取文本：不写 attr（或写 text:true）。两行等价，推荐显式 text:true 可读性更好
+    # ======================================================================
+    # 1) 取文本：不写 attr（或写 text: true）。两行等价，推荐显式 text:true 更可读
     name: { sel: ".pd-name", text: true }
-    # name: { sel: ".pd-name" }                  # 与上一行等价（无 attr 即取文本）
+    # name: { sel: ".pd-name" }                       # 与上一行等价（无 attr 即取文本）
 
     # 2) 取属性值：attr 指定要拿的属性名
-    cover:     { sel: "img.cover", attr: src }   # 取图片地址 src
+    cover:     { sel: "img.cover", attr: src }        # 取图片地址 src
     coverLazy: { sel: "img.cover", attr: "data-src" } # 懒加载图常见 data-src
-    detailUrl: { sel: "a.pd-link", attr: href }  # 取链接 href
+    detailUrl: { sel: "a.pd-link", attr: href }       # 取链接 href
 
     # 3) 取「文本/属性中的一段」：regex 优先第 1 捕获组，无捕获组则取全匹配
-    cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' } # 从标题抠「克隆号：XXX」
+    cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' } # 从标题抠克隆号
     productId:   { sel: "a.pd-link", attr: href, regex: '/product/(\d+)' }     # 从 URL 抠产品 id
-    priceNum:    { sel: ".price", text: true, regex: '[\d,]+\.?\d*' }         # 只留数字（含千分位/小数）
+    priceNum:    { sel: ".price", text: true, regex: '[\d,]+\.?\d*' }          # 只留数字（含千分位/小数）
 
-    # ====================================================================
-    # 二、列表 list:true —— 收集所有匹配为数组
-    # ====================================================================
+    # ======================================================================
+    # 二、list: true —— 收集所有匹配为「数组」
+    # ======================================================================
     applications: { sel: ".app-list li", list: true }          # 应用方向数组（每项纯文本）
-    keywords:     { sel: ".kw span", list: true, text: true }  # 多个关键词（text:true 显式更清晰）
+    keywords:     { sel: ".kw span", list: true, text: true }  # 多个关键词（显式 text:true）
 
-    # ====================================================================
+    # ======================================================================
     # 三、嵌套 map —— 在匹配元素内再抽子字段
-    # ====================================================================
+    # ======================================================================
     # 3a) list + map：每行规格 → 一个对象，组成「对象数组」（最常见：规格表）
     specs:
       sel: ".spec-row"
@@ -77,16 +96,16 @@ parseDetail:
         image:       { sel: "img", attr: src }
         description: { sel: ".intro-desc", text: true }
 
-    # 3c) 仅 map（无 list）：取第一个匹配内的子字段 → 单个「对象」
+    # 3c) 仅 map（无 list）：取「第一个」匹配内的子字段 → 单个「对象」
     meta:
       sel: ".meta-box"
       map:
         catalog: { sel: ".catalog", text: true }
         batch:   { sel: ".batch", text: true, regex: '批号[:：]\s*(\S+)' }
 
-    # ====================================================================
-    # 四、组合示例：list + map + attr + regex 一起上（变体/SKU 列表）
-    # ====================================================================
+    # ======================================================================
+    # 四、组合示例：list + map + attr + regex 一起上（变体 / SKU 列表）
+    # ======================================================================
     variants:
       sel: ".variant"
       list: true
@@ -95,54 +114,39 @@ parseDetail:
         image: { sel: "img", attr: "data-src" }
         url:   { sel: "a", attr: href, regex: '/item/(\d+)' }
 
-  captureRest: true              # 未声明的字段全量进 row 兜底（务必保留，零数据丢失）
+    # ======================================================================
+    # 五、map 内再 map —— 任意深度嵌套（list+map 套 list+map）
+    # ======================================================================
+    groups:
+      sel: ".group"
+      list: true
+      map:
+        title: { sel: ".g-title", text: true }
+        items:
+          sel: ".item"
+          list: true
+          map:
+            name: { sel: ".i-name", text: true }
+            url:  { sel: "a", attr: href }
+
+  captureRest: true              # ★ 未声明的字段全量进 row 兜底（务必保留，零数据丢失）
 
 # ============================================================================
-# 五、FieldSpec 全写法示例库（复制即用，按需取用；上面已覆盖绝大多数场景）
+# 附：FieldSpec 速查（复制即用）
 # ----------------------------------------------------------------------------
-# 取值方式组合：
-#   text  + list            → 多段文本数组
-#   attr  + list            → 多属性值数组（如多图 src）
-#   regex + list            → 多段正则提取数组
-#   map   (无 list)         → 单一嵌套对象
-#   map   + list            → 嵌套对象数组
-#   map 内再 map            → 任意深度嵌套（见下）
-# ============================================================================
+#   纯文本        → { sel: "x", text: true }
+#   属性值        → { sel: "x", attr: "href" }
+#   文本抽一段    → { sel: "x", text: true, regex: '(\d+)' }
+#   属性抽一段    → { sel: "x", attr: "href", regex: '/p/(\d+)' }
+#   多值数组      → 上面任一 + list: true
+#   单一子对象    → 上面任一 + map: { key: <FieldSpec> }
+#   子对象数组    → list: true + map: { key: <FieldSpec> }
+#   任意深度嵌套  → map 内再写 map（见「五、map 内再 map」）
 #
-# images:                       # list + attr：多图地址数组
-#   sel: ".gallery img"
-#   list: true
-#   attr: src                  # list 模式下也可把 attr 提到这一层
+# 常用内置字段（会被归一化到 products 对应列，其余进 row）：
+#   name / detailUrl / sourceProductId / cloneNumber / applications / specs / introMedia
 #
-# tags:                         # list + regex：从多个节点抠统一模式
-#   sel: ".tag"
-#   list: true
-#   text: true
-#   regex: '#(\w+)'
-#
-# shipping:                     # 仅 map（无 list）→ 单个对象
-#   sel: ".ship-info"
-#   map:
-#     from:  { sel: ".from", text: true }
-#     days: { sel: ".days", text: true, regex: '(\d+)' }
-#
-# deep:                         # map 内再 map（深度嵌套，list+map 套 list+map）
-#   sel: ".group"
-#   list: true
-#   map:
-#     title: { sel: ".g-title", text: true }
-#     items:
-#       sel: ".item"
-#       list: true
-#       map:
-#         name: { sel: ".i-name", text: true }
-#         url:  { sel: "a", attr: href }
-#
-# # 取值方式速查：
-# #   纯文本      → { sel: "x", text: true }
-# #   属性值      → { sel: "x", attr: "href" }
-# #   文本抽一段  → { sel: "x", text: true, regex: '(\d+)' }
-# #   属性抽一段  → { sel: "x", attr: "href", regex: '/p/(\d+)' }
-# #   多值数组    → 上面任一 + list: true
-# #   子结构      → 上面任一 + map: { key: <FieldSpec> }
+# 下一步：
+#   pnpm probe --domain example.com                 # 单规则站点直接验证（遍历 default 栏目）
+#   pnpm probe --domain example.com --render spa    # 需要 JS 渲染时指定 Playwright
 # ============================================================================

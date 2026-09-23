@@ -1,0 +1,177 @@
+# ============================================================================
+# 模板 B · 多规则站点配置（config/sites/<domain>.yaml）
+# ----------------------------------------------------------------------------
+# 适用：同一个域名下有多套抓取规则，例如：
+#   · 一个站点有多个列表页，各自结构不同（「全部产品」/「促销专区」/「新品」…）；
+#   · 每个列表页对应各自的详情页模板，抽取字段不一致。
+# 用法：复制本文件 → 改名为 <domain>.yaml → 按栏目改选择器 → `pnpm probe` 验证。
+#
+# ★ 核心机制（代码见 packages/crawler/src/config/{types,loader}.ts）
+#   1) 每个 section 自带：key + startUrls + match + listTraversal + parseList + parseDetail；
+#   2) 顶层字段（listTraversal / parseList / parseDetail）是「公共默认值」，section 未写的项自动继承；
+#   3) 列表阶段给每条 ListItem 打上 sectionKey → 详情阶段「按 sectionKey 选规则」，零歧义；
+#   4) 去重口径 B：同一 SKU 出现在两个 section 时，「分开为两条」
+#      —— products 唯一键为 (company_id, dedupe_key, section_key)，
+#         适合「同 SKU 在不同栏目详情内容确实不同」的场景。
+#
+# ★ 归一化规则（resolveSections）：
+#   · 写 sections  → 按栏目展开，未指定项用顶层默认值补齐，key 缺省补 'default'；
+#   · 不写 sections → 把顶层 startUrl + parseList + parseDetail 包成单个 key='default' 的栏目（模板 A 写法）。
+#   两种写法可共存：顶层既做默认值、又兼容「部分栏目想复用公共规则」。
+#
+# ★ FieldSpec 字段抽取规范与模板 A 完全一致（三种取值方式 + list/map 两种修饰），
+#   此处不再重复列举，详见 _template.yaml 与 docs/05。
+# ============================================================================
+
+domain: example.com
+
+# ---------- 顶层公共默认值（各 section 未指定时继承；可整段省略）----------
+listTraversal:
+  strategy: pagination-html      # 默认翻页策略
+  nextSelector: "a.next"
+  maxPages: 50
+  fallbackToUi: true
+
+# 顶层默认「列表规则」：结构相同的栏目可不必各自重复写
+parseList:
+  itemSelector: ".product-item"
+  fields:
+    detailUrl: { sel: "a", attr: href }
+    name:      { sel: "h3", text: true }
+
+# 顶层默认「详情规则」：多数栏目共用一套详情模板时写这里
+parseDetail:
+  fields:
+    name:      { sel: ".pd-name", text: true }
+    cover:     { sel: "img.cover", attr: src }
+    cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' }
+    applications: { sel: ".app-list li", list: true }
+    specs:
+      sel: ".spec-row"
+      list: true
+      map:
+        spec:     { sel: ".spec", text: true }
+        priceNow: { sel: ".price-now", text: true, regex: '[\d\.]+' }
+    introMedia:
+      sel: ".intro-block"
+      list: true
+      map:
+        image:       { sel: "img", attr: src }
+        description: { sel: ".intro-desc", text: true }
+  captureRest: true
+
+# ---------- 栏目列表（本文件核心）----------
+sections:
+
+  # ==========================================================================
+  # 栏目 1：全量覆盖 —— 自带列表页、命中条件、翻页策略与列表/详情规则
+  # ==========================================================================
+  - key: all-products                       # 栏目标识：写入 ListItem.sectionKey 与 products.section_key
+    startUrls:                              # 该栏目的列表页入口（可多个；省略则回退顶层 startUrl）
+      - "https://example.com/products"
+      - "https://example.com/products/page2"
+    match:                                  # URL 命中判定（可选；供 crawl 在「未打 key」时反查所属栏目）
+      listUrlIncludes:                      # 列表 URL 含任一子串即属于本栏目
+        - "/products"
+        - "/all-products"
+      detailUrlIncludes:                    # 详情 URL 含任一子串即属于本栏目
+        - "/product/"
+    listTraversal:                          # 覆盖顶层：本栏目翻页按钮不同
+      strategy: pagination-html
+      nextSelector: "a.pager-next"
+      maxPages: 100
+      fallbackToUi: true
+    parseList:                              # 覆盖顶层：列表条目结构不同
+      itemSelector: ".all-products .card"
+      fields:
+        detailUrl: { sel: "a.card-link", attr: href }
+        name:      { sel: ".card-title", text: true }
+        sku:       { sel: ".card-sku", text: true, regex: 'SKU[:：]\s*([\w-]+)' }
+    parseDetail:                            # 覆盖顶层：详情页是另一套模板
+      fields:
+        name:      { sel: "h1.pd-title", text: true }
+        cloneNumber: { sel: ".pd-meta .clone", text: true }
+        applications: { sel: ".applications a", list: true }
+        specs:
+          sel: "table.spec tr"
+          list: true
+          map:
+            spec:     { sel: "td:nth-child(1)", text: true }
+            priceNow: { sel: "td:nth-child(2)", text: true, regex: '[\d,]+\.?\d*' }
+        introMedia:
+          sel: ".pd-gallery figure"
+          list: true
+          map:
+            image:       { sel: "img", attr: "data-src" }
+            description: { sel: "figcaption", text: true }
+      captureRest: true
+
+  # ==========================================================================
+  # 栏目 2：部分覆盖 —— 只改列表规则 + 命中条件，详情/翻页继承顶层默认值
+  #           （适合「促销专区」：列表卡片不同，但点进去是同一套详情模板）
+  # ==========================================================================
+  - key: promo
+    startUrls:
+      - "https://example.com/promo"
+    match:
+      listUrlIncludes: ["/promo"]
+      detailUrlIncludes: ["/product/"]
+    # listTraversal 省略 → 继承顶层（strategy: pagination-html, a.next, 50 页…）
+    parseList:
+      itemSelector: ".promo-grid .promo-tile"
+      fields:
+        detailUrl: { sel: "a", attr: href }
+        name:      { sel: ".promo-name", text: true }
+        # 促销价也顺手记下（会随 row 兜底落库）
+        pricePromo: { sel: ".promo-price", text: true, regex: '[\d,]+\.?\d*' }
+    # parseDetail 省略 → 继承顶层 parseDetail（同一套详情模板）
+
+  # ==========================================================================
+  # 栏目 3：极简继承 —— 只有 key + startUrls，其余全部继承顶层
+  #           （适合「新品」：列表页结构恰好与顶层默认一致，只是入口不同）
+  # ==========================================================================
+  - key: new-arrivals
+    startUrls:
+      - "https://example.com/new"
+    # listTraversal / parseList / parseDetail 全部省略 → 完全继承顶层默认值
+
+  # ==========================================================================
+  # 栏目 4：纯模型兜底栏目 —— 结构不稳定、交给 model-generic
+  # ==========================================================================
+  - key: misc
+    startUrls:
+      - "https://example.com/others"
+    listTraversal:
+      strategy: model-generic
+      fallbackToUi: true
+    parseList:
+      itemSelector: "article"
+      fields:
+        detailUrl: { sel: "a", attr: href }
+        name:      { sel: "h2", text: true }
+    # parseDetail 省略 → 继承顶层
+
+# ============================================================================
+# 附：多规则站点使用说明
+# ----------------------------------------------------------------------------
+# 1) 验证（逐栏目，或只验证某个栏目）：
+#      pnpm probe --domain example.com
+#      pnpm probe --domain example.com --section promo
+#      pnpm probe --domain example.com --section promo --list-url https://example.com/promo?page=2
+#    probe 会为每条样本打印 [sectionKey]，并汇总各栏目条数。
+#
+# 2) 优先级（从高到低）：section 自带值 > 顶层默认值 > 代码内置默认
+#      · 列表规则 parseList：section.parseList ?? 顶层 parseList（二者必居其一，否则报错）
+#      · 详情规则 parseDetail：section.parseDetail ?? 顶层 parseDetail
+#      · 翻页策略 listTraversal：section.listTraversal ?? 顶层 listTraversal ?? {pagination-html,50,true}
+#      · 起点 startUrls：section.startUrls（非空）?? [顶层 startUrl]
+#
+# 3) 去重口径 B（同 SKU 多栏目 = 两条）：
+#      products 唯一键 = (company_id, dedupe_key, section_key)
+#      同一 SKU 落在「all-products」与「promo」两个栏目时，各自占用一行；
+#      单规则站点所有产品 section_key 统一为 'default'，行为与旧版完全一致。
+#
+# 4) 命名约定：
+#      · key 用小写短横线（all-products / new-arrivals / promo），稳定后勿随意改名（改名等于换去重键）；
+#      · key 唯一，不要与 'default' 冲突（'default' 保留给单规则写法）。
+# ============================================================================
