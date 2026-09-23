@@ -22,8 +22,12 @@ const SCAN_DIRS = ['packages', 'scripts'];
 const SKIP_DIRS = new Set(['node_modules', '.git', '.nuxt', '.output', 'dist', 'coverage', 'data']);
 const SOURCE_EXT = new Set(['.ts', '.mts', '.mjs', '.cjs']);
 const ENV_RE = /process\.env\.([A-Za-z_][A-Za-z0-9_]*)/g;
-/** 由运行环境/CI 注入、无需写进 .env.example 的键。 */
-const EXTERNAL_KEYS = new Set(['NODE_ENV', 'CI']);
+/**
+ * 由运行环境 / CI / 终端注入、无需写进 .env.example 的键。
+ * - NODE_ENV / CI：运行环境与 CI 平台注入；
+ * - NO_COLOR：终端通用的「禁用彩色输出」约定（https://no-color.org/），由用户环境设置，非应用配置。
+ */
+const EXTERNAL_KEYS = new Set(['NODE_ENV', 'CI', 'NO_COLOR']);
 
 function walk(dir: string, out: string[] = []): string[] {
   let entries: string[];
