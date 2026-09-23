@@ -19,6 +19,7 @@ import { siteConfigPath, loadSiteConfig, resolveSections } from '../config/loade
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { traverseList } from '../fetch/listTraversal.js';
+import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { Progress } from '../util/progress.js';
 import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
@@ -186,7 +187,14 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         }
 
         const existed = await loadExisting(db, companyId, section.key);
-        for (const p of pending) {
+        // 同一栏目内 dedupeKey 唯一化：同一去重键只应写一条，否则计数虚高且重复 upsert。
+        const unique = uniqueBy(pending, (p) => p.dedupeKey);
+        if (unique.length !== pending.length) {
+          progress.update(
+            `[crawl] ${domain} [${section.key}] 去重键唯一化：${pending.length} → ${unique.length} 条`,
+          );
+        }
+        for (const p of unique) {
           const prev = existed.get(p.dedupeKey);
           const productId = await upsertProduct(db, p, now);
           if (prev) summary.updated++;
@@ -257,8 +265,16 @@ async function collectSection(args: {
     });
   }
 
-  const targets = items.filter((i) => i.detailUrl).slice(0, limit);
-  progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${items.length} 条`);
+  // 列表去重：列表页常把同一产品渲染两次（pc/web 双套模板、图片链接+标题链接），
+  // 不去重会导致同一详情被抓两次、`新增` 计数虚高。去重键 = canonical(detailUrl)，与落库口径一致。
+  const { items: deduped, duplicates } = dedupeListItems(items);
+  if (duplicates > 0) {
+    progress.update(
+      `[crawl] [${section.key}] 列表去重：${items.length} → ${deduped.length} 条（丢弃 ${duplicates} 条重复链接）`,
+    );
+  }
+  const targets = deduped.slice(0, limit);
+  progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
 
   for (const it of targets) {
     try {
