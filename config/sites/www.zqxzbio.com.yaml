@@ -1,0 +1,67 @@
+# 站点适配器：上海中乔新舟 www.zqxzbio.com
+# 结构（2026-09-23 实测）：
+#   - 列表页是 <table class="table"> 的行结构：货号 | 产品名称 | 规格 | 价格 | 指令
+#     详情链接形如 /Index/p_more/pid/<id>.html
+#   - 分页 <a class="next" href="/Index/pro.html?fid=9&nums=2&p=2">下一页</a>（需浏览器点击 → spa/auto）
+#   - 详情页右栏 .pro_more_right：h2=名称；正文含「英文名：… 货号：… 价格：￥…」
+#   - 种子里的品类链接是站点首页，故用 sections[].category 绑定到种子品类
+domain: www.zqxzbio.com
+
+listTraversal:
+  strategy: pagination-html
+  nextSelector: "a.next"
+  maxPages: 70
+  fallbackToUi: true
+
+parseList:
+  # 数据行是 <tr>；表头行 tr.traaa 无详情链接，会被后续「无 detailUrl → 过滤」自然剔除
+  itemSelector: "table.table tr"
+  fields:
+    detailUrl: { sel: "a[href*='/p_more/']", attr: href }
+    name: { sel: "td:nth-child(2) a", text: true }
+    sku: { sel: "td:nth-child(1) a", text: true }
+    spec: { sel: "td:nth-child(3) a", text: true }
+    priceNow: { sel: "td:nth-child(4)", text: true, regex: '[\d,]+\.?\d*' }
+
+parseDetail:
+  fields:
+    name: { sel: ".pro_more_right h2", text: true }
+    sourceProductId: { sel: ".pro_more_right", text: true, regex: '货号[:：]\s*([A-Za-z0-9\-]+)' }
+    englishName: { sel: ".pro_more_right", text: true, regex: '英文名[:：]\s*(.+?)\s*货号' }
+    priceNow: { sel: ".pro_more_right", text: true, regex: '价格[:：]\s*￥?([\d,\.]+)' }
+    description: { sel: ".ny_con_right", text: true }
+    introMedia:
+      sel: "table.MsoNormalTable td"
+      list: true
+      map:
+        image: { sel: "img", attr: src }
+        description: { sel: "p", text: true }
+  captureRest: true
+
+sections:
+  # 细胞系/株（fid=9）
+  - key: cell-lines
+    category: 细胞系、原代细胞、原代永生化细胞
+    startUrls:
+      - "https://www.zqxzbio.com/Index/pro/fid/9/nums/2.html"
+    match:
+      listUrlIncludes: ["/Index/pro/fid/9/", "fid=9"]
+      detailUrlIncludes: ["/p_more/"]
+
+  # 原代细胞（fid=340）
+  - key: primary-cells
+    category: 细胞系、原代细胞、原代永生化细胞
+    startUrls:
+      - "https://www.zqxzbio.com/Index/pro/fid/340/nums/1.html"
+    match:
+      listUrlIncludes: ["/Index/pro/fid/340/", "fid=340"]
+      detailUrlIncludes: ["/p_more/"]
+
+  # 细胞培养基（fid=3）
+  - key: media
+    category: 完全培养基，辅助试剂
+    startUrls:
+      - "https://www.zqxzbio.com/Index/pro/fid/3/nums/4.html"
+    match:
+      listUrlIncludes: ["/Index/pro/fid/3/", "fid=3"]
+      detailUrlIncludes: ["/p_more/"]
