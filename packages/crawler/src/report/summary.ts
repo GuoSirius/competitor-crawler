@@ -20,6 +20,8 @@ export interface ReportRow {
   applications: string[] | null;
   description: string | null;
   detailUrl: string | null;
+  /** 首次入库时间（unix 秒）；用于「入库趋势」图，非价格序列 */
+  firstSeenAt: number | null;
 }
 
 /** 未绑定品类时的占位名（种子里的品类链接常是首页，未必能归到具体品类） */

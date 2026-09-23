@@ -8,6 +8,7 @@ import {
   createDb,
   exportsDir,
   products,
+  repoRoot,
   type SpecItem,
 } from '@competitor-crawler/shared';
 import {
@@ -17,9 +18,9 @@ import {
   quarterLabel,
   sanitizeFilePart,
   COVERAGE_FIELDS,
-  UNCATEGORIZED,
   type ReportRow,
 } from '../report/summary.js';
+import { buildCharts, renderChartsHtml } from '../report/charts.js';
 
 export interface ReportOpts {
   /** 导出 Excel（默认动作） */
@@ -62,6 +63,7 @@ async function loadRows(opts: ReportOpts): Promise<ReportRow[]> {
       applications: products.applications,
       description: products.description,
       detailUrl: products.detailUrl,
+      firstSeenAt: products.firstSeenAt,
     })
     .from(products)
     .innerJoin(companies, eq(products.companyId, companies.id))
@@ -89,6 +91,7 @@ async function loadRows(opts: ReportOpts): Promise<ReportRow[]> {
       applications: Array.isArray(r.applications) ? (r.applications as string[]) : null,
       description: r.description ?? null,
       detailUrl: r.detailUrl ?? null,
+      firstSeenAt: r.firstSeenAt ?? null,
     }))
     .filter((r) => (wantCompany ? r.company.toLowerCase().includes(wantCompany) : true))
     .filter((r) => (wantCategory ? (r.category ?? '').toLowerCase().includes(wantCategory) : true));
@@ -230,13 +233,28 @@ function addCoverageSheet(wb: ExcelJS.Workbook, rows: readonly ReportRow[]): voi
 
 // ------------------------------------------------------------------ 入口
 
-export async function report(opts: ReportOpts = {}): Promise<void> {
-  // 默认动作：--charts 单独指定时不做 excel；两者都未指定时默认 excel
-  const wantExcel = opts.excel === true || opts.charts !== true;
-  if (opts.charts === true) {
-    console.warn('[report] --charts（ECharts 静态 HTML，docs/08 §8.4）尚未实现，本次跳过。');
+/**
+ * 解析输出目录与前缀。
+ * `--out` 语义：给目录 → 用它；给 `*.xlsx` / `*.html` 文件 → 用其目录，并把去扩展名的文件名当前缀
+ * （这样 Excel 与 HTML 会成对输出为同名前缀的 `.xlsx` / `.html`）。
+ *
+ * ⚠️ 相对路径按 **仓库根** 解析，而不是 `process.cwd()`——`pnpm --filter <pkg> report`
+ * 的 cwd 是 `packages/crawler`，直接 `path.resolve` 会把产物丢进子包目录。
+ */
+function resolveOutDir(opts: ReportOpts, baseName: string): { dir: string; base: string } {
+  if (!opts.out) return { dir: exportsDir, base: baseName };
+  const abs = path.isAbsolute(opts.out) ? opts.out : path.resolve(repoRoot, opts.out);
+  const ext = path.extname(abs).toLowerCase();
+  if (ext === '.xlsx' || ext === '.html') {
+    return { dir: path.dirname(abs), base: path.basename(abs, ext) };
   }
-  if (!wantExcel) return;
+  return { dir: abs, base: baseName };
+}
+
+export async function report(opts: ReportOpts = {}): Promise<void> {
+  // 默认动作：未指定任何开关时做 Excel；只给 --charts 就只出图表；两个都给就都出
+  const wantExcel = opts.excel === true || opts.charts !== true;
+  const wantCharts = opts.charts === true;
 
   const rows = await loadRows(opts);
   if (rows.length === 0) {
@@ -244,28 +262,38 @@ export async function report(opts: ReportOpts = {}): Promise<void> {
     return;
   }
 
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'competitor-crawler';
-  wb.created = new Date();
-  addOverviewSheet(wb, rows);
-  addPriceSheet(wb, rows);
-  addCoverageSheet(wb, rows);
-
+  const matrices = buildOverviewMatrix(rows);
   const filterSuffix = [opts.company, opts.category]
     .filter((s): s is string => typeof s === 'string' && s.trim() !== '')
     .map(sanitizeFilePart)
     .join('-');
-  const fileName = `${quarterLabel()}-竞品对标${filterSuffix ? `-${filterSuffix}` : ''}.xlsx`;
-  const outPath = opts.out ? path.resolve(opts.out) : path.join(exportsDir, fileName);
-  // 先检测后创建：目录不存在则建（幂等），避免 writeFile 报 ENOENT
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  await wb.xlsx.writeFile(outPath);
+  const baseName = `${quarterLabel()}-竞品对标${filterSuffix ? `-${filterSuffix}` : ''}`;
+  const { dir, base } = resolveOutDir(opts, baseName);
+  // 先检测后创建：目录不存在则建（幂等），避免写盘报 ENOENT
+  fs.mkdirSync(dir, { recursive: true });
 
-  const matrices = buildOverviewMatrix(rows);
   console.log(
     `[report] 活跃产品 ${rows.length} 条 | 公司 ${matrices.companies.length} | 品类 ${matrices.categories.length} | 价格行 ${expandPriceRows(rows).length}`,
   );
-  if (matrices.categories.length === 0) console.log(`[report] （${UNCATEGORIZED}：无品类绑定）`);
-  console.log(`[report] 输出 -> ${outPath}`);
-  console.log('[report] 工作表：总览 / 价格清单 / 字段覆盖');
+
+  if (wantExcel) {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'competitor-crawler';
+    wb.created = new Date();
+    addOverviewSheet(wb, rows);
+    addPriceSheet(wb, rows);
+    addCoverageSheet(wb, rows);
+    const outPath = path.join(dir, `${base}.xlsx`);
+    await wb.xlsx.writeFile(outPath);
+    console.log(`[report] Excel -> ${outPath}`);
+    console.log('[report] 工作表：总览 / 价格清单 / 字段覆盖');
+  }
+
+  if (wantCharts) {
+    const specs = buildCharts(rows);
+    const html = renderChartsHtml(`${baseName} · 竞品对标图表`, specs);
+    const outPath = path.join(dir, `${base}.html`);
+    fs.writeFileSync(outPath, html, 'utf8');
+    console.log(`[report] 图表 -> ${outPath}（${specs.length} 张，ECharts 走 CDN）`);
+  }
 }

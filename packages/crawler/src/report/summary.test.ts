@@ -26,6 +26,7 @@ const row = (over: Partial<ReportRow> = {}): ReportRow => ({
   applications: null,
   description: null,
   detailUrl: null,
+  firstSeenAt: null,
   ...over,
 });
 
