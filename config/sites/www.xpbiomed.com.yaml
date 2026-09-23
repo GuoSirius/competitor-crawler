@@ -1,0 +1,47 @@
+# 站点适配器：上海逍鹏生物（VivaCell）www.xpbiomed.com
+# 结构（2026-09-23 实测）：
+#   - 列表页为 SSR（ASP.NET）：/Products/index.aspx?lcid=<栏目ID>，如 胎牛血清 lcid=5
+#   - 列表容器 <ul class="ul"> > <li> > <a href="...info.aspx?itemid=...">
+#       内嵌 <h3 class="dot">名称</h3> 与 <h4 class="dot">货号：XXXX</h4>
+#   - 翻页是纯 URL 参数驱动：?lcid=5&page=N（"下一页"是 javascript:void(0)，
+#     没有可点的翻页按钮）→ 用新增的 pagination-url 策略，按 urlTemplate 逐页拼地址抓取。
+#   - 详情页：<aside class="tit dot2">名称</aside>；<div class="subtit">货号：XXXX</div>；
+#     B2B 站无价格。其余字段进 row 兜底。
+#   - 胎牛血清（lcid=5）仅 1 页 16 商品（page=2 为空）→ pagination-url 抓到第 2 页 0 条即停。
+domain: www.xpbiomed.com
+# 站点币种（缺省 CNY）
+currency: CNY
+
+# ★ 翻页策略：URL 模板（本次新增）。不启浏览器、不点按钮，按 maxPages 顺序拼 URL 逐页抓。
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?page={page}"      # 基于首个 startUrl 的 query 合并（?lcid=5 + ?page=N → ?lcid=5&page=N）
+  maxPages: 5                      # 该栏目实际 1 页；第 2 页 0 条会自动停止
+  fallbackToUi: false              # pagination-url 不需要浏览器，关闭避免回退误用
+
+parseList:
+  # 直接选中列表里的产品链接（语言切换的 ul.ul.languages 无 itemid 链接，自然排除）
+  itemSelector: "ul.ul:not(.languages) > li > a[href*='info.aspx?itemid=']"
+  fields:
+    # item 元素本身就是 <a>，用 $self 读它自己的 href
+    detailUrl: { sel: "$self", attr: href }
+    name: { sel: "h3.dot", text: true }
+    sku:  { sel: "h4.dot", text: true, regex: '货号[:：]\s*(\S+)' }
+
+parseDetail:
+  fields:
+    name: { sel: "aside.tit.dot2", text: true }
+    # 货号 = sku（有就必写）；站点无独立产品 id，故 source_product_id 落库时回退货号
+    sku:  { sel: "div.subtit", text: true, regex: '货号[:：]\s*(\S+)' }
+    # 其余参数（规格/保存条件等）未稳定结构化 → 全量进 row 兜底，不丢数据
+  captureRest: true
+
+sections:
+  # 胎牛血清（lcid=5）
+  - key: fbs
+    category: 胎牛血清
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=5"
+    match:
+      listUrlIncludes: ["lcid=5"]
+      detailUrlIncludes: ["info.aspx?itemid="]
