@@ -17,6 +17,11 @@ export interface FieldSpec {
   text?: boolean;
   /** 对原始串（文本或属性值）做正则；优先第 1 捕获组，否则全匹配 */
   regex?: string;
+  /**
+   * true=把结果强制转成数值（去掉千分位逗号、币种符号、空白后 Number()；失败返回 null）。
+   * 用于价格等需要进 numeric 列、要参与排序/比价的字段；与 list / map 可叠加。
+   */
+  number?: boolean;
   /** true=收集所有匹配为数组；缺省/ false=取第一个 */
   list?: boolean;
   /** 嵌套：list 的每一项（或单元素）内，按 map 再抽子字段 */

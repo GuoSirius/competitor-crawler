@@ -17,11 +17,25 @@ export function extractField(node: DomRead, spec: FieldSpec): unknown {
   const matches = node.list(spec.sel);
   if (spec.list) {
     return matches
-      .map((n) => applyRegex(readRaw(n, spec), spec.regex))
+      .map((n) => coerce(applyRegex(readRaw(n, spec), spec.regex), spec))
       .filter((v) => v != null);
   }
   const first = matches[0];
-  return first ? applyRegex(readRaw(first, spec), spec.regex) : null;
+  return first ? coerce(applyRegex(readRaw(first, spec), spec.regex), spec) : null;
+}
+
+/** 按 spec.number 决定是否把叶子值转成数值 */
+function coerce(v: string | null, spec: FieldSpec): string | number | null {
+  if (!spec.number || v == null) return v;
+  return toNumber(v);
+}
+
+/** 「1,280.00」/「￥1,280.00 元」→ 1280；无法解析返回 null */
+export function toNumber(raw: string): number | null {
+  const cleaned = raw.replace(/[^\d.\-]/g, '');
+  if (cleaned === '' || cleaned === '-' || cleaned === '.' || cleaned === '-.') return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** 抽取一组字段为对象（供详情页 / 列表项使用） */
