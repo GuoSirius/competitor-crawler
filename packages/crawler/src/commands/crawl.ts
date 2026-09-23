@@ -5,11 +5,13 @@ import {
   companies,
   crawls,
   products,
+  priceHistory,
   createDb,
   nowSeconds,
   absoluteUrl,
   domainOf,
   pickDedupeKey,
+  toNumber,
   type ListItem,
   type NormalizedProduct,
 } from '@competitor-crawler/shared';
@@ -41,8 +43,16 @@ interface PendingProduct {
   sectionKey: string;
   dedupeKey: string;
   sourceProductId: string | null;
+  sku: string | null;
   name: string | null;
+  englishName: string | null;
+  brand: string | null;
   detailUrl: string | null;
+  price: number | null;
+  currency: string | null;
+  priceText: string | null;
+  specText: string | null;
+  description: string | null;
   specs: NormalizedProduct['specs'];
   introMedia: NormalizedProduct['introMedia'];
   cloneNumber: string | null;
@@ -57,6 +67,8 @@ interface CrawlSummary {
   new: number;
   updated: number;
   delisted: number;
+  /** 本轮写入的价格历史条数（仅变化时记） */
+  pricePoints: number;
   failed: number;
 }
 
@@ -82,6 +94,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     new: 0,
     updated: 0,
     delisted: 0,
+    pricePoints: 0,
     failed: 0,
   };
 
@@ -171,11 +184,18 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           continue;
         }
 
-        const existed = await loadExistingKeys(db, companyId, section.key);
+        const existed = await loadExisting(db, companyId, section.key);
         for (const p of pending) {
-          await upsertProduct(db, p, now);
-          if (existed.has(p.dedupeKey)) summary.updated++;
+          const prev = existed.get(p.dedupeKey);
+          const productId = await upsertProduct(db, p, now);
+          if (prev) summary.updated++;
           else summary.new++;
+          // 价格历史：首次入库或价格变化时记一行（新旧价全空则不记）。仅写入，不消费。
+          const changed = !prev || prev.price !== p.price;
+          if (changed && (p.price !== null || (prev?.price ?? null) !== null)) {
+            await recordPrice(db, productId, p, crawlRow.id, now);
+            summary.pricePoints++;
+          }
         }
         summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
       }
@@ -183,7 +203,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
 
     summary.companies = companyIds.size;
     progress.done(
-      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 失败 ${summary.failed}`,
+      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary);
   } catch (e) {
@@ -242,18 +262,29 @@ async function collectSection(args: {
   for (const it of targets) {
     try {
       const html = await fetchPage(it.detailUrl, mode);
-      const normalized = parseDetailWithConfig(html, section.parseDetail.fields);
+      const normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
       const detailUrl = normalized.detailUrl ?? it.detailUrl;
-      const dedupeKey = pickDedupeKey(normalized.sourceProductId, detailUrl);
+      // source_product_id 语义纯净：只装「站点自身的产品 id」，没有就留空（**不用货号兜底**）。
+      // 去重键随后由 pickDedupeKey 兜底到 canonical(detail_url)，见下方 dedupeKey。
+      const sourceProductId = normalized.sourceProductId ?? null;
+      const dedupeKey = pickDedupeKey(sourceProductId, detailUrl);
       if (!dedupeKey) continue;
       pending.push({
         companyId,
         categoryId,
         sectionKey: section.key,
         dedupeKey,
-        sourceProductId: normalized.sourceProductId ?? null,
+        sourceProductId,
+        sku: normalized.sku ?? null,
         name: normalized.name ?? it.name ?? null,
+        englishName: normalized.englishName ?? null,
+        brand: normalized.brand ?? null,
         detailUrl,
+        price: normalized.price ?? null,
+        currency: section.currency,
+        priceText: normalized.priceText ?? null,
+        specText: normalized.specText ?? null,
+        description: normalized.description ?? null,
         specs: normalized.specs,
         introMedia: normalized.introMedia,
         cloneNumber: normalized.cloneNumber ?? null,
@@ -267,26 +298,90 @@ async function collectSection(args: {
   }
 }
 
-/** 读取某公司某栏目下现有产品 dedupeKey 集合（判断 new / updated） */
-async function loadExistingKeys(db: Db, companyId: number, sectionKey: string): Promise<Set<string>> {
-  const rows = await db
-    .select({ dedupeKey: products.dedupeKey })
-    .from(products)
-    .where(and(eq(products.companyId, companyId), eq(products.sectionKey, sectionKey)));
-  return new Set(rows.map((r) => r.dedupeKey));
+/**
+ * 详情优先、列表兜底：列表页常常有货号/价格/规格，而详情页反而缺 → 用列表值补空。
+ * 只合并「一等公民」标量字段；不覆盖详情已有值。
+ */
+function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>): NormalizedProduct {
+  if (!raw) return np;
+  const pick = (a: unknown, b: unknown): string | null => {
+    if (typeof a === 'string' && a !== '') return a;
+    return typeof b === 'string' && b !== '' ? b : null;
+  };
+  return {
+    ...np,
+    name: pick(np.name, raw.name),
+    sourceProductId: pick(np.sourceProductId, raw.sourceProductId),
+    sku: pick(np.sku, raw.sku),
+    englishName: pick(np.englishName, raw.englishName),
+    brand: pick(np.brand, raw.brand),
+    priceText: pick(np.priceText, raw.priceText),
+    specText: pick(np.specText, raw.specText),
+    description: pick(np.description, raw.description),
+    cloneNumber: pick(np.cloneNumber, raw.cloneNumber),
+    // 价格为数值：详情非数值时用列表值（列表 YAML 建议写 number: true；这里再兜一层字符串）
+    price: typeof np.price === 'number' ? np.price : toNumberOrNull(raw.price),
+  };
 }
 
-async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<void> {
-  await db
+/** 把 number | string | null 归一为 number | null */
+function toNumberOrNull(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string') return toNumber(v);
+  return null;
+}
+
+/** 读取某公司某栏目下现有产品：dedupeKey → { id, price }（用于判断 new/updated 与价格变化） */
+async function loadExisting(
+  db: Db,
+  companyId: number,
+  sectionKey: string,
+): Promise<Map<string, { id: number; price: number | null }>> {
+  const rows = await db
+    .select({ id: products.id, dedupeKey: products.dedupeKey, price: products.price })
+    .from(products)
+    .where(and(eq(products.companyId, companyId), eq(products.sectionKey, sectionKey)));
+  return new Map(rows.map((r) => [r.dedupeKey, { id: r.id, price: r.price }]));
+}
+
+/** 追加一条价格历史（仅写入，消费端待后续接入） */
+async function recordPrice(
+  db: Db,
+  productId: number,
+  p: PendingProduct,
+  crawlId: number,
+  now: number,
+): Promise<void> {
+  await db.insert(priceHistory).values({
+    productId,
+    price: p.price,
+    currency: p.currency,
+    priceText: p.priceText,
+    specText: p.specText,
+    crawlId,
+    capturedAt: now,
+  });
+}
+
+async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<number> {
+  const rows = await db
     .insert(products)
     .values({
       companyId: p.companyId,
       categoryId: p.categoryId,
       sourceProductId: p.sourceProductId,
+      sku: p.sku,
       dedupeKey: p.dedupeKey,
       sectionKey: p.sectionKey,
       name: p.name,
+      englishName: p.englishName,
+      brand: p.brand,
       detailUrl: p.detailUrl,
+      price: p.price,
+      currency: p.currency,
+      priceText: p.priceText,
+      specText: p.specText,
+      description: p.description,
       specs: p.specs,
       introMedia: p.introMedia,
       cloneNumber: p.cloneNumber,
@@ -304,8 +399,16 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<vo
       set: {
         categoryId: p.categoryId,
         sourceProductId: p.sourceProductId,
+        sku: p.sku,
         name: p.name,
+        englishName: p.englishName,
+        brand: p.brand,
         detailUrl: p.detailUrl,
+        price: p.price,
+        currency: p.currency,
+        priceText: p.priceText,
+        specText: p.specText,
+        description: p.description,
         specs: p.specs,
         introMedia: p.introMedia,
         cloneNumber: p.cloneNumber,
@@ -316,7 +419,9 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<vo
         missingSince: null,
         updatedAt: now,
       },
-    });
+    })
+    .returning({ id: products.id });
+  return rows[0].id;
 }
 
 /**

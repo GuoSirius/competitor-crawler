@@ -19,9 +19,25 @@ export function parseListWithConfig(html: string, cfg: ListConfig, sectionKey?: 
       detailUrl: typeof o.detailUrl === 'string' ? o.detailUrl : '',
       name: typeof o.name === 'string' ? o.name : undefined,
       sectionKey,
+      // 列表阶段的其余字段（货号 / 价格 / 规格…）随条目带下去，详情缺失时兜底
+      raw: o,
     };
   });
 }
+
+/** 详情页抽取结果中，可提升为 NormalizedProduct 顶层标量字段的键 */
+const SCALAR_KEYS = [
+  'name',
+  'sourceProductId',
+  'sku',
+  'englishName',
+  'brand',
+  'priceText',
+  'specText',
+  'description',
+  'detailUrl',
+  'cloneNumber',
+] as const;
 
 /** 按配置解析详情页 HTML，归一化为 NormalizedProduct（声明字段 + row 兜底） */
 export function parseDetailWithConfig(html: string, fields: Record<string, FieldSpec>): NormalizedProduct {
@@ -33,10 +49,11 @@ export function parseDetailWithConfig(html: string, fields: Record<string, Field
     introMedia: Array.isArray(o.introMedia) ? (o.introMedia as NormalizedProduct['introMedia']) : [],
     row: o,
   };
-  if (typeof o.name === 'string') product.name = o.name;
-  if (typeof o.cloneNumber === 'string') product.cloneNumber = o.cloneNumber;
+  const target = product as unknown as Record<string, unknown>;
+  for (const k of SCALAR_KEYS) {
+    if (typeof o[k] === 'string') target[k] = o[k];
+  }
+  if (typeof o.price === 'number') product.price = o.price;
   if (Array.isArray(o.applications)) product.applications = o.applications as string[];
-  if (typeof o.detailUrl === 'string') product.detailUrl = o.detailUrl;
-  if (typeof o.sourceProductId === 'string') product.sourceProductId = o.sourceProductId;
   return product;
 }

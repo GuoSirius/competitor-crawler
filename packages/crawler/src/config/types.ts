@@ -72,6 +72,11 @@ export interface SectionConfig {
  */
 export interface SiteConfig {
   domain: string;
+  /**
+   * 站点币种（一个站点一种，如 CNY / USD）。缺省按 CNY。
+   * 写入 products.currency，供跨站点比价时做币种区分。
+   */
+  currency?: string;
   /** 列表页入口 URL（单规则写法用；多规则时作为各 section 的默认起点） */
   startUrl?: string;
   /** 顶层默认翻页策略（section 未单独指定时继承） */
@@ -92,6 +97,8 @@ export interface ResolvedSection {
   key: string;
   /** 绑定的种子品类名（透传自 SectionConfig.category） */
   category?: string;
+  /** 站点币种（透传自 SiteConfig.currency，缺省 CNY） */
+  currency: string;
   startUrls: string[];
   listTraversal: ListTraversalConfig;
   parseList: ListParseConfig;

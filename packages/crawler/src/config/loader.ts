@@ -32,6 +32,9 @@ export function saveSiteConfig(domain: string, cfg: SiteConfig): string {
 
 const DEFAULT_TRAVERSAL: ListTraversalConfig = { strategy: 'pagination-html', maxPages: 50, fallbackToUi: true };
 
+/** 站点币种缺省值 */
+const DEFAULT_CURRENCY = 'CNY';
+
 /**
  * 把站点配置归一化为「栏目规则数组」，屏蔽单规则 / 多规则两种写法的差异。
  *
@@ -45,6 +48,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   const topTraversal = cfg.listTraversal ?? DEFAULT_TRAVERSAL;
   const topDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };
   const topStartUrls = cfg.startUrl ? [cfg.startUrl] : [];
+  const currency = cfg.currency ?? DEFAULT_CURRENCY;
 
   if (cfg.sections && cfg.sections.length > 0) {
     return cfg.sections.map((s, i) => {
@@ -54,6 +58,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       return {
         key: s.key || 'default',
         category: s.category,
+        currency,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
         listTraversal: s.listTraversal ?? topTraversal,
         // 上面的前置校验保证二者至少有一个存在
@@ -70,6 +75,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   return [
     {
       key: 'default',
+      currency,
       startUrls: topStartUrls,
       listTraversal: topTraversal,
       parseList: cfg.parseList,
