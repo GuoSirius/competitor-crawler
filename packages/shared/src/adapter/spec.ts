@@ -26,6 +26,18 @@ export interface FieldSpec {
    * 用于价格等需要进 numeric 列、要参与排序/比价的字段；与 list / map 可叠加。
    */
   number?: boolean;
+  /**
+   * true=把抽到的字符串当 JSON 解析（宽松：失败时截取最外层 {} / [] 再试）。
+   * 用于页面 `<script>` 内联 JSON（形态 C）或接口响应（形态 D）。
+   */
+  json?: boolean;
+  /** `json` 为 true 时生效：按点号路径定位，如 `data.list` / `props.skus` */
+  jsonPath?: string;
+  /**
+   * `json` 为 true 时生效：键重命名 `{ 我方键: 站点键 }`（数组则逐项重命名）。
+   * 用于把站点的 `specName / price / marketPrice` 映射成 `spec / priceNow / priceOriginal`。
+   */
+  pick?: Record<string, string>;
   /** true=收集所有匹配为数组；缺省/ false=取第一个 */
   list?: boolean;
   /** 嵌套：list 的每一项（或单元素）内，按 map 再抽子字段 */

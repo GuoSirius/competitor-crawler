@@ -1,4 +1,5 @@
 import type { DomRead, FieldSpec } from './spec.js';
+import { renameKeys, tryParseJson, walkPath } from './json.js';
 
 /**
  * 「当前节点自身」选择器哨兵。
@@ -37,10 +38,16 @@ function resolveMatches(node: DomRead, spec: FieldSpec): DomRead[] {
   return spec.sel === SELF_SEL ? [node] : node.list(spec.sel);
 }
 
-/** 按 spec.number 决定是否把叶子值转成数值 */
-function coerce(v: string | null, spec: FieldSpec): string | number | null {
-  if (!spec.number || v == null) return v;
-  return toNumber(v);
+/** 按 spec 的附加处理（json > number > 原样）转换叶子值 */
+function coerce(v: string | null, spec: FieldSpec): unknown {
+  if (v == null) return v;
+  if (spec.json) {
+    const parsed = tryParseJson(v);
+    if (parsed == null) return null;
+    return renameKeys(walkPath(parsed, spec.jsonPath), spec.pick);
+  }
+  if (spec.number) return toNumber(v);
+  return v;
 }
 
 /** 「1,280.00」/「￥1,280.00 元」→ 1280；无法解析返回 null */
