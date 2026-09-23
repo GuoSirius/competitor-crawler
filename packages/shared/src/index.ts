@@ -7,4 +7,5 @@ export * from './adapter/extract.js';
 export * from './adapter/cheerioDom.js';
 export * from './adapter/json.js';
 export * from './url.js';
+export * from './paths.js';
 export * from './time.js';

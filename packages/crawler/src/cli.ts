@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dataDir } from '@competitor-crawler/shared';
 import { xlsxToSeeds } from './seed/xlsxToSeeds.js';
 import { loadSeeds } from './seed/loadSeeds.js';
 import { probe } from './commands/probe.js';
@@ -8,8 +8,8 @@ import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
 import { parseFlags } from './util/args.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const seedsJson = path.resolve(__dirname, '../../../data/seeds/seeds.json');
+// 路径统一由 shared/src/paths.ts 提供（不再本地上溯算层级）
+const seedsJson = path.join(dataDir, 'seeds', 'seeds.json');
 
 async function main() {
   const cmd = process.argv[2];

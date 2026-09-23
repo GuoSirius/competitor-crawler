@@ -1,13 +1,12 @@
 import fs from 'node:fs';
 import dotenv from 'dotenv';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 import { schema } from './schema.js';
+import { repoRoot } from '../paths.js';
 
-// 仓库根 = competitor-crawler/（本文件在 packages/shared/src/db/ 下，故上溯四级）
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+// 仓库根由 shared/src/paths.ts 统一提供（避免各处重复上溯算错层级）
 
 dotenv.config({ path: path.join(repoRoot, '.env') });
 
