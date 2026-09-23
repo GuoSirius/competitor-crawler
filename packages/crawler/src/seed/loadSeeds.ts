@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import {
   companies,
   categories,
@@ -76,7 +76,9 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
       .where(
         and(
           eq(categories.companyId, companyId),
-          eq(categories.productLine, productLine),
+          productLine === null
+            ? isNull(categories.productLine)
+            : eq(categories.productLine, productLine),
           eq(categories.name, s.categoryName),
         ),
       )
