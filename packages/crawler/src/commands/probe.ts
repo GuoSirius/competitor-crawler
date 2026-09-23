@@ -1,5 +1,5 @@
 import { like } from 'drizzle-orm';
-import { categories, createDb } from '@competitor-crawler/shared';
+import { absoluteUrl, categories, createDb } from '@competitor-crawler/shared';
 import { resolveSections, loadSiteConfig } from '../config/loader.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
@@ -73,7 +73,15 @@ export async function probe(opts: ProbeOpts): Promise<void> {
 
       sectionTotal += items.length;
       grandTotal += items.length;
-      sectionItems.push(...items);
+      // 列表抽到的 detailUrl 可能是相对地址，先按来源列表页绝对化（与 crawl 一致），
+      // 否则下方详情页探测直接 fetch 相对地址会报 "Failed to parse URL"。
+      for (const it of items) {
+        sectionItems.push({
+          detailUrl: it.detailUrl ? absoluteUrl(it.detailUrl, listUrl) : it.detailUrl,
+          name: it.name,
+          sectionKey: it.sectionKey,
+        });
+      }
       if (items.some((i) => !i.detailUrl)) anyMissingDetail = true;
 
       console.log(`\n[section=${section.key}] ${listUrl}`);
