@@ -5,6 +5,7 @@ dist/
 data/*.sqlite
 data/*.db
 data/*.sqlite-journal
+data/seeds/*.json
 .DS_Store
 
 # Nuxt (web)

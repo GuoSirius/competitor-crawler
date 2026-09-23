@@ -1,0 +1,28 @@
+# 模型部署配置（与 .env.example 二选一，env 优先覆盖此处）
+# 模式：local=只用本地 / cloud=只用云端 / hybrid=本地优先+云端兜底
+mode: hybrid
+
+local:
+  baseURL: http://localhost:11434/v1
+  apiKey: ollama
+  model: qwen2.5:14b-instruct
+
+cloud:
+  baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+  apiKey: ${MODEL_CLOUD_API_KEY}
+  model: qwen-max
+
+# 通用参数（会被 .env 中的 MODEL_TEMPERATURE / MODEL_MAX_RETRIES 覆盖）
+temperature: 0
+maxRetries: 1
+
+# 各任务可单独覆写
+tasks:
+  extraction:
+    temperature: 0
+  normalization:
+    temperature: 0
+  attribution:
+    temperature: 0
+  summary:
+    temperature: 0
