@@ -24,9 +24,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const hooksDir = path.join(repoRoot, '.git', 'cph');
 
 // 与 .husky/ 下同名文件保持**逐字一致**（薄钩子，逻辑都在 node 脚本里）
+//
+// ⚠️ 必须带 `#!/bin/sh`（2026-09-23 实测踩坑）：
+//   Windows 上 git 执行无 shebang 的钩子文件会直接报
+//   `error: cannot spawn .git/cph/pre-commit: No such file or directory`（文件明明存在）。
+//   用 `#!/bin/sh`（而非 `#!/usr/bin/env sh`）—— 后者在钩子 PATH 缺 Git\usr\bin 时会报
+//   `/usr/bin/env: 'sh': No such file or directory`。
 const HOOKS = {
-  'pre-commit': 'node scripts/precommit.mjs\n',
-  'commit-msg': 'node scripts/commitmsg.mjs "$1"\n',
+  'pre-commit': '#!/bin/sh\nnode scripts/precommit.mjs\n',
+  'commit-msg': '#!/bin/sh\nnode scripts/commitmsg.mjs "$1"\n',
 };
 
 function install() {
