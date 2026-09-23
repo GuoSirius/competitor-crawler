@@ -3,8 +3,10 @@ dist/
 *.log
 .env
 data/*.sqlite
-data/*.db
+data/*.sqlite-shm
+data/*.sqlite-wal
 data/*.sqlite-journal
+data/*.db
 data/seeds/*.json
 .DS_Store
 
