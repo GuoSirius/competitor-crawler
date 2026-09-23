@@ -1,7 +1,5 @@
-import { createDb } from '@competitor-crawler/shared';
-import { products } from '@competitor-crawler/shared';
-import { sql } from 'drizzle-orm';
-import { nowSeconds } from '@competitor-crawler/shared';
+import { createDb, products, nowSeconds } from '@competitor-crawler/shared';
+import { eq } from 'drizzle-orm';
 import { Progress } from '../util/progress.js';
 
 export interface BackfillOpts {
@@ -32,9 +30,10 @@ export async function backfill(opts: BackfillOpts): Promise<void> {
     if (current !== undefined && current !== null && current !== '') continue; // 已填过，跳过
     affected++;
     if (opts.dry) continue;
-    await db.execute(
-      sql`UPDATE products SET ${sql.identifier(opts.column)} = ${String(val)}, updated_at = ${nowSeconds()} WHERE id = ${r.id}`,
-    );
+    await db
+      .update(products)
+      .set({ [opts.column]: String(val), updatedAt: nowSeconds() } as Record<string, unknown>)
+      .where(eq(products.id, r.id));
   }
   progress.done(`[backfill] column=${opts.column} rowKey=${opts.rowKey} 命中 ${affected} 行 (dry=${!!opts.dry})`);
 }
