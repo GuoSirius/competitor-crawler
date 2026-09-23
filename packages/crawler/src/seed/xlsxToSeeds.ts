@@ -64,9 +64,15 @@ function detectColumns(headers: (string | null)[]): Record<string, number> {
  * 输出标准 seeds.json（见 docs/01 提取规则）。
  */
 export async function xlsxToSeeds(): Promise<string> {
+  if (!fs.existsSync(seedsDir)) {
+    throw new Error(`未找到种子目录: ${seedsDir}（请先把竞对清单 xlsx 放入该目录）`);
+  }
   const files = fs
     .readdirSync(seedsDir)
     .filter((f) => f.toLowerCase().endsWith('.xlsx'));
+  if (files.length === 0) {
+    throw new Error(`种子目录中没有 .xlsx 文件: ${seedsDir}`);
+  }
   const seeds: RawSeed[] = [];
 
   for (const file of files) {
@@ -107,6 +113,8 @@ export async function xlsxToSeeds(): Promise<string> {
     }
   }
 
+  // 目录不存在时自动创建（幂等），避免 writeFileSync 报 ENOENT
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(outFile, JSON.stringify(seeds, null, 2), 'utf-8');
   return outFile;
 }
