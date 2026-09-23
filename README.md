@@ -21,7 +21,22 @@ cp .env.example .env              # 3. 准备环境变量
 pnpm --filter @competitor-crawler/shared db:push   # 4. 初始化数据库表结构
 ```
 
-常用命令：`pnpm seed`（同步种子）/ `pnpm crawl`（爬取）/ `pnpm report`（交付物）/ `pnpm typecheck`（类型检查）。
+常用命令（完整清单见 [`docs/11-脚本命令手册.md`](docs/11-脚本命令手册.md)）：`pnpm seed` / `pnpm crawl` / `pnpm report` / `pnpm probe`（单站验证）/ `pnpm gen-site`（模型生成站点配置）/ `pnpm backfill`（字段晋升回填）/ `pnpm db:push`（表结构迁移）/ `pnpm release`（版本发布 + CHANGELOG + 打标签，运行时选类型）/ `pnpm typecheck`（类型检查）。
+
+## 提交规范（commitlint）
+
+提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)，由 commitlint 校验（配置见 `.commitlintrc.json`，hook 在 `.git/cph/commit-msg`）。本机 husky 不生效，统一走 `.git/cph`：
+
+```bash
+git add <具体文件>
+git commit -c core.hooksPath=.git/cph -m "feat: 接入 probe 单站验证命令"
+```
+
+常用 type：`feat` / `fix` / `docs` / `refactor` / `perf` / `test` / `chore`。依赖安装后（`pnpm install`）提交会自动校验，不符合规范会被拦截。
+
+## 工程规范
+
+跨任务工程纪律（幂等、复用 npm 包、文档一致、GFW 友好、配置落点等）统一记在 [`docs/12-工程规范.md`](docs/12-工程规范.md)，新增改动请同步。
 
 ## 文档
 
