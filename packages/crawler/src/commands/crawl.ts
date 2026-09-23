@@ -13,7 +13,7 @@ import {
   type ListItem,
   type NormalizedProduct,
 } from '@competitor-crawler/shared';
-import { siteConfigPath, loadSiteConfig, resolveSections, pickSectionByUrl } from '../config/loader.js';
+import { siteConfigPath, loadSiteConfig, resolveSections } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { traverseList } from '../fetch/listTraversal.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
@@ -37,7 +37,7 @@ export interface CrawlOpts {
 
 interface PendingProduct {
   companyId: number;
-  categoryId: number;
+  categoryId: number | null;
   sectionKey: string;
   dedupeKey: string;
   sourceProductId: string | null;
@@ -61,9 +61,13 @@ interface CrawlSummary {
 }
 
 /**
- * 全量增量爬取：种子品类 → 按域名路由适配器 → 列表翻页 → 详情解析 → upsert → 软删。
+ * 全量增量爬取。
  *
- * - 单站/单条失败隔离：某品类或某详情失败只计 failed 并继续，不整轮失败。
+ * 关键事实：种子里的「品类链接」多为**站点首页**，不能直接当列表页用。
+ * 因此按 **站点 → 栏目(sections) → startUrls** 抓取；栏目通过 `sections[].category`
+ * 绑定到种子品类（categories.name），未绑定则按域名兜底（唯一品类则用它，否则 category_id 记空）。
+ *
+ * - 单站/单条失败隔离：某栏目或某详情失败只计 failed 并继续，不整轮失败。
  * - 去重口径 B：写入冲突目标为 (company_id, dedupe_key, section_key)，见 docs/03 §3.4。
  */
 export async function crawl(opts: CrawlOpts = {}): Promise<void> {
@@ -92,7 +96,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     .returning();
 
   const companyIds = new Set<number>();
-  // 本轮每个 (companyId|sectionKey) 见到的 dedupeKey，用于软删判断
+  // 每个 (companyId|sectionKey) 见到的 dedupeKey，用于软删判断
   const seenKeys = new Map<string, Set<string>>();
   const seenSet = (cid: number, sectionKey: string): Set<string> => {
     const k = `${cid}|${sectionKey}`;
@@ -130,6 +134,11 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     }
 
     for (const [domain, list] of byDomain) {
+      summary.categories += list.length;
+      // 同域名品类通常同公司：取第一个品类所属公司
+      const companyId = list[0].company.id;
+      companyIds.add(companyId);
+
       if (!fs.existsSync(siteConfigPath(domain))) {
         progress.update(`[crawl] 跳过 ${domain}：无适配器配置 config/sites/${domain}.yaml`);
         continue;
@@ -138,56 +147,43 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
       const sections = resolveSections(cfg);
       summary.sections += sections.length;
 
-      for (const r of list) {
-        const { cat, company } = r;
-        summary.categories++;
-        companyIds.add(company.id);
-
-        const section =
-          pickSectionByUrl(sections, cat.url, 'list') ?? (sections.length === 1 ? sections[0] : undefined);
-        if (!section) {
-          progress.update(`[crawl] 跳过品类「${cat.name}」：URL 未命中任何 section（检查 match.listUrlIncludes）`);
+      for (const section of sections) {
+        if (section.startUrls.length === 0) {
+          progress.update(`[crawl] 跳过 ${domain} [${section.key}]：未配置 startUrls`);
           summary.failed++;
           continue;
         }
+        const categoryId = resolveCategoryId(section, list);
 
         const pending: PendingProduct[] = [];
         try {
-          await crawlOneCategory({
-            progress, mode, opts, section,
-            listUrl: cat.url,
-            companyId: company.id,
-            categoryId: cat.id,
-            pending,
-            seenSet,
+          await collectSection({
+            progress, mode, opts, section, companyId, categoryId, pending, seenSet,
           });
         } catch (e) {
           summary.failed++;
-          progress.update(`[crawl] 「${company.name} / ${cat.name}」失败：${(e as Error).message}`);
+          progress.update(`[crawl] ${domain} [${section.key}] 失败：${(e as Error).message}`);
           continue;
         }
 
         if (opts.dryRun) {
-          progress.update(
-            `[crawl] (dry-run) 「${company.name} / ${cat.name}」[${section.key}] 解析 ${pending.length} 条`,
-          );
+          progress.update(`[crawl] (dry-run) ${domain} [${section.key}] 解析 ${pending.length} 条`);
           continue;
         }
 
-        // 3) upsert + 软删
-        const existed = await loadExistingKeys(db, company.id, section.key);
+        const existed = await loadExistingKeys(db, companyId, section.key);
         for (const p of pending) {
           await upsertProduct(db, p, now);
           if (existed.has(p.dedupeKey)) summary.updated++;
           else summary.new++;
         }
-        summary.delisted += await softDeleteMissing(db, company.id, section.key, seenSet(company.id, section.key), now);
+        summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
       }
     }
 
     summary.companies = companyIds.size;
     progress.done(
-      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 失败 ${summary.failed}`,
+      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 失败 ${summary.failed}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary);
   } catch (e) {
@@ -196,35 +192,49 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   }
 }
 
-async function crawlOneCategory(args: {
+/** 把栏目绑定到种子品类：优先 section.category 精确匹配，否则按域名兜底 */
+function resolveCategoryId(
+  section: ResolvedSection,
+  list: Array<{ cat: { id: number; name: string } }>,
+): number | null {
+  if (section.category) {
+    const hit = list.find((r) => r.cat.name === section.category);
+    if (hit) return hit.cat.id;
+  }
+  return list.length === 1 ? list[0].cat.id : null;
+}
+
+/** 抓取一个栏目的全部 startUrls：翻页 → 详情 → 归一化入 pending */
+async function collectSection(args: {
   progress: Progress;
   mode: RenderMode;
   opts: CrawlOpts;
   section: ResolvedSection;
-  listUrl: string;
   companyId: number;
-  categoryId: number;
+  categoryId: number | null;
   pending: PendingProduct[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
 }): Promise<void> {
-  const { progress, mode, opts, section, listUrl, companyId, categoryId, pending, seenSet } = args;
+  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet } = args;
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
 
-  progress.update(`[crawl] [${section.key}] 列表翻页 ${listUrl}`);
-  await traverseList({
-    url: listUrl,
-    traversal: section.listTraversal,
-    mode,
-    maxPages: opts.pages ?? Number.MAX_SAFE_INTEGER,
-    progress,
-    onPage: (html) => {
-      const pageItems = parseListWithConfig(html, section.parseList, section.key);
-      for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, listUrl);
-      items.push(...pageItems);
-      return pageItems.length;
-    },
-  });
+  for (const listUrl of section.startUrls) {
+    progress.update(`[crawl] [${section.key}] 列表翻页 ${listUrl}`);
+    await traverseList({
+      url: listUrl,
+      traversal: section.listTraversal,
+      mode,
+      maxPages: opts.pages ?? Number.MAX_SAFE_INTEGER,
+      progress,
+      onPage: (html) => {
+        const pageItems = parseListWithConfig(html, section.parseList, section.key);
+        for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, listUrl);
+        items.push(...pageItems);
+        return pageItems.length;
+      },
+    });
+  }
 
   const targets = items.filter((i) => i.detailUrl).slice(0, limit);
   progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${items.length} 条`);

@@ -53,6 +53,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       }
       return {
         key: s.key || 'default',
+        category: s.category,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
         listTraversal: s.listTraversal ?? topTraversal,
         // 上面的前置校验保证二者至少有一个存在

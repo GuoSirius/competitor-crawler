@@ -38,6 +38,12 @@ export interface ListTraversalConfig {
 export interface SectionConfig {
   /** 栏目标识：写入 products.section_key，参与去重键。单规则站点固定为 'default' */
   key: string;
+  /**
+   * 绑定的种子品类名（对应 categories.name）。
+   * 种子里的「品类链接」多为站点首页，无法直接当列表页用，故用本字段把栏目挂到对应品类下。
+   * 缺省时按域名兜底（该域名只有一个品类就用它，否则 category_id 记空）。
+   */
+  category?: string;
   /** 该栏目的列表页入口（可多个）。省略则回退顶层 startUrl */
   startUrls?: string[];
   /**
@@ -84,6 +90,8 @@ export interface SiteConfig {
  */
 export interface ResolvedSection {
   key: string;
+  /** 绑定的种子品类名（透传自 SectionConfig.category） */
+  category?: string;
   startUrls: string[];
   listTraversal: ListTraversalConfig;
   parseList: ListParseConfig;
