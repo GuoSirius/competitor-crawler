@@ -19,8 +19,13 @@ export type ListStrategy = 'pagination-html' | 'pagination-api' | 'scroll-api' |
 
 export interface SpecItem {
   spec?: string | null;
+  /** 现价 / 售价 */
   priceNow?: string | null;
+  /** 原价 / 划线价 / 市场价 */
+  priceOriginal?: string | null;
+  /** 活动价（限时活动、秒杀） */
   priceActivity?: string | null;
+  /** 优惠价 / 券后价 */
   pricePromo?: string | null;
 }
 

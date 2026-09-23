@@ -9,7 +9,11 @@
 // 抽取与具体 DOM 实现解耦：消费方只需提供 DomRead 实现（cheerio / Playwright 均可用）。
 
 export interface FieldSpec {
-  /** CSS 选择器；在「当前上下文」内查询 */
+  /**
+   * CSS 选择器；在「当前上下文」内查询。
+   * 特殊值 `$self`：表示**当前节点自身**（用于读匹配元素自己的文本/属性，
+   * 典型场景：`<option data-price>` 这类「属性挂在被选中的元素上」的结构）。
+   */
   sel: string;
   /** 取该属性值（如 href/src）；不填则取文本 */
   attr?: string;
