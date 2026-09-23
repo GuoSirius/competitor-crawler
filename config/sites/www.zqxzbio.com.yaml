@@ -6,6 +6,8 @@
 #   - 详情页右栏 .pro_more_right：h2=名称；正文含「英文名：… 货号：… 价格：￥…」
 #   - 种子里的品类链接是站点首页，故用 sections[].category 绑定到种子品类
 domain: www.zqxzbio.com
+# 站点币种（缺省 CNY）
+currency: CNY
 
 listTraversal:
   strategy: pagination-html
@@ -15,20 +17,24 @@ listTraversal:
 
 parseList:
   # 数据行是 <tr>；表头行 tr.traaa 无详情链接，会被后续「无 detailUrl → 过滤」自然剔除
+  # 列表阶段的这些字段会随条目带下去，详情页缺失时兜底（详情优先、列表兜底）
   itemSelector: "table.table tr"
   fields:
     detailUrl: { sel: "a[href*='/p_more/']", attr: href }
     name: { sel: "td:nth-child(2) a", text: true }
     sku: { sel: "td:nth-child(1) a", text: true }
-    spec: { sel: "td:nth-child(3) a", text: true }
-    priceNow: { sel: "td:nth-child(4)", text: true, regex: '[\d,]+\.?\d*' }
+    specText: { sel: "td:nth-child(3) a", text: true }
+    priceText: { sel: "td:nth-child(4)", text: true }
+    price: { sel: "td:nth-child(4)", text: true, regex: '[\d,]+\.?\d*', number: true }
 
 parseDetail:
   fields:
     name: { sel: ".pro_more_right h2", text: true }
-    sourceProductId: { sel: ".pro_more_right", text: true, regex: '货号[:：]\s*([A-Za-z0-9\-]+)' }
+    # 货号 = sku（有就必写）；站点无独立产品 id，故 source_product_id 落库时回退货号
+    sku: { sel: ".pro_more_right", text: true, regex: '货号[:：]\s*([A-Za-z0-9\-]+)' }
     englishName: { sel: ".pro_more_right", text: true, regex: '英文名[:：]\s*(.+?)\s*货号' }
-    priceNow: { sel: ".pro_more_right", text: true, regex: '价格[:：]\s*￥?([\d,\.]+)' }
+    priceText: { sel: ".pro_more_right", text: true, regex: '价格[:：]\s*(￥?[\d,\.]+)' }
+    price: { sel: ".pro_more_right", text: true, regex: '价格[:：]\s*￥?([\d,\.]+)', number: true }
     description: { sel: ".ny_con_right", text: true }
     introMedia:
       sel: "table.MsoNormalTable td"
