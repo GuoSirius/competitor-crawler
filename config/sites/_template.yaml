@@ -8,7 +8,7 @@
 # ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
 #   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
 #
-# ★★ FieldSpec 字段抽取规范（每个字段只有「三种取值方式 + 两种结构修饰」）★★
+# ★★ FieldSpec 字段抽取规范（每个字段只有「三种取值方式 + 两种结构修饰 + 三种附加处理」）★★
 #   取值方式（三选一）：
 #     1) 取文本        → 不填 attr（或显式 text: true）
 #     2) 取属性值      → attr: "href" / "src" / "data-src" …
@@ -16,11 +16,15 @@
 #   结构修饰（可叠加）：
 #     list: true     → 收集所有匹配为「数组」（默认只取第一个）
 #     map: {…}       → 在匹配元素内再抽子字段，形成「对象」（配合 list 即「对象数组」）
-#   取值方式 × 结构修饰可任意组合，例如 list + map + attr + regex 一起上。
+#   附加处理（可叠加）：
+#     number: true   → 结果转数值（去千分位/币种符号），失败为 null（价格等数值列必用）
+#     sel: '$self'   → 读「当前元素自身」的文本/属性（读 <option data-price> 这类自带属性）
+#   取值方式 × 结构修饰 × 附加处理可任意组合。
 # ============================================================================
 
 # ---------- 1) 站点标识 ----------
 domain: example.com              # 必填；同时是 YAML 文件名与适配器路由键
+currency: CNY                    # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
 startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
 
 # ---------- 2) 列表遍历（翻页策略）----------
@@ -78,15 +82,29 @@ parseDetail:
     # 三、嵌套 map —— 在匹配元素内再抽子字段
     # ======================================================================
     # 3a) list + map：每行规格 → 一个对象，组成「对象数组」（最常见：规格表）
+    #     ★ 规格 × 多种价格：spec=规格；priceNow=现价；priceOriginal=原价/划线价；
+    #       priceActivity=活动价；pricePromo=优惠价/券后价。缺哪个不写即可。
     specs:
       sel: ".spec-row"
       list: true
       map:
         spec:          { sel: ".spec", text: true }
         priceNow:      { sel: ".price-now", text: true, regex: '[\d\.]+' }
+        priceOriginal: { sel: ".price-origin", text: true, regex: '[\d\.]+' }   # 原价/划线价
         priceActivity: { sel: ".price-act", text: true }
         pricePromo:    { sel: ".price-promo", text: true }
         buyUrl:        { sel: "a.buy", attr: href }
+
+    # 3a-2) 形态 B：下拉框每个 option 自带属性 → 用 sel: '$self' 读「option 自己」的属性
+    #       <select id="spec"><option data-spec="100μL" data-price="1280" data-market-price="1600">
+    specsAlt:
+      sel: "select#spec option"
+      list: true
+      map:
+        spec:          { sel: "$self", attr: "data-spec" }
+        priceNow:      { sel: "$self", attr: "data-price" }
+        priceOriginal: { sel: "$self", attr: "data-market-price" }
+        priceActivity: { sel: "$self", attr: "data-activity-price" }
 
     # 3b) list + map，map 内再含 attr / regex（介绍图 + 描述）
     introMedia:
@@ -138,15 +156,23 @@ parseDetail:
 #   属性值        → { sel: "x", attr: "href" }
 #   文本抽一段    → { sel: "x", text: true, regex: '(\d+)' }
 #   属性抽一段    → { sel: "x", attr: "href", regex: '/p/(\d+)' }
+#   转数值        → 上面任一 + number: true          （去千分位/币种符号；失败 null）
+#   读元素自身    → { sel: "$self", attr: "data-price" }  （★ 读匹配元素自己的属性）
 #   多值数组      → 上面任一 + list: true
 #   单一子对象    → 上面任一 + map: { key: <FieldSpec> }
 #   子对象数组    → list: true + map: { key: <FieldSpec> }
 #   任意深度嵌套  → map 内再写 map（见「五、map 内再 map」）
 #
-# 常用内置字段（会被归一化到 products 对应列，其余进 row）：
-#   name / detailUrl / sourceProductId / cloneNumber / applications / specs / introMedia
+# ★ 内置字段（写这些名字会被归一化到 products 对应列，其余一律进 row 兜底）：
+#   身份：name / englishName / sourceProductId / sku / detailUrl
+#   可比：price / priceText / specText / brand
+#   描述：description
+#   其他：cloneNumber / applications / specs / introMedia
+#   ⚠️ sourceProductId 只装「站点自身产品 id」，没有就留空（绝不用货号兜底，见 docs/03 §3.4）
+#   ⚠️ 示例里的 specsAlt / meta / variants / groups 不是内置名 → 会进 row（示例用，按需改名为 specs）
 #
 # 下一步：
 #   pnpm probe --domain example.com                 # 单规则站点直接验证（遍历 default 栏目）
 #   pnpm probe --domain example.com --render spa    # 需要 JS 渲染时指定 Playwright
+#   pnpm probe --domain example.com --section <key> # 多规则站点只验某个栏目
 # ============================================================================

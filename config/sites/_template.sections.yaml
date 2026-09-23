@@ -19,11 +19,13 @@
 #   · 不写 sections → 把顶层 startUrl + parseList + parseDetail 包成单个 key='default' 的栏目（模板 A 写法）。
 #   两种写法可共存：顶层既做默认值、又兼容「部分栏目想复用公共规则」。
 #
-# ★ FieldSpec 字段抽取规范与模板 A 完全一致（三种取值方式 + list/map 两种修饰），
-#   此处不再重复列举，详见 _template.yaml 与 docs/05。
+# ★ FieldSpec 字段抽取规范与模板 A 完全一致（三种取值方式 + list/map 两种修饰
+#   + number 数值化 / sel:'$self' 读元素自身），此处不再重复列举，详见 _template.yaml 与 docs/05。
 # ============================================================================
 
 domain: example.com
+# 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
+currency: CNY
 
 # ---------- 顶层公共默认值（各 section 未指定时继承；可整段省略）----------
 listTraversal:
