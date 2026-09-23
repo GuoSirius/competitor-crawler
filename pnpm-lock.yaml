@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  dayjs: afc1c610579855732b39e8a8facb1ac1f4561ad480ec07942468a1234a2f3ec3
+
 importers:
 
   .:
@@ -101,7 +104,7 @@ importers:
         version: 13.0.3
       dayjs:
         specifier: latest
-        version: 1.11.23
+        version: 1.11.23(patch_hash=afc1c610579855732b39e8a8facb1ac1f4561ad480ec07942468a1234a2f3ec3)
       dotenv:
         specifier: latest
         version: 18.0.2
@@ -8425,7 +8428,7 @@ snapshots:
 
   dateformat@3.0.3: {}
 
-  dayjs@1.11.23: {}
+  dayjs@1.11.23(patch_hash=afc1c610579855732b39e8a8facb1ac1f4561ad480ec07942468a1234a2f3ec3): {}
 
   db0@0.3.4(better-sqlite3@13.0.3)(drizzle-orm@0.45.3(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)(mysql2@3.24.4(@types/node@26.6.2))(pg@8.23.0))(mysql2@3.24.4(@types/node@26.6.2)):
     optionalDependencies:
@@ -8785,7 +8788,7 @@ snapshots:
   exceljs@4.4.0:
     dependencies:
       archiver: 5.3.2
-      dayjs: 1.11.23
+      dayjs: 1.11.23(patch_hash=afc1c610579855732b39e8a8facb1ac1f4561ad480ec07942468a1234a2f3ec3)
       fast-csv: 4.3.6
       jszip: 3.10.2
       readable-stream: 3.6.2

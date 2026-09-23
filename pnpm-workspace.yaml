@@ -8,3 +8,6 @@ allowBuilds:
   better-sqlite3: true   # 本地 SQLite 原生模块，需 node-gyp 编译 .node
   esbuild: true          # 多个工具链的二进制后安装脚本
   playwright: true       # 安装时拉取浏览器内核的脚本
+
+patchedDependencies:
+  dayjs: patches/dayjs.patch
