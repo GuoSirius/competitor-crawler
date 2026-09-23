@@ -22,6 +22,8 @@
     "typecheck:all": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "hooks:install": "node scripts/install-hooks.mjs",
+    "prepare": "husky || true",
     "commitlint": "commitlint",
     "changelog": "standard-version --skip.commit --skip.tag",
     "release": "node scripts/release.mjs"
@@ -33,6 +35,7 @@
     "@types/node": "latest",
     "@types/nodemailer": "latest",
     "eslint": "latest",
+    "husky": "latest",
     "prettier": "latest",
     "standard-version": "latest",
     "tsx": "latest",
