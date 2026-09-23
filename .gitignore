@@ -8,6 +8,8 @@ data/*.sqlite-wal
 data/*.sqlite-journal
 data/*.db
 data/seeds/*.json
+# report 产物（Excel / HTML），由 pnpm report 生成，不入库
+data/exports/
 .DS_Store
 
 # Nuxt (web)

@@ -6,6 +6,7 @@ import { probe } from './commands/probe.js';
 import { genSite } from './commands/genSite.js';
 import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
+import { report } from './commands/report.js';
 import { parseFlags } from './util/args.js';
 
 // 路径统一由 shared/src/paths.ts 提供（不再本地上溯算层级）
@@ -63,7 +64,13 @@ async function main() {
       render: typeof flags.render === 'string' ? flags.render : undefined,
     });
   } else if (cmd === 'report') {
-    console.log('[report] 待实现（P4 下游）');
+    await report({
+      excel: flags.excel === true || flags.excel === 'true',
+      charts: flags.charts === true || flags.charts === 'true',
+      company: typeof flags.company === 'string' ? flags.company : undefined,
+      category: typeof flags.category === 'string' ? flags.category : undefined,
+      out: typeof flags.out === 'string' ? flags.out : undefined,
+    });
   } else {
     console.log('用法: tsx src/cli.ts <seed|probe|gen-site|backfill|crawl|report> [--flags]');
   }
