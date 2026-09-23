@@ -5,7 +5,8 @@ import yaml from 'yaml';
 import type { ListTraversalConfig, ResolvedSection, SiteConfig } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const sitesDir = path.resolve(__dirname, '../../../config/sites');
+// 本文件在 packages/crawler/src/config/ 下 → 上溯 4 级到仓库根，再进 config/sites
+const sitesDir = path.resolve(__dirname, '../../../../config/sites');
 
 /** 站点配置文件路径：config/sites/<domain>.yaml */
 export function siteConfigPath(domain: string): string {

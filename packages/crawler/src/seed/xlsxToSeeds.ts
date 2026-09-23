@@ -4,7 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const seedsDir = path.resolve(__dirname, '../../../data/seeds');
+// 本文件在 packages/crawler/src/seed/ 下 → 上溯 4 级到仓库根，再进 data/seeds
+const seedsDir = path.resolve(__dirname, '../../../../data/seeds');
 const outFile = path.join(seedsDir, 'seeds.json');
 
 export interface RawSeed {
