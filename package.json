@@ -10,6 +10,7 @@
     "seed": "pnpm --filter @competitor-crawler/crawler seed",
     "crawl": "pnpm --filter @competitor-crawler/crawler crawl",
     "report": "pnpm --filter @competitor-crawler/crawler report",
+    "playwright:install": "pnpm --filter @competitor-crawler/crawler exec playwright install chromium",
     "dev:web": "pnpm --filter @competitor-crawler/web dev",
     "build:web": "pnpm --filter @competitor-crawler/web build",
     "typecheck": "pnpm -r typecheck"

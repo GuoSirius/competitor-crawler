@@ -16,7 +16,7 @@
 
 ```bash
 pnpm install                       # 1. 安装依赖（monorepo 根目录一次装全）
-pnpm exec playwright install chromium   # 2. 安装浏览器内核（用 pnpm exec，别用 npx）
+pnpm playwright:install   # 2. 安装浏览器内核（用封装脚本，避免 root 下找不到二进制）
 cp .env.example .env              # 3. 准备环境变量
 pnpm --filter @competitor-crawler/shared db:push   # 4. 初始化数据库表结构
 ```
