@@ -17,10 +17,11 @@ import {
 } from '@competitor-crawler/shared';
 import { siteConfigPath, loadSiteConfig, resolveSections } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
+import { applyApiSources } from '../adapter/apiSource.js';
 import { traverseList } from '../fetch/listTraversal.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { Progress } from '../util/progress.js';
-import type { ResolvedSection } from '../config/types.js';
+import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
 
 type Db = ReturnType<typeof createDb>['db'];
 
@@ -264,6 +265,10 @@ async function collectSection(args: {
       const html = await fetchPage(it.detailUrl, mode);
       const normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
       const detailUrl = normalized.detailUrl ?? it.detailUrl;
+      // 形态 D：人工登记的异步接口数据源（config/sites/<domain>.yaml 的 parseDetail.api）
+      if (section.parseDetail.api?.length) {
+        await applyApiSourcesLogged(normalized, detailUrl, section.parseDetail.api, progress);
+      }
       // source_product_id 语义纯净：只装「站点自身的产品 id」，没有就留空（**不用货号兜底**）。
       // 去重键随后由 pickDedupeKey 兜底到 canonical(detail_url)，见下方 dedupeKey。
       const sourceProductId = normalized.sourceProductId ?? null;
@@ -329,6 +334,25 @@ function toNumberOrNull(v: unknown): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (typeof v === 'string') return toNumber(v);
   return null;
+}
+
+/**
+ * 应用「异步接口数据源」（形态 D）并记录进度。具体逻辑见 adapter/apiSource.ts（与 probe 共用）。
+ */
+async function applyApiSourcesLogged(
+  np: NormalizedProduct,
+  detailUrl: string,
+  sources: ApiSourceConfig[],
+  progress: Progress,
+): Promise<void> {
+  const results = await applyApiSources(np, detailUrl, sources);
+  for (const r of results) {
+    progress.update(
+      r.ok
+        ? `[crawl] api 源 "${r.target}" 取到 ${r.count === 1 ? '1 项' : `${r.count} 条`}（${r.url}）`
+        : `[crawl] api 源 "${r.target}" 失败：${r.error}`,
+    );
+  }
 }
 
 /** 读取某公司某栏目下现有产品：dedupeKey → { id, price }（用于判断 new/updated 与价格变化） */

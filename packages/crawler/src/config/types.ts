@@ -10,11 +10,45 @@ export interface ListParseConfig {
   fields: Record<string, FieldSpec>;
 }
 
+/**
+ * 详情页「异步接口」数据源（形态 D，见 docs/05 §5.3.4）。
+ *
+ * 使用场景：规格/价格在下拉框选中后才由 XHR 返回，静态 HTML 里拿不到。
+ * 处理原则：**不主动逆向接口**——由 probe 检测出该形态并告警，人工在浏览器
+ * Network 面板找到接口后，把地址填到本配置块，即可让 crawl 直接取数。
+ */
+export interface ApiSourceConfig {
+  /**
+   * 结果写到哪个字段：
+   * - `specs` / `introMedia` → 写入对应内置字段（做数组校验）
+   * - 其他名字 → 写入 `row[target]`（不污染 products 列）
+   */
+  target: string;
+  /**
+   * 接口地址。支持 `{字段名}` 占位，取值来自**详情页已抽到的字段**（含内置字段与 row）。
+   * 例：`https://x.com/api/goods/{sku}/skus`、`https://x.com/api/p?goodsId={sourceProductId}`。
+   * 也可用 `{detailUrl}` 拿详情页地址。
+   */
+  url: string;
+  /** 默认 GET */
+  method?: string;
+  /** 额外请求头（如 Referer / X-Requested-With） */
+  headers?: Record<string, string>;
+  /** 请求体模板（POST 用）；同样支持 `{字段}` 占位 */
+  body?: string;
+  /** 从响应 JSON 里定位数组/对象，如 `data.list`；省略则用响应根 */
+  rootPath?: string;
+  /** 键重命名 `{ 我方键: 站点键 }`，如 `{ spec: "specName", priceNow: "price" }` */
+  pick?: Record<string, string>;
+}
+
 /** 详情页解析规则 */
 export interface DetailParseConfig {
   fields: Record<string, FieldSpec>;
   /** 未声明的字段全量进 row 兜底 */
   captureRest?: boolean;
+  /** 异步接口数据源（形态 D）；由 probe 告警后人工回填 */
+  api?: ApiSourceConfig[];
 }
 
 /** 翻页遍历配置 */
