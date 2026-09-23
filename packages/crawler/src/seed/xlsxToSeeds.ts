@@ -1,0 +1,112 @@
+import ExcelJS from 'exceljs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const seedsDir = path.resolve(__dirname, '../../../data/seeds');
+const outFile = path.join(seedsDir, 'seeds.json');
+
+export interface RawSeed {
+  companyName: string;
+  website?: string;
+  competitorType?: string;
+  productLine?: string;
+  categoryName: string;
+  categoryUrl: string;
+  sourceRow: Record<string, unknown>;
+}
+
+function cellText(cell: ExcelJS.Cell): string | null {
+  const v = cell.value;
+  if (v == null) return null;
+  if (typeof v === 'string') return v.trim() || null;
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'object' && 'text' in (v as unknown as Record<string, unknown>)) {
+    const t = String((v as unknown as Record<string, unknown>).text);
+    return t.trim() || null;
+  }
+  const t = cell.text;
+  return typeof t === 'string' ? t.trim() || null : null;
+}
+
+function cellUrl(cell: ExcelJS.Cell): string | null {
+  const hl = (cell as unknown as { hyperlink?: { target?: string; text?: string } }).hyperlink;
+  if (hl?.target && /^https?:\/\//.test(hl.target)) return hl.target.trim();
+  if (hl?.text && /^https?:\/\//.test(hl.text)) return hl.text.trim();
+  const t = cellText(cell);
+  if (t && /^https?:\/\//.test(t)) return t;
+  return null;
+}
+
+function detectColumns(headers: (string | null)[]): Record<string, number> {
+  const idx = (...keys: string[]) =>
+    headers.findIndex((h) => h != null && keys.some((k) => h.includes(k)));
+  const map: Record<string, number> = {};
+  const company = idx('公司', '竞对');
+  if (company >= 0) map.company = company;
+  const line = idx('产品线');
+  if (line >= 0) map.productLine = line;
+  const cat = idx('品类');
+  if (cat >= 0) map.category = cat;
+  const url = idx('链接', '网址', 'URL');
+  if (url >= 0) map.url = url;
+  const type = idx('类型');
+  if (type >= 0) map.type = type;
+  const site = idx('官网', '域名');
+  if (site >= 0) map.website = site;
+  return map;
+}
+
+/**
+ * 读取 data/seeds 下所有 xlsx，按表头关键字定位列，
+ * 品类链接优先取 cell.hyperlink.target，否则取 http(s) 文本，
+ * 输出标准 seeds.json（见 docs/01 提取规则）。
+ */
+export async function xlsxToSeeds(): Promise<string> {
+  const files = fs
+    .readdirSync(seedsDir)
+    .filter((f) => f.toLowerCase().endsWith('.xlsx'));
+  const seeds: RawSeed[] = [];
+
+  for (const file of files) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(path.join(seedsDir, file));
+    for (const ws of wb.worksheets) {
+      const headerRow = ws.getRow(1);
+      const headers: (string | null)[] = [];
+      headerRow.eachCell((cell, col) => {
+        headers[col] = cellText(cell);
+      });
+      const col = detectColumns(headers);
+      if (col.company == null || col.category == null || col.url == null) continue;
+
+      for (let r = 2; r <= ws.rowCount; r++) {
+        const row = ws.getRow(r);
+        const companyName = cellText(row.getCell(col.company)) ?? '';
+        const categoryName = cellText(row.getCell(col.category)) ?? '';
+        const categoryUrl = cellUrl(row.getCell(col.url));
+        if (!companyName || !categoryName || !categoryUrl) continue;
+
+        const sourceRow: Record<string, unknown> = {};
+        headerRow.eachCell((cell, c) => {
+          sourceRow[headers[c] ?? `col${c}`] = row.getCell(c).value;
+        });
+
+        seeds.push({
+          companyName,
+          website: col.website != null ? (cellText(row.getCell(col.website)) ?? undefined) : undefined,
+          competitorType: col.type != null ? (cellText(row.getCell(col.type)) ?? undefined) : undefined,
+          productLine:
+            col.productLine != null ? (cellText(row.getCell(col.productLine)) ?? undefined) : undefined,
+          categoryName,
+          categoryUrl,
+          sourceRow,
+        });
+      }
+    }
+  }
+
+  fs.writeFileSync(outFile, JSON.stringify(seeds, null, 2), 'utf-8');
+  return outFile;
+}

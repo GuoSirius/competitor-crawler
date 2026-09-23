@@ -7,11 +7,16 @@
     "seed": "tsx src/cli.ts seed",
     "crawl": "tsx src/cli.ts crawl",
     "report": "tsx src/cli.ts report",
+    "probe": "tsx src/cli.ts probe",
+    "gen-site": "tsx src/cli.ts gen-site",
+    "backfill": "tsx src/cli.ts backfill",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@competitor-crawler/shared": "workspace:*",
     "cheerio": "latest",
+    "domhandler": "latest",
+    "drizzle-orm": "latest",
     "exceljs": "latest",
     "node-cron": "latest",
     "nodemailer": "latest",
