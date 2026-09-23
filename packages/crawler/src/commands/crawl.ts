@@ -248,9 +248,9 @@ async function collectSection(args: {
       mode,
       maxPages: opts.pages ?? Number.MAX_SAFE_INTEGER,
       progress,
-      onPage: (html) => {
+      onPage: (html, _pageNo, pageUrl) => {
         const pageItems = parseListWithConfig(html, section.parseList, section.key);
-        for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, listUrl);
+        for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
         items.push(...pageItems);
         return pageItems.length;
       },

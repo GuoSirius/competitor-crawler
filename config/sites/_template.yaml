@@ -31,16 +31,20 @@ currency: CNY                    # 站点币种（写入 products.currency）；
 startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
 
 # ---------- 2) 列表遍历（翻页策略）----------
-# strategy 四选一：
+# strategy 五选一：
 #   pagination-html : Playwright 点击页码 → 整页重渲染 → cheerio 解析（最常用）
 #   pagination-api  : 点击触发 XHR，Playwright 监听 network 取 JSON（稳定无签名时可选）
 #   scroll-api      : 滚动到底 → 等待新节点（无限滚动）
 #   model-generic   : 找不到稳定结构时，交给模型通用适配器兜底
+#   pagination-url  : 用 URL 模板（?page={page} / &p={page}）逐页拼地址抓取，无需浏览器（SSR 站最快最稳）
 listTraversal:
   strategy: pagination-html      # 见上；默认 pagination-html
-  nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination-* 类必填）
+  nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination-* 类必填；pagination-url 不需要）
   maxPages: 50                   # 最大翻页数（防死循环；默认 50）
   fallbackToUi: true             # 接口/模型模式失败自动回退 UI 驱动（默认 true，优先浏览器渲染）
+  # —— pagination-url 专用字段（其余策略留空即可）——
+  # urlTemplate: "?page={page}"  # 含 {page} 占位：完整 URL / 查询串后缀(?page= 或 &p=) / 绝对路径(/c/{page})
+  # pageStart: 1                # 可选，起始页码（部分站点从 0 / 2 起算）
 
 # ---------- 3) 列表页解析（每个产品条目 → detailUrl + name）----------
 parseList:

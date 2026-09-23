@@ -1,7 +1,12 @@
 import type { FieldSpec } from '@competitor-crawler/shared';
 
-/** 翻页策略（与 docs/05、_template.yaml 保持一致） */
-export type ListStrategy = 'pagination-html' | 'pagination-api' | 'scroll-api' | 'model-generic';
+/** 翻页策略（与 docs/05 §5.4、_template.yaml 保持一致） */
+export type ListStrategy =
+  | 'pagination-html'
+  | 'pagination-api'
+  | 'scroll-api'
+  | 'model-generic'
+  | 'pagination-url';
 
 /** 列表页解析规则 */
 export interface ListParseConfig {
@@ -54,11 +59,22 @@ export interface DetailParseConfig {
 /** 翻页遍历配置 */
 export interface ListTraversalConfig {
   strategy: ListStrategy;
-  /** 翻页按钮选择器（pagination 类必填） */
+  /** 翻页按钮选择器（pagination-* 类必填；pagination-url 不需要） */
   nextSelector?: string;
   maxPages?: number;
-  /** 接口模式失败自动回退 UI 驱动 */
+  /** 接口模式失败自动回退 UI 驱动（pagination-url 不使用） */
   fallbackToUi?: boolean;
+  /**
+   * URL 模板翻页（strategy='pagination-url' 时必填）。
+   * 基于该 section 的**首个 startUrl** 拼装每页 URL，把 `{page}` 替换为页码。
+   * 支持三种写法（见 docs/05 §5.4）：
+   *   - 完整 URL：`https://x.com/list?page={page}` → 直接用
+   *   - 查询串后缀：`?page={page}` / `&p={page}` → 合并进 base 的 query（覆盖同名参数）
+   *   - 绝对路径：`/c/{page}` → 取 base 的 origin + 该路径
+   */
+  urlTemplate?: string;
+  /** 起始页码（默认 1；部分站点从 0 或 2 起算） */
+  pageStart?: number;
 }
 
 /**
