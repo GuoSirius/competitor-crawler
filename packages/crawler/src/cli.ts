@@ -4,6 +4,7 @@ import { xlsxToSeeds } from './seed/xlsxToSeeds.js';
 import { loadSeeds } from './seed/loadSeeds.js';
 import { probe } from './commands/probe.js';
 import { genSite } from './commands/genSite.js';
+import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
 import { parseFlags } from './util/args.js';
 
@@ -53,7 +54,13 @@ async function main() {
       dry: flags.dry === true || flags.dry === 'true',
     });
   } else if (cmd === 'crawl') {
-    console.log('[crawl] 待实现（P1 试点）');
+    await crawl({
+      site: typeof flags.site === 'string' ? flags.site : undefined,
+      dryRun: flags['dry-run'] === true || flags['dry-run'] === 'true',
+      pages: typeof flags.pages === 'string' ? Number(flags.pages) : undefined,
+      limit: typeof flags.limit === 'string' ? Number(flags.limit) : undefined,
+      render: typeof flags.render === 'string' ? flags.render : undefined,
+    });
   } else if (cmd === 'report') {
     console.log('[report] 待实现（P4 下游）');
   } else {
