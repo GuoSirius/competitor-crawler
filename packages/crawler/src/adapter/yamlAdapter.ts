@@ -1,6 +1,6 @@
 import { extractObject, type FieldSpec } from '@competitor-crawler/shared';
 import type { ListItem, NormalizedProduct } from '@competitor-crawler/shared';
-import { CheerioDomRead } from './cheerioDom.js';
+import { CheerioDomRead } from '@competitor-crawler/shared';
 
 export interface ListConfig {
   itemSelector: string;

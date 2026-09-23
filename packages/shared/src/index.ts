@@ -4,6 +4,7 @@ export { createDb } from './db/index.js';
 export type { AppDb, DbHandle, DbDialect } from './db/index.js';
 export * from './adapter/spec.js';
 export * from './adapter/extract.js';
+export * from './adapter/cheerioDom.js';
 export * from './adapter/json.js';
 export * from './url.js';
 export * from './time.js';

@@ -105,6 +105,9 @@ importers:
       better-sqlite3:
         specifier: latest
         version: 13.0.3
+      cheerio:
+        specifier: latest
+        version: 1.2.0
       dayjs:
         specifier: latest
         version: 1.11.23(patch_hash=afc1c610579855732b39e8a8facb1ac1f4561ad480ec07942468a1234a2f3ec3)

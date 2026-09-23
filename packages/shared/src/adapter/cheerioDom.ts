@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { DomRead } from '@competitor-crawler/shared';
+import type { DomRead } from './spec.js';
 
 /** 基于 cheerio 的 DomRead 实现（SSR 静态页解析用）。
  * el 内部用 any 承载 cheerio 节点/节点集合：cheerio 1.x 的 toArray() 返回 AnyNode、root() 返回 Cheerio<Document>，
