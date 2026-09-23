@@ -1,0 +1,29 @@
+{
+  "name": "@competitor-crawler/crawler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx src/cli.ts seed",
+    "crawl": "tsx src/cli.ts crawl",
+    "report": "tsx src/cli.ts report",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@competitor-crawler/shared": "workspace:*",
+    "cheerio": "latest",
+    "exceljs": "latest",
+    "node-cron": "latest",
+    "nodemailer": "latest",
+    "openai": "latest",
+    "p-limit": "latest",
+    "playwright": "latest",
+    "yaml": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/nodemailer": "latest",
+    "tsx": "latest",
+    "typescript": "^6.0.3"
+  }
+}

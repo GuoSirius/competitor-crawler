@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 860" font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/><stop offset="1" stop-color="#eef2f7"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+    </marker>
+    <marker id="arrowP" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#7c3aed"/>
+    </marker>
+    <style>
+      .box{fill:#ffffff;stroke:#cbd5e1;stroke-width:1.5;rx:10}
+      .ttl{font-size:15px;font-weight:700;fill:#0f172a}
+      .sub{font-size:11px;fill:#475569}
+      .tag{font-size:10px;fill:#64748b}
+      .lbl{font-size:12px;font-weight:600;fill:#0f172a}
+    </style>
+  </defs>
+
+  <rect width="1000" height="860" fill="url(#bg)"/>
+  <text x="40" y="38" class="ttl" font-size="20">竞品爬虫 · 端到端架构</text>
+  <text x="40" y="58" class="sub">Excel 种子 → 增量爬取 → 统一存储 → 告警 → 下游交付　|　模型辅助层贯穿 ③④⑤⑥⑦</text>
+
+  <!-- ===== 主流水线（左列） ===== -->
+  <!-- ① 种子源 -->
+  <rect class="box" x="40" y="80" width="600" height="64" rx="10"/>
+  <text x="58" y="108" class="lbl">① 种子源 · Excel 超链接清单</text>
+  <text x="58" y="128" class="sub">Elabscience竞对清单(74) + Procell竞对清单(32) = 106 条 / 24 域名（超链接已确认全部可爬）</text>
+
+  <!-- ② xlsx-to-seeds -->
+  <rect class="box" x="40" y="164" width="600" height="56" rx="10"/>
+  <text x="58" y="190" class="lbl">② scripts/xlsx-to-seeds → 标准 seeds.json</text>
+  <text x="58" y="208" class="sub">脏 Excel → 统一 JSON（hyperlink.target 优先，否则 http(s) 直取）</text>
+
+  <!-- ③ Seed Loader -->
+  <rect class="box" x="40" y="244" width="600" height="56" rx="10"/>
+  <text x="58" y="270" class="lbl">③ Seed Loader · 增量同步</text>
+  <text x="58" y="288" class="sub">公司按 name upsert；品类按(公司,产品线,品类名) 主键；消失行软标记 removed_at</text>
+
+  <!-- ④ Fetch 层 -->
+  <rect class="box" x="40" y="324" width="600" height="64" rx="10" stroke="#0ea5e9" stroke-width="2"/>
+  <text x="58" y="352" class="lbl">④ Fetch 层 · Playwright 渲染优先</text>
+  <text x="58" y="370" class="sub">翻页三策略：pagination-html / pagination-api(可选) / scroll-api(可选)</text>
+  <text x="58" y="384" class="sub">接口逆向仅作稳定无签名站优化，失败自动回退 UI 驱动；国外站不可达→告警开 VPN</text>
+
+  <!-- ⑤ Adapter Registry -->
+  <rect class="box" x="40" y="408" width="600" height="64" rx="10" stroke="#0ea5e9" stroke-width="2"/>
+  <text x="58" y="436" class="lbl">⑤ Adapter Registry · 异构页面归一</text>
+  <text x="58" y="454" class="sub">YAML 配置 / 代码 Adapter / 模型通用兜底（路由优先级递减）</text>
+  <text x="58" y="468" class="sub">统一输出 NormalizedProduct；未声明字段全量进 row</text>
+
+  <!-- ⑥ Normalizer -->
+  <rect class="box" x="40" y="492" width="600" height="56" rx="10" stroke="#0ea5e9" stroke-width="2"/>
+  <text x="58" y="518" class="lbl">⑥ Normalizer · 字段归一化</text>
+  <text x="58" y="536" class="sub">同义字段映射（克隆号/Clone→cloneNumber）；输出统一结构</text>
+
+  <!-- ⑦ Diff Engine -->
+  <rect class="box" x="40" y="568" width="600" height="64" rx="10" stroke="#0ea5e9" stroke-width="2"/>
+  <text x="58" y="596" class="lbl">⑦ Diff Engine · 增量维护</text>
+  <text x="58" y="614" class="sub">UNIQUE(company_id, dedupe_key) 组合唯一 → upsert</text>
+  <text x="58" y="628" class="sub">连续 2 轮缺失→软删(delisted)；字段变化→告警</text>
+
+  <!-- ⑧ Storage + Downstream -->
+  <rect class="box" x="40" y="652" width="290" height="80" rx="10" stroke="#16a34a" stroke-width="2"/>
+  <text x="58" y="680" class="lbl">⑧ Storage · Drizzle</text>
+  <text x="58" y="698" class="sub">SQLite（本地）→ MySQL/PG（生产）</text>
+  <text x="58" y="716" class="sub">companies / categories / products / alerts / crawls</text>
+
+  <rect class="box" x="350" y="652" width="290" height="80" rx="10" stroke="#16a34a" stroke-width="2"/>
+  <text x="368" y="680" class="lbl">⑨ Downstream · 交付</text>
+  <text x="368" y="698" class="sub">Excel 导出 / ECharts 图表</text>
+  <text x="368" y="716" class="sub">Nuxt 3 应用页（市场/产品部）</text>
+
+  <!-- Alert Engine -->
+  <rect class="box" x="40" y="752" width="600" height="48" rx="10" stroke="#dc2626" stroke-width="2"/>
+  <text x="58" y="782" class="lbl">⚠ Alert Engine · 告警分级推送</text>
+  <text x="58" y="792" class="tag">类型：MISSING_FIELD / FIELD_CHANGED / BULK_DRIFT / SITE_UNREACHABLE / NEEDS_API_HINT → 企微/钉钉/邮件</text>
+
+  <!-- 主流程箭头 -->
+  <line x1="340" y1="144" x2="340" y2="164" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="340" y1="220" x2="340" y2="244" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="340" y1="300" x2="340" y2="324" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="340" y1="388" x2="340" y2="408" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="340" y1="472" x2="340" y2="492" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="340" y1="548" x2="340" y2="568" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="190" y1="632" x2="190" y2="652" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="495" y1="632" x2="495" y2="652" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="340" y1="732" x2="340" y2="752" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- ===== 模型辅助层（右侧紫色带，贯穿 ④⑤⑥⑦） ===== -->
+  <rect x="668" y="324" width="292" height="308" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="686" y="350" class="lbl" fill="#6d28d9">模型辅助层（贯穿 ④⑤⑥⑦）</text>
+  <text x="686" y="368" class="tag">OpenAI 兼容客户端 · 三种模式纯配置</text>
+
+  <rect class="box" x="686" y="380" width="256" height="44" rx="8" stroke="#7c3aed"/>
+  <text x="700" y="400" class="sub" fill="#6d28d9">提取 extraction（④）</text>
+  <text x="700" y="416" class="tag">读页面/截图 → 结构化</text>
+
+  <rect class="box" x="686" y="432" width="256" height="44" rx="8" stroke="#7c3aed"/>
+  <text x="700" y="452" class="sub" fill="#6d28d9">归一化 normalization（⑥）</text>
+  <text x="700" y="468" class="tag">同义字段统一映射</text>
+
+  <rect class="box" x="686" y="484" width="256" height="44" rx="8" stroke="#7c3aed"/>
+  <text x="700" y="504" class="sub" fill="#6d28d9">变化归因 attribution（⑦）</text>
+  <text x="700" y="520" class="tag">真更新 vs 规则该改</text>
+
+  <rect class="box" x="686" y="536" width="256" height="44" rx="8" stroke="#7c3aed"/>
+  <text x="700" y="556" class="sub" fill="#6d28d9">告警摘要 summary（⚠）</text>
+  <text x="700" y="572" class="tag">技术告警 → 人话摘要</text>
+
+  <text x="686" y="600" class="tag">防幻觉：强提示词 + Zod + temp=0 + 重试1次</text>
+  <text x="686" y="616" class="tag">模式：local / cloud / hybrid(默认)</text>
+
+  <!-- 模型层连接箭头到主流程 -->
+  <line x1="668" y1="402" x2="640" y2="356" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowP)"/>
+  <line x1="668" y1="454" x2="640" y2="440" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowP)"/>
+  <line x1="668" y1="506" x2="640" y2="520" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowP)"/>
+  <line x1="668" y1="558" x2="640" y2="600" stroke="#7c3aed" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowP)"/>
+
+  <!-- 模型层底部：部署模式 -->
+  <rect x="668" y="652" width="292" height="80" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="686" y="678" class="lbl" fill="#6d28d9">部署模式（纯配置）</text>
+  <text x="686" y="698" class="tag">local：Ollama/vLLM (qwen2.5:14b / vl:7b)</text>
+  <text x="686" y="714" class="tag">cloud：通义 / DeepSeek / Claude</text>
+  <text x="686" y="730" class="tag">hybrid：本地优先 + 云端兜底</text>
+
+  <!-- 底部图例 -->
+  <rect x="668" y="752" width="292" height="48" rx="10" fill="#fff" stroke="#cbd5e1"/>
+  <text x="684" y="772" class="tag">■ 蓝：抓取/解析层　■ 绿：存储/交付</text>
+  <text x="684" y="790" class="tag">■ 紫：模型辅助　■ 红：告警</text>
+</svg>

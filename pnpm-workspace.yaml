@@ -1,0 +1,10 @@
+packages:
+  - 'packages/*'
+
+# pnpm v11+ 已移除 onlyBuiltDependencies / ignoredBuiltDependencies，
+# 统一改用 allowBuilds（map）。未列出的包默认禁止构建脚本（strictDepBuilds 默认 true）。
+# 这两个是本项目必须的本地原生/二进制构建，必须显式放行。
+allowBuilds:
+  better-sqlite3: true   # 本地 SQLite 原生模块，需 node-gyp 编译 .node
+  esbuild: true          # 多个工具链的二进制后安装脚本
+  playwright: true       # 安装时拉取浏览器内核的脚本

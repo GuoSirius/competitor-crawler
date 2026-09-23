@@ -1,0 +1,24 @@
+{
+  "name": "@competitor-crawler/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@competitor-crawler/shared": "workspace:*",
+    "@pinia/nuxt": "latest",
+    "@unocss/nuxt": "latest",
+    "echarts": "latest",
+    "nuxt": "latest",
+    "pinia": "latest",
+    "vue": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "^6.0.3"
+  }
+}

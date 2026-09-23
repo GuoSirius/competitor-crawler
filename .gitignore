@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.log
+.env
+data/*.sqlite
+data/*.db
+data/*.sqlite-journal
+.DS_Store
+
+# Nuxt (web)
+.nuxt/
+.output/
+.data/
+*.local
+

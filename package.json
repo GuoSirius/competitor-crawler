@@ -1,0 +1,28 @@
+{
+  "name": "competitor-crawler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "seed": "pnpm --filter @competitor-crawler/crawler seed",
+    "crawl": "pnpm --filter @competitor-crawler/crawler crawl",
+    "report": "pnpm --filter @competitor-crawler/crawler report",
+    "dev:web": "pnpm --filter @competitor-crawler/web dev",
+    "build:web": "pnpm --filter @competitor-crawler/web build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "latest",
+    "@types/node": "latest",
+    "@types/nodemailer": "latest",
+    "eslint": "latest",
+    "prettier": "latest",
+    "tsx": "latest",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}

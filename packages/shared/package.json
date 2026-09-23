@@ -1,0 +1,29 @@
+{
+  "name": "@competitor-crawler/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "db:push": "drizzle-kit push",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "latest",
+    "drizzle-orm": "latest",
+    "dotenv": "latest",
+    "mysql2": "latest",
+    "pg": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "latest",
+    "@types/node": "latest",
+    "drizzle-kit": "latest",
+    "typescript": "^6.0.3"
+  }
+}
