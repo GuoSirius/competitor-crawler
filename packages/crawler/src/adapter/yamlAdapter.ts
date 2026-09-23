@@ -7,14 +7,18 @@ export interface ListConfig {
   fields: Record<string, FieldSpec>;
 }
 
-/** 按配置解析列表页 HTML，返回每个产品条目（detailUrl + name） */
-export function parseListWithConfig(html: string, cfg: ListConfig): ListItem[] {
+/**
+ * 按配置解析列表页 HTML，返回每个产品条目（detailUrl + name）。
+ * @param sectionKey 多规则站点的栏目标识；会写入每个 ListItem，供详情阶段选规则 + 落库参与去重。
+ */
+export function parseListWithConfig(html: string, cfg: ListConfig, sectionKey?: string): ListItem[] {
   const dom = CheerioDomRead.fromHtml(html);
   return dom.list(cfg.itemSelector).map((item) => {
     const o = extractObject(item, cfg.fields) as Record<string, unknown>;
     return {
       detailUrl: typeof o.detailUrl === 'string' ? o.detailUrl : '',
       name: typeof o.name === 'string' ? o.name : undefined,
+      sectionKey,
     };
   });
 }

@@ -27,6 +27,7 @@ async function main() {
       listUrl: typeof flags['list-url'] === 'string' ? flags['list-url'] : undefined,
       render: typeof flags.render === 'string' ? flags.render : undefined,
       sample: typeof flags.sample === 'string' ? Number(flags.sample) : undefined,
+      section: typeof flags.section === 'string' ? flags.section : undefined,
     });
   } else if (cmd === 'gen-site') {
     const domain = flags.domain;
