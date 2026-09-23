@@ -35,6 +35,9 @@ export const products = sqliteTable('products', {
   categoryId: integer('category_id').references(() => categories.id),
   sourceProductId: text('source_product_id'),
   dedupeKey: text('dedupe_key').notNull(),
+  // 栏目维度：同一 SKU 出现在不同 section（如「全部产品」「促销」）时分开存为两条（去重口径 B）。
+  // 单规则站点的产品统一写 'default'，保证旧数据与旧配置零感知。
+  sectionKey: text('section_key').notNull().default('default'),
   name: text('name'),
   detailUrl: text('detail_url'),
   specs: text('specs', { mode: 'json' }),
@@ -49,8 +52,9 @@ export const products = sqliteTable('products', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => ({
-  // ★ 组合唯一索引：一个产品在公司内唯一
-  uniqProduct: uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey),
+  // ★ 组合唯一索引：一个产品在公司内、按栏目唯一（去重口径 B：section_key 并入去重键）
+  // 同一 SKU 出现在不同 section 时分开为两条，适合「同 SKU 在不同栏目详情内容确实不同」的场景。
+  uniqProduct: uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey, t.sectionKey),
   idxCompanyCatStatus: index('idx_company_cat_status').on(t.companyId, t.categoryId, t.status),
 }));
 

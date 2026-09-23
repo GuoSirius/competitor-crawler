@@ -70,6 +70,12 @@ export interface NodeHandle {
 export interface ListItem {
   detailUrl: string;
   name?: string;
+  /**
+   * 栏目标识（多规则站点用）。列表阶段写入，详情阶段据此选对应 section 的抽取规则；
+   * 同时参与 products 去重键（company_id, dedupe_key, section_key，见去重口径 B）。
+   * 单规则站点为空/省略，落库时统一为 'default'。
+   */
+  sectionKey?: string;
 }
 
 export interface SiteAdapter {
