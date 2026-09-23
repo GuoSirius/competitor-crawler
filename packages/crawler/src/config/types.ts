@@ -1,12 +1,12 @@
-import type { FieldSpec } from '@competitor-crawler/shared';
+import type { FieldSpec, ListStrategy } from '@competitor-crawler/shared';
 
-/** 翻页策略（与 docs/05 §5.4、_template.yaml 保持一致） */
-export type ListStrategy =
-  | 'pagination-html'
-  | 'pagination-api'
-  | 'scroll-api'
-  | 'model-generic'
-  | 'pagination-url';
+/**
+ * 翻页策略（与 docs/05 §5.4、_template.yaml 保持一致）。
+ *
+ * 单一事实源在 `@competitor-crawler/shared`（跨 crawler / web / 模型层共用）；此处仅**转出**，
+ * 不再各写一份——曾出现 shared 版本漏掉 `'pagination-url'` 的漂移。
+ */
+export type { ListStrategy };
 
 /** 列表页解析规则 */
 export interface ListParseConfig {

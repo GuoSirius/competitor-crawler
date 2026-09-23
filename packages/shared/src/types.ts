@@ -15,7 +15,13 @@ export type AlertStatus = 'open' | 'ack' | 'resolved' | 'auto_fixed';
 export type ProductStatus = 'active' | 'delisted';
 export type CrawlStatus = 'running' | 'success' | 'partial' | 'failed';
 export type CrawlTrigger = 'schedule' | 'manual';
-export type ListStrategy = 'pagination-html' | 'pagination-api' | 'scroll-api' | 'model-generic';
+/** 列表翻页策略（单一事实源；crawler 的 config/types.ts 直接转出本类型，勿再各写一份） */
+export type ListStrategy =
+  | 'pagination-html'
+  | 'pagination-api'
+  | 'scroll-api'
+  | 'model-generic'
+  | 'pagination-url';
 
 export interface SpecItem {
   spec?: string | null;
