@@ -19,6 +19,9 @@
 #   附加处理（可叠加）：
 #     number: true   → 结果转数值（去千分位/币种符号），失败为 null（价格等数值列必用）
 #     sel: '$self'   → 读「当前元素自身」的文本/属性（读 <option data-price> 这类自带属性）
+#     json: true     → 把抽到的字符串当 JSON 解析（页面内联 JSON）
+#     jsonPath: "a.b"→ json 后定位到数组/对象所在层级（点号路径，支持数组下标）
+#     pick: {…}      → json 后键重命名 { 我方键: 站点键 }
 #   取值方式 × 结构修饰 × 附加处理可任意组合。
 # ============================================================================
 
@@ -106,6 +109,19 @@ parseDetail:
         priceOriginal: { sel: "$self", attr: "data-market-price" }
         priceActivity: { sel: "$self", attr: "data-activity-price" }
 
+    # 3a-3) 形态 C：页面内联 JSON → 用 json + jsonPath + pick 直接映射成 specs
+    #       <script>var skuList = [{"specName":"100μL","price":1280}];</script>
+    specsInline:
+      sel: "script"
+      text: true
+      regex: 'skuList\s*=\s*(\[[\s\S]*?\]);'   # 抠出 JSON 串（优先第 1 捕获组）
+      json: true                               # 解析成数组/对象（宽松：失败时截取最外层 {}/[] 再试）
+      jsonPath: "data.skus"                    # 可选：定位到数组所在层级
+      pick:                                    # 站点键 → 我方键
+        spec: "specName"
+        priceNow: "price"
+        priceOriginal: "marketPrice"
+
     # 3b) list + map，map 内再含 attr / regex（介绍图 + 描述）
     introMedia:
       sel: ".intro-block"
@@ -149,6 +165,26 @@ parseDetail:
 
   captureRest: true              # ★ 未声明的字段全量进 row 兜底（务必保留，零数据丢失）
 
+  # ==========================================================================
+  # 六、【形态 D】异步接口数据源（★ 默认注释掉，需要时才启用）
+  # --------------------------------------------------------------------------
+  # 规格/价格在选中规格后才由 XHR 返回、静态 HTML 里没有 → probe 会判定为形态 D
+  # 并落 NEEDS_API_HINT 告警，同时打印下面这段配置模板。
+  # 操作：浏览器 F12 → Network（勾 XHR/Fetch）→ 切一次规格 → 找到请求 → 复制 URL → 填这里。
+  #
+  # api:
+  #   - target: specs                                  # 结果写回：specs / introMedia / 其他名→row
+  #     url: "https://example.com/api/goods/{sku}/skus" # {字段名} 用详情页已抽字段插值
+  #     method: GET                                     # 默认 GET
+  #     headers:
+  #       Referer: "https://example.com/"
+  #     rootPath: "data.list"                           # 从响应里定位数组
+  #     pick:
+  #       spec: "specName"
+  #       priceNow: "price"
+  #       priceOriginal: "marketPrice"
+  # ==========================================================================
+
 # ============================================================================
 # 附：FieldSpec 速查（复制即用）
 # ----------------------------------------------------------------------------
@@ -158,10 +194,12 @@ parseDetail:
 #   属性抽一段    → { sel: "x", attr: "href", regex: '/p/(\d+)' }
 #   转数值        → 上面任一 + number: true          （去千分位/币种符号；失败 null）
 #   读元素自身    → { sel: "$self", attr: "data-price" }  （★ 读匹配元素自己的属性）
+#   内联 JSON     → 上面任一 + json: true [+ jsonPath] [+ pick]
 #   多值数组      → 上面任一 + list: true
 #   单一子对象    → 上面任一 + map: { key: <FieldSpec> }
 #   子对象数组    → list: true + map: { key: <FieldSpec> }
 #   任意深度嵌套  → map 内再写 map（见「五、map 内再 map」）
+#   异步接口      → parseDetail.api: [{ target, url, rootPath, pick }]（见「六」）
 #
 # ★ 内置字段（写这些名字会被归一化到 products 对应列，其余一律进 row 兜底）：
 #   身份：name / englishName / sourceProductId / sku / detailUrl
@@ -169,10 +207,14 @@ parseDetail:
 #   描述：description
 #   其他：cloneNumber / applications / specs / introMedia
 #   ⚠️ sourceProductId 只装「站点自身产品 id」，没有就留空（绝不用货号兜底，见 docs/03 §3.4）
-#   ⚠️ 示例里的 specsAlt / meta / variants / groups 不是内置名 → 会进 row（示例用，按需改名为 specs）
+#   ⚠️ 示例里的 specsAlt / specsInline / meta / variants / groups 不是内置名 → 会进 row
+#      （示例用；要用作规格列表请改名为 specs）
 #
 # 下一步：
-#   pnpm probe --domain example.com                 # 单规则站点直接验证（遍历 default 栏目）
+#   pnpm probe --domain example.com                 # 单站验证 + ★自动判定规格价格形态（默认抽查 1 个详情页）
+#   pnpm probe --domain example.com --detail 3      # 每栏目抽查 3 个详情页
+#   pnpm probe --domain example.com --detail 0      # 关闭详情页形态探测
 #   pnpm probe --domain example.com --render spa    # 需要 JS 渲染时指定 Playwright
 #   pnpm probe --domain example.com --section <key> # 多规则站点只验某个栏目
+#   pnpm crawl --site example.com --dry-run --limit 3
 # ============================================================================

@@ -20,7 +20,9 @@
 #   两种写法可共存：顶层既做默认值、又兼容「部分栏目想复用公共规则」。
 #
 # ★ FieldSpec 字段抽取规范与模板 A 完全一致（三种取值方式 + list/map 两种修饰
-#   + number 数值化 / sel:'$self' 读元素自身），此处不再重复列举，详见 _template.yaml 与 docs/05。
+#   + number 数值化 / sel:'$self' 读元素自身 / json+jsonPath+pick 解析内联 JSON），
+#   此处不再重复列举，详见 _template.yaml 与 docs/05。
+# ★ 每个 section 的 parseDetail 均可单独配 `api:`（异步接口数据源，形态 D，见模板 A「六」）。
 # ============================================================================
 
 domain: example.com
