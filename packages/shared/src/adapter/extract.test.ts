@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { extractObject, type FieldSpec } from '@competitor-crawler/shared';
+import { extractObject } from './extract.js';
+import type { FieldSpec } from './spec.js';
 import { CheerioDomRead } from './cheerioDom.js';
 
 /** 按 FieldSpec 从 HTML 抽取一组字段（与 yamlAdapter 同一入口） */
