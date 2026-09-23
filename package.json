@@ -17,7 +17,9 @@
     "playwright:install": "pnpm --filter @competitor-crawler/crawler exec playwright install chromium",
     "dev:web": "pnpm --filter @competitor-crawler/web dev",
     "build:web": "pnpm --filter @competitor-crawler/web build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm --filter @competitor-crawler/shared --filter @competitor-crawler/crawler typecheck",
+    "typecheck:web": "pnpm --filter @competitor-crawler/web typecheck",
+    "typecheck:all": "pnpm -r typecheck",
     "commitlint": "commitlint",
     "changelog": "standard-version --skip.commit --skip.tag",
     "release": "node scripts/release.mjs"
