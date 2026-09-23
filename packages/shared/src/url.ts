@@ -1,9 +1,12 @@
 // URL 规范化与去重键（单一事实源，见 docs/03 §3.4）
 //
-// 统一规则（站点间共用，保证「有 SKU 用 SKU、无 SKU 用 canonical(detail_url)」都不重复）：
+// 统一规则（站点间共用，保证「有站点产品 id 用 id、无 id 用 canonical(detail_url)」都不重复）：
 //   1) 相对链接 → 绝对链接（基于列表页 URL 解析）
 //   2) canonical：去 # 锚点 → 去 utm_* / gclid / fbclid 等追踪参数 → 去末尾 / → 转小写
 //   3) dedupe_key = COALESCE(source_product_id, canonical(detail_url))
+//
+// ⚠️ 货号（sku）**不参与**去重：货号是产品级唯一，同货号可对应多张规格页，
+//    拿它当去重键会误合并。去重键须表达「页面级」唯一。
 
 /** 追踪参数（小写匹配）：不参与去重，canonical 时剔除 */
 const TRACKING_PARAM = /^(utm_|gclid$|fbclid$|spm$|scm$|from$|ref$)/i;
