@@ -105,6 +105,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   const { db } = createDb();
   const mode: RenderMode = (opts.render as RenderMode) ?? 'auto';
   const now = nowSeconds();
+  const dryRun = opts.dryRun === true;
   const summary: CrawlSummary = {
     companies: 0,
     categories: 0,
@@ -117,15 +118,21 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     conflicts: 0,
   };
 
-  const [crawlRow] = await db
-    .insert(crawls)
-    .values({
-      trigger: 'manual',
-      status: 'running',
-      modelMode: process.env.MODEL_MODE ?? null,
-      startedAt: now,
-    })
-    .returning();
+  let crawlRow: { id: number };
+  if (dryRun) {
+    crawlRow = { id: 0 };
+    progress.update('[crawl] (dry-run) 不写入 crawls 运行记录');
+  } else {
+    [crawlRow] = await db
+      .insert(crawls)
+      .values({
+        trigger: 'manual',
+        status: 'running',
+        modelMode: process.env.MODEL_MODE ?? null,
+        startedAt: now,
+      })
+      .returning();
+  }
 
   const companyIds = new Set<number>();
   // 每个 (companyId|sectionKey) 见到的 dedupeKey，用于软删判断
@@ -153,7 +160,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     if (targets.size === 0) {
       const scope = opts.site ? `site=${opts.site}` : '全部';
       progress.done(`[crawl] 没有匹配的站点配置（source=${source}, ${scope}）`);
-      await finalize(db, crawlRow.id, 'partial', summary);
+      await finalize(db, crawlRow.id, 'partial', summary, dryRun);
       return;
     }
 
@@ -253,9 +260,9 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     progress.done(
       `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}${summary.conflicts ? ` / 冲突 ${summary.conflicts}` : ''}`,
     );
-    await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary);
+    await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
   } catch (e) {
-    await finalize(db, crawlRow.id, 'failed', summary);
+    await finalize(db, crawlRow.id, 'failed', summary, dryRun);
     throw e;
   }
 }
@@ -786,7 +793,14 @@ async function softDeleteMissing(
   return delisted;
 }
 
-async function finalize(db: Db, crawlId: number, status: string, summary: CrawlSummary): Promise<void> {
+async function finalize(
+  db: Db,
+  crawlId: number,
+  status: string,
+  summary: CrawlSummary,
+  dryRun = false,
+): Promise<void> {
+  if (dryRun) return;
   await db
     .update(crawls)
     .set({ status, summary, finishedAt: nowSeconds() })
