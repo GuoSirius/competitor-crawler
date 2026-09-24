@@ -1,0 +1,35 @@
+# 站点适配器：菲恩生物（FineTest）www.fn-test.cn
+# 结构（2026-09-24 实测，探针见 crawl-inventory.json）：
+#   - 列表页 SSR（Tailwind 类名，故用语义化容器/链接选择器而非长 class 链）：
+#       https://www.fn-test.cn/elisa-kits/  → 产品卡片容器 div.reference-card
+#       卡片内详情链接 a[href*="/product/"]（如 /product/eh4233/），文本即产品名
+#   - 翻页：列表页未探测到静态分页链接（疑似前端 load-more / JS 翻页）→ 先按单页抓取，
+#       若后续需要多页，再补 pagination 策略（归形态 D，需 probe 探明 XHR）。
+#   - 详情页：h1 = 产品名；正文含「RMB ¥2880」价格、「货号: EH4233」= sku。
+#     价格/sku 用 body 级 regex 抽取（详情页结构稳定前最稳），其余进 row 兜底。
+domain: www.fn-test.cn
+company: 菲恩生物（FineTest）
+currency: CNY
+startUrl: "https://www.fn-test.cn/elisa-kits/"
+
+listTraversal:
+  strategy: pagination-html
+  nextSelector: "a.next, a[rel=next], .pagination a.next"
+  maxPages: 3
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "div.reference-card"
+  fields:
+    detailUrl: { sel: "a[href*='/product/']", attr: href }
+    name:      { sel: "a[href*='/product/']", text: true }
+
+parseDetail:
+  fields:
+    name:     { sel: "h1", text: true }
+    # 价格：详情页正文形如「RMB ¥2880」，正则抠数值
+    priceText: { sel: "body", text: true, regex: 'RMB\s*¥\s*([\d,]+\.?\d*)' }
+    # 货号 = sku
+    sku:      { sel: "body", text: true, regex: '货号[:：]\s*(\S+)' }
+    # 其余参数未稳定结构化 → 全量进 row 兜底
+  captureRest: true
