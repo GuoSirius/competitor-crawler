@@ -9,8 +9,8 @@
     "report": "tsx src/cli.ts report",
     "probe": "tsx src/cli.ts probe",
     "gen-site": "tsx src/cli.ts gen-site",
-    "gen-site-batch": "tsx src/cli.ts gen-site-batch",
-    "gen-site-template": "tsx src/cli.ts gen-site-template",
+    "gen-site:batch": "tsx src/cli.ts gen-site-batch",
+    "gen-site:template": "tsx src/cli.ts gen-site-template",
     "backfill": "tsx src/cli.ts backfill",
     "typecheck": "tsc --noEmit"
   },

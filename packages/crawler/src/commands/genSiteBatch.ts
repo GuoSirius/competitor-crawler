@@ -112,12 +112,12 @@ export async function genSiteBatch(opts: GenSiteBatchOpts = {}): Promise<void> {
   const rows = await parseBatchRows(file);
 
   if (rows.length === 0) {
-    console.log(`[gen-site-batch] 没有可生成的行（file=${file}）；请先在「站点清单」填写站点并删除示例行`);
+    console.log(`[gen-site:batch] 没有可生成的行（file=${file}）；请先在「站点清单」填写站点并删除示例行`);
     return;
   }
 
   console.log(
-    `[gen-site-batch] 解析到 ${rows.length} 个站点${opts.dryRun ? '（dry-run：仅解析，不调用模型、不落盘）' : ''}`,
+    `[gen-site:batch] 解析到 ${rows.length} 个站点${opts.dryRun ? '（dry-run：仅解析，不调用模型、不落盘）' : ''}`,
   );
 
   let ok = 0;
@@ -146,5 +146,5 @@ export async function genSiteBatch(opts: GenSiteBatchOpts = {}): Promise<void> {
     }
   }
 
-  console.log(`\n[gen-site-batch] 完成：成功 ${ok} / 失败 ${fail} / 共 ${rows.length}`);
+  console.log(`\n[gen-site:batch] 完成：成功 ${ok} / 失败 ${fail} / 共 ${rows.length}`);
 }
