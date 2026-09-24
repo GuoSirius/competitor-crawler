@@ -7,14 +7,14 @@
 
 | 判定 | 公司数 |
 |---|---|
-| SERVER_LIST | 32 |
-| LANDING_ONLY | 11 |
-| BLOCKED_WAF | 6 |
-| UNREACHABLE | 10 |
+| SERVER_LIST | 31 |
+| LANDING_ONLY | 10 |
+| BLOCKED_WAF | 5 |
+| UNREACHABLE | 13 |
 
 > 说明：Excel 原「竞品品类链接」列本是示范，现已被修正为真实品类/列表 URL（修复 `cellUrl` 误读 `hl.target` 的 bug，提交 d3ac044 之后）。本清单即据此 URL 实测。
 
-## SERVER_LIST（32）
+## SERVER_LIST（31）
 
 ### 碧云天（Beyotime）
 - 官网：https://www.beyotime.com/
@@ -79,12 +79,6 @@
     - 状态 200 / 123754B / 产品容器 `a[href*="/product"]`(×109) / 分页 有 / 价格信号 有
     - 详情示例：www.liankebio.com/products
 
-### 默克（Merck）
-- 官网：https://www.sigmaaldrich.com/
-  - 列表页：https://www.sigmaaldrich.cn/CN/zh/products/cell-culture-and-analysis
-    - 状态 200 / 792305B / 产品容器 `a[href*="/product"]`(×45) / 分页 无 / 价格信号 有
-    - 详情示例：www.sigmaaldrich.cn/CN/zh/products
-
 ### 南京诺唯赞生物科技股份有限公司
 - 官网：https://www.vazyme.com/
   - 列表页：https://bio.vazyme.com/products_56/22.html
@@ -126,13 +120,13 @@
 ### 斯达特（Starter）
 - 官网：https://en.starter-bio.com/
   - 列表页：https://en.starter-bio.com/product.html
-    - 状态 200 / 32553B / 产品容器 `a[href*="/product"]`(×4) / 分页 无 / 价格信号 无
+    - 状态 200 / 32552B / 产品容器 `a[href*="/product"]`(×4) / 分页 无 / 价格信号 无
     - 详情示例：www.ua-bio.com/goodsList.html?typeld=8&mk_channel=starter_topnav
 
 ### 苏州海星生物科技有限公司
 - 官网：https://www.cas9x.com/
   - 列表页：https://www.cas9x.com/bdxb
-    - 状态 200 / 52924B / 产品容器 `a[href*="/product"]`(×35) / 分页 有 / 价格信号 有
+    - 状态 200 / 52922B / 产品容器 `a[href*="/product"]`(×35) / 分页 有 / 价格信号 有
     - 详情示例：www.cas9x.com/product
   - 列表页：https://www.hycyte.com/
     - 状态 200 / 593679B / 产品容器 `.item`(×7) / 分页 无 / 价格信号 有
@@ -206,7 +200,7 @@
     - 状态 200 / 688896B / 产品容器 `a[href*="/product"]`(×252) / 分页 无 / 价格信号 有
     - 详情示例：www.bdbiosciences.com/en-sg/products/instruments
   - 列表页：https://www.bdbiosciences.com/en-us/products/reagents/cell-preparation-separation-reagents/
-    - 状态 200 / 695941B / 产品容器 `a[href*="/product"]`(×239) / 分页 无 / 价格信号 有
+    - 状态 200 / 695939B / 产品容器 `a[href*="/product"]`(×239) / 分页 无 / 价格信号 有
     - 详情示例：www.bdbiosciences.com/en-us/products/instruments
 
 ### Bio X Cell
@@ -239,7 +233,7 @@
 ### Promega
 - 官网：https://www.promega.com.cn/
   - 列表页：https://www.promega.com.cn/products/cell-health-assays/
-    - 状态 200 / 292812B / 产品容器 `a[href*="/product"]`(×124) / 分页 无 / 价格信号 有
+    - 状态 200 / 293420B / 产品容器 `a[href*="/product"]`(×124) / 分页 无 / 价格信号 有
     - 详情示例：www.promega.com.cn/products/reporter-bioassays/
 
 ### Proteintech
@@ -263,7 +257,7 @@
 ### R&D Systems
 - 官网：https://www.rndsystems.com/
   - 列表页：https://www.rndsystems.com/products/elisas
-    - 状态 200 / 144913B / 产品容器 `a[href*="/product"]`(×64) / 分页 无 / 价格信号 有
+    - 状态 200 / 144912B / 产品容器 `a[href*="/product"]`(×64) / 分页 无 / 价格信号 有
     - 详情示例：www.rndsystems.com/products/proteins
   - 列表页：https://www.rndsystems.com/duoset
     - 状态 200 / 102047B / 产品容器 `a[href*="/product"]`(×34) / 分页 无 / 价格信号 有
@@ -286,7 +280,7 @@
   - 列表页：https://www.stemcell.cn/products/product-types/cell-culture-media-and-supplements.html
     - 状态 202 / 2088B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
 
-## LANDING_ONLY（11）
+## LANDING_ONLY（10）
 
 ### 赛百慷（上海）生物技术股份有限公司
 - 官网：https://www.icellbioscience.com/
@@ -333,15 +327,10 @@
   - 列表页：https://www.caymanchem.com/assays
     - 状态 200 / 2327B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
 
-### Leinco
-- 官网：https://www.leinco.com/
-  - 列表页：https://www.leinco.com/primary-monoclonal-antibodies/
-    - 状态 200 / 844B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
-
 ### RayBiotech
 - 官网：https://www.raybiotech.com/
   - 列表页：https://www.raybiotech.com/elisa-kits
-    - 状态 200 / 675109B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
+    - 状态 200 / 674220B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
     - 详情示例：www.raybiotech.com/elisa-kits-products
 
 ### Selleck
@@ -353,7 +342,7 @@
     - 状态 200 / 80885B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
     - 详情示例：www.selleck.au/selleckcatalog.html
 
-## BLOCKED_WAF（6）
+## BLOCKED_WAF（5）
 
 ### 华安生物（HUABIO）
 - 官网：https://huabio.cn/
@@ -387,15 +376,6 @@
   - 列表页：https://www.seafrom.com/Product-center.html
     - 状态 200 / 22297B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
 
-### CST（Cell Signaling Technology）
-- 官网：https://www.cellsignal.com/
-  - 列表页：https://www.cellsignal.com/browse?tab=product&categories=Primary%20Antibodies
-    - 状态 200 / 186857B / 产品容器 `a[href*="/product"]`(×1) / 分页 无 / 价格信号 有
-    - 详情示例：www.cellsignal.com/product-information/promotions
-  - 列表页：https://www.cellsignal.com/browse?tab=product&categories=Rabbit%20Monoclonal%20Antibodies
-    - 状态 200 / 174201B / 产品容器 `a[href*="/product"]`(×1) / 分页 无 / 价格信号 有
-    - 详情示例：www.cellsignal.com/product-information/promotions
-
 ### Miltenyi Biotec
 - 官网：https://www.miltenyibiotec.com/
   - 列表页：https://www.miltenyibiotec.com/US-en/products/macs-cell-separation.html
@@ -403,7 +383,12 @@
   - 列表页：https://www.miltenyibiotec.com/US-en/products/macs-cell-separation/cell-separation-reagents.html
     - 状态 200 / 31673B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
 
-## UNREACHABLE（10）
+## UNREACHABLE（13）
+
+### 默克（Merck）
+- 官网：https://www.sigmaaldrich.com/
+  - 列表页：https://www.sigmaaldrich.cn/CN/zh/products/cell-culture-and-analysis
+    - 状态 404 / 672365B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
 
 ### 南京森贝伽生物科技有限公司
 - 官网：http://www.senbeijia.com/
@@ -437,26 +422,38 @@
 ### Beckman Coulter
 - 官网：https://www.beckman.com/
   - 列表页：https://www.beckman.com/reagents/coulter-flow-cytometry/antibodies-and-kits
-    - 状态 403 / 5921B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
+    - 状态 403 / 5921B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
 
 ### BioLegend
 - 官网：https://www.biolegend.com/
   - 列表页：https://www.biolegend.com/en-us/flow-cytometry
-    - 状态 403 / 5873B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
+    - 状态 403 / 5873B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
   - 列表页：https://www.biolegend.com/en-us/mojosort
-    - 状态 403 / 5855B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
+    - 状态 403 / 5855B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
   - 列表页：https://www.biolegend.com/en-us/cell-culture/functional-antibodies
-    - 状态 403 / 5954B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
+    - 状态 403 / 5954B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
+
+### CST（Cell Signaling Technology）
+- 官网：https://www.cellsignal.com/
+  - 列表页：https://www.cellsignal.com/browse?tab=product&categories=Primary%20Antibodies
+    - 状态 ERR:fetch failed / 0B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
+  - 列表页：https://www.cellsignal.com/browse?tab=product&categories=Rabbit%20Monoclonal%20Antibodies
+    - 状态 ERR:fetch failed / 0B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
 
 ### Cytion
 - 官网：https://www.cytion.com/
   - 列表页：https://www.cytion.com/us
     - 状态 ERR:fetch failed / 0B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
 
+### Leinco
+- 官网：https://www.leinco.com/
+  - 列表页：https://www.leinco.com/primary-monoclonal-antibodies/
+    - 状态 200 / 212B / 产品容器 `-`(×0) / 分页 无 / 价格信号 无
+
 ### MedChemExpress（MCE）
 - 官网：https://www.medchemexpress.cn/
   - 列表页：https://www.medchemexpress.cn/kits/cell-isolation.html
-    - 状态 412 / 3191B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
+    - 状态 412 / 3111B / 产品容器 `-`(×0) / 分页 无 / 价格信号 有
 
 ### PromoCell
 - 官网：https://www.promocell.com/

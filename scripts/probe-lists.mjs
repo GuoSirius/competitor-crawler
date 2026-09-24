@@ -122,7 +122,7 @@ async function main() {
   console.log('\n=== VERDICT COUNTS ===');
   console.log(JSON.stringify(counts, null, 2));
   console.log('inventory -> data/seeds/crawl-inventory.json');
-  console.log('html samples -> .probe-html/');
+  console.log('html samples -> .tmp/probe-html/（用完即删）');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
