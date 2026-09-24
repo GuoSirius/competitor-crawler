@@ -11,3 +11,17 @@ allowBuilds:
 
 patchedDependencies:
   dayjs: patches/dayjs.patch
+
+# 传递依赖漏洞修复（pnpm 12 统一在**本文件**配置，不写进 package.json 的 "pnpm" 字段）。
+# 三个都是 GitHub Advisory 报出的传递依赖，且都打不到本项目实际代码路径（详见 docs/12 §12.14）：
+#   glob    : 漏洞在 **CLI 的 -c/--cmd**，archiver-utils 只用库 API
+#   esbuild : 漏洞在 **dev server(--serve)**，@esbuild-kit 只用 transform()
+#   uuid    : 漏洞在 **v3/v5/v6 传 buf**，exceljs 只用 v4()
+# 仍按「就近修到已修复版本」处理，避免审计长期报红。用**版本区间**做键：
+# 只会命中下列范围内的那个实例，其它 major（glob@7/@13、esbuild@0.25/0.28）不受影响。
+#   ⚠️ 不用 `父包>子包` 写法：glob 同时被 archiver-utils@2/@3(声明 ^7) 与 @5(声明 ^10) 引用，
+#      按父包改名会把老链路的 glob 也强拉到 10.x，风险大。
+overrides:
+  "glob@>=10.2.0 <10.5.0": "^10.5.0" # archiver-utils@5.0.2 → glob 10.4.5（web/nuxt 链路）
+  "esbuild@<=0.24.2": "^0.25.0" # @esbuild-kit/core-utils → esbuild 0.18.20（drizzle-kit 链路）
+  "uuid@<11.1.1": "^11.1.1" # exceljs@4.4.0 → uuid 8.3.2（report 导出链路）
