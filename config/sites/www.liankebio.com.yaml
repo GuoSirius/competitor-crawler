@@ -1,0 +1,55 @@
+# 站点适配器：联科生物（Liankebio）www.liankebio.com
+# 结构（2026-09-24 实测）：WordPress + WooCommerce
+#   - 列表页 /product-category/fcm/fcm-antibody（流式抗体）与 /product-category/elisa/elisa-kit（ELISA试剂盒）
+#   - 产品卡 div.product-inner：a.woocommerce-LoopProduct-link(详情) + img[alt](完整名称) + sku/价格在卡片文本
+#   - 翻页为真实 URL 路径 /page/N → pagination-url
+#   - 详情页 h1=名称；p.mufeng-ah 含「在售SKU, F1110503, ...」；有 JSON-LD
+domain: www.liankebio.com
+company: 联科生物（Liankebio）
+currency: CNY
+
+listTraversal:
+  strategy: pagination-url
+  # 翻页是「分类子路径下 /page/N」，urlTemplate 用完整 URL（引擎对 '/' 开头模板按站点根拼）
+  urlTemplate: "https://www.liankebio.com/product-category/fcm/fcm-antibody/page/{page}"
+  pageStart: 1
+  maxPages: 20
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "div.product-inner"
+  fields:
+    detailUrl: { sel: "a.woocommerce-LoopProduct-link", attr: href }
+    name:      { sel: "img", attr: alt }
+    # 卡片文本以货号开头（如 F1110503流式抗体Anti-Human ...）
+    sku:   { sel: "$self", text: true, regex: '^([A-Z]{2}\d{4,6})' }
+    price: { sel: "$self", text: true, regex: '¥\s*([\d,]+\.?\d*)', number: true }
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku:  { sel: "p.mufeng-ah", text: true, regex: '在售SKU[,，]\s*([A-Z0-9-]+)' }
+  captureRest: true
+
+sections:
+  - key: fcm-antibody
+    category: 流式抗体
+    startUrls:
+      - "https://www.liankebio.com/product-category/fcm/fcm-antibody"
+    match:
+      listUrlIncludes: ["/product-category/fcm/"]
+      detailUrlIncludes: ["/product/"]
+
+  - key: elisa-kit
+    category: ELISA试剂盒
+    startUrls:
+      - "https://www.liankebio.com/product-category/elisa/elisa-kit"
+    listTraversal:
+      strategy: pagination-url
+      urlTemplate: "https://www.liankebio.com/product-category/elisa/elisa-kit/page/{page}"
+      pageStart: 1
+      maxPages: 20
+      fallbackToUi: false
+    match:
+      listUrlIncludes: ["/product-category/elisa/"]
+      detailUrlIncludes: ["/product/"]

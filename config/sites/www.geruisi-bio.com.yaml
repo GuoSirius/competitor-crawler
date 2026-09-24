@@ -1,0 +1,39 @@
+# 站点适配器：苏州格锐思生物（Geruisi）www.geruisi-bio.com
+# 结构（2026-09-24 实测）：
+#   - 列表页 /products/463/（生化试剂盒），产品卡 div.pro_description：
+#       a.img_btn(详情 /product/G0427W48) + a.name_btn(中文名) + a.enname(英文名)
+#   - 规格价格在产品卡下方的表格 tbody tr（货号/规格/方法）+ 内联 inventorydatacfg JSON（形态 C，
+#     跨卡片作用域，列表阶段不抽；详情页静态 HTML 无价格 → 价格后期从详情补）
+#   - 翻页：javascript:void(0)?page=N 前端壳，但真实 URL ?page=N&prop_filter={} 服务端生效（实测 200）
+#     → pagination-url 策略直连
+domain: www.geruisi-bio.com
+company: 格锐思（Geruisi）
+currency: CNY
+startUrl: "https://www.geruisi-bio.com/products/463/"
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?page={page}&prop_filter=%7B%7D"
+  pageStart: 1
+  maxPages: 30
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "div.pro_description"
+  fields:
+    detailUrl:  { sel: "a.img_btn", attr: href }
+    name:       { sel: "a.name_btn", text: true }
+    englishName: { sel: "a.enname", text: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: default
+    category: 生化试剂盒
+    startUrls:
+      - "https://www.geruisi-bio.com/products/463/"
+    match:
+      listUrlIncludes: ["/products/"]
+      detailUrlIncludes: ["/product/"]

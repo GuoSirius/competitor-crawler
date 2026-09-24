@@ -1,0 +1,38 @@
+# 站点适配器：盒子生工（Boxbio）www.boxbio.cn
+# 结构（2026-09-24 实测）：
+#   - 列表页 /products/762/（生化检测试剂盒），产品卡 div.product_header：
+#       a.name_btn(中文名 /product/591.html) + a.en_name(英文名)
+#   - 规格行在卡片同级 tbody tr：a.num_btn.huohao=货号、td.packaging=规格、内联 inventorydatacfg JSON
+#     （跨卡片作用域，列表阶段不抽；详情页静态 HTML 无价格）
+#   - 翻页：javascript:void(0)?page=N 前端壳，真实 URL ?page=N&prop_filter={} 服务端生效（实测 200）
+domain: www.boxbio.cn
+company: 盒子生工（Boxbio）
+currency: CNY
+startUrl: "https://www.boxbio.cn/products/762/"
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?page={page}&prop_filter=%7B%7D"
+  pageStart: 1
+  maxPages: 30
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "div.product_header"
+  fields:
+    detailUrl:   { sel: "a.name_btn", attr: href }
+    name:        { sel: "a.name_btn", text: true }
+    englishName: { sel: "a.en_name", text: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: default
+    category: 生化检测试剂盒
+    startUrls:
+      - "https://www.boxbio.cn/products/762/"
+    match:
+      listUrlIncludes: ["/products/"]
+      detailUrlIncludes: ["/product/"]

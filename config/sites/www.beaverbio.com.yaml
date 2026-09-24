@@ -1,0 +1,38 @@
+# 站点适配器：海狸（Beaver）www.beaverbio.com
+# 结构（2026-09-24 实测）：
+#   - 列表页 /products/index/952.html（细胞分选磁珠），产品卡 div.grid-inner：
+#       div.portfolio-image a(详情 /products/list/<id>.html) + img[alt](产品名)
+#   - 翻页：真实 URL ?page=N（实测 page=2 返回 200 且内容变化）→ pagination-url
+#   - 详情页：h1=产品名；价格在无类名 td（¥6990.00），先 body regex 兜底
+domain: www.beaverbio.com
+company: 海狸（Beaver）
+currency: CNY
+startUrl: "https://www.beaverbio.com/products/index/952.html"
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?page={page}"
+  pageStart: 1
+  maxPages: 20
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "div.grid-inner"
+  fields:
+    detailUrl: { sel: "div.portfolio-image a", attr: href }
+    name:      { sel: "img", attr: alt }
+
+parseDetail:
+  fields:
+    name:      { sel: "h1", text: true }
+    priceText: { sel: "body", text: true, regex: '¥\s*([\d,]+\.?\d*)' }
+  captureRest: true
+
+sections:
+  - key: default
+    category: 细胞分选磁珠
+    startUrls:
+      - "https://www.beaverbio.com/products/index/952.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
