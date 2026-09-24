@@ -12,9 +12,10 @@ export function nowSeconds(): number {
   return dayjs().unix();
 }
 
-/** 格式化为北京时间字符串 YYYY-MM-DD HH:mm:ss（展示用） */
+/** 格式化为北京时间字符串 YYYY-MM-DD HH:mm:ss（展示用）；数字入参按 **Unix 秒** 解析 */
 export function formatBj(dt?: number | Date): string {
-  return dayjs(dt).tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss');
+  const d = dt == null ? dayjs() : typeof dt === 'number' ? dayjs.unix(dt) : dayjs(dt);
+  return d.tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss');
 }
 
 export { dayjs };
