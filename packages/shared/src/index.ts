@@ -9,3 +9,4 @@ export * from './adapter/json.js';
 export * from './url.js';
 export * from './paths.js';
 export * from './time.js';
+export * from './model/extraction.js';
