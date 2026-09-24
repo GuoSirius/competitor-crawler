@@ -13,6 +13,9 @@ export const companies = sqliteTable('companies', {
 });
 
 // 品类（Excel 一行：公司 + 产品线 + 品类名 + 品类链接）
+//
+// ⚠️ 索引回调用**数组**而非对象：drizzle-orm 0.45+ 已弃用对象回调（ts6387），
+// 数组写法才会命中新签名，避免函数重载回落到已弃用的旧签名。
 export const categories = sqliteTable('categories', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   companyId: integer('company_id').notNull().references(() => companies.id),
@@ -23,10 +26,10 @@ export const categories = sqliteTable('categories', {
   removedAt: integer('removed_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-}, (t) => ({
+}, (t) => [
   // 业务主键：同一公司下的「产品线 + 品类名」唯一
-  uniqCat: uniqueIndex('uniq_cat').on(t.companyId, t.productLine, t.name),
-}));
+  uniqueIndex('uniq_cat').on(t.companyId, t.productLine, t.name),
+]);
 
 // 产品（归一化 + 兜底）
 //
@@ -81,14 +84,14 @@ export const products = sqliteTable('products', {
   missingSince: integer('missing_since'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-}, (t) => ({
+}, (t) => [
   // ★ 组合唯一索引：一个产品在公司内、按栏目唯一（去重口径 B：section_key 并入去重键）
   // 同一 SKU 出现在不同 section 时分开为两条，适合「同 SKU 在不同栏目详情内容确实不同」的场景。
-  uniqProduct: uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey, t.sectionKey),
-  idxCompanyCatStatus: index('idx_company_cat_status').on(t.companyId, t.categoryId, t.status),
+  uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey, t.sectionKey),
+  index('idx_company_cat_status').on(t.companyId, t.categoryId, t.status),
   // 按货号查（同公司内对齐 / 去重用）
-  idxCompanySku: index('idx_company_sku').on(t.companyId, t.sku),
-}));
+  index('idx_company_sku').on(t.companyId, t.sku),
+]);
 
 // 爬取批次
 export const crawls = sqliteTable('crawls', {
@@ -116,9 +119,7 @@ export const priceHistory = sqliteTable('price_history', {
   specText: text('spec_text'),
   crawlId: integer('crawl_id').references(() => crawls.id),
   capturedAt: integer('captured_at').notNull(),
-}, (t) => ({
-  idxProductTime: index('idx_price_history_product_time').on(t.productId, t.capturedAt),
-}));
+}, (t) => [index('idx_price_history_product_time').on(t.productId, t.capturedAt)]);
 
 // 告警
 export const alerts = sqliteTable('alerts', {
