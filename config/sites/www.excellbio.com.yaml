@@ -1,0 +1,239 @@
+# 站点适配器：苏州依科赛生物（Excellbio）www.excellbio.com
+# 结构（2026-09-24 实测）：ASP.NET，与 xpbiomed 同款
+#   - 列表页 /productcenter/list.aspx?lcid=N（栏目导航全量已枚举，30 个产品栏目）
+#   - 产品卡 div.con：figure>a(info.aspx?itemid=) + h3>a.dot(名称) + span.dot2(简介)
+#   - 翻页：真实 URL &page=N
+#   - 注：定制化服务(273/364/259)、科赋思(366)、案例分析(269) 非产品栏目，未接入
+domain: www.excellbio.com
+company: 苏州依科赛生物科技股份有限公司
+currency: CNY
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "&page={page}"
+  pageStart: 1
+  maxPages: 20
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "div.con"
+  fields:
+    detailUrl: { sel: "a[href*='info.aspx?itemid=']", attr: href }
+    name:      { sel: "h3 a.dot", text: true }
+    summary:   { sel: "span.dot2", text: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: lcid-272
+    category: 无血清细胞培养基
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=272&scid=272"
+    match:
+      listUrlIncludes: ["lcid=272"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-276
+    category: T细胞
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=276"
+    match:
+      listUrlIncludes: ["lcid=276"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-368
+    category: NK细胞
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=368"
+    match:
+      listUrlIncludes: ["lcid=368"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-277
+    category: 293细胞
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=277"
+    match:
+      listUrlIncludes: ["lcid=277"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-275
+    category: 干细胞
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=275"
+    match:
+      listUrlIncludes: ["lcid=275"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-367
+    category: 细胞临床应用
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=367"
+    match:
+      listUrlIncludes: ["lcid=367"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-278
+    category: CHO细胞
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=278"
+    match:
+      listUrlIncludes: ["lcid=278"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-274
+    category: 细胞冻存液
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=274"
+    match:
+      listUrlIncludes: ["lcid=274"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-268
+    category: 牛血清
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=268&scid=268"
+    match:
+      listUrlIncludes: ["lcid=268"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-271
+    category: 胎牛血清
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=271"
+    match:
+      listUrlIncludes: ["lcid=271"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-270
+    category: 新生牛血清
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=270"
+    match:
+      listUrlIncludes: ["lcid=270"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-258
+    category: 鉴定试剂盒
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=258&scid=258"
+    match:
+      listUrlIncludes: ["lcid=258"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-362
+    category: 宿主细胞核酸残留检测
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=362"
+    match:
+      listUrlIncludes: ["lcid=362"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-363
+    category: 宿主细胞蛋白残留检测
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=363"
+    match:
+      listUrlIncludes: ["lcid=363"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-266
+    category: 工艺杂质残留检测
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=266"
+    match:
+      listUrlIncludes: ["lcid=266"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-265
+    category: 微生物快速检测（放行）
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=265"
+    match:
+      listUrlIncludes: ["lcid=265"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-264
+    category: 细胞检定
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=264"
+    match:
+      listUrlIncludes: ["lcid=264"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-263
+    category: 可复制性病毒
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=263"
+    match:
+      listUrlIncludes: ["lcid=263"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-262
+    category: 人ELISA
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=262"
+    match:
+      listUrlIncludes: ["lcid=262"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-261
+    category: 小鼠ELISA
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=261"
+    match:
+      listUrlIncludes: ["lcid=261"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-260
+    category: 大鼠ELISA
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=260"
+    match:
+      listUrlIncludes: ["lcid=260"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-370
+    category: 细胞培养试剂
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=370&scid=370"
+    match:
+      listUrlIncludes: ["lcid=370"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-398
+    category: 经典基础培养基
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=398"
+    match:
+      listUrlIncludes: ["lcid=398"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-369
+    category: 基质胶
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=369"
+    match:
+      listUrlIncludes: ["lcid=369"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-371
+    category: 血清替代物
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=371"
+    match:
+      listUrlIncludes: ["lcid=371"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-253
+    category: 其他
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=253&scid=253"
+    match:
+      listUrlIncludes: ["lcid=253"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-257
+    category: 分子辅助试剂
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=257"
+    match:
+      listUrlIncludes: ["lcid=257"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-256
+    category: 细胞辅助试剂
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=256"
+    match:
+      listUrlIncludes: ["lcid=256"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-255
+    category: 分子类耗材
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=255"
+    match:
+      listUrlIncludes: ["lcid=255"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+  - key: lcid-254
+    category: 细胞培养耗材
+    startUrls:
+      - "https://www.excellbio.com/productcenter/list.aspx?lcid=254"
+    match:
+      listUrlIncludes: ["lcid=254"]
+      detailUrlIncludes: ["info.aspx?itemid="]

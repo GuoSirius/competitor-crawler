@@ -1,0 +1,126 @@
+# 站点适配器：Cytiva（思拓凡学堂中国站）learning.cytivalifesciences.com.cn
+# 结构（2026-09-24 实测）：WordPress + WooCommerce
+#   - 叶子分类页 ul.products li.product（产品卡）：a(/product/<slug>/) + h2.woocommerce-loop-product__title + .price
+#   - 翻页 ?product-page=N；个别分类下还有子分类（li.product-category 已被 :not 过滤，产出 0 条自动停）
+#   - 种子品类「特级胎牛血清、马血清」对应 serum 家族；此处按站点真实分类全量接入
+domain: learning.cytivalifesciences.com.cn
+company: Cytiva
+currency: CNY
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?product-page={page}"
+  pageStart: 1
+  maxPages: 10
+  fallbackToUi: false
+
+parseList:
+  itemSelector: "ul.products li.product:not(.product-category)"
+  fields:
+    detailUrl: { sel: "a", attr: href }
+    name:      { sel: "h2.woocommerce-loop-product__title", text: true }
+    price:     { sel: ".price", text: true, regex: '¥\s*([\d,]+\.?\d*)', number: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: classical-media
+    category: 经典细胞培养基
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/classical-media/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/classical-media/"]
+      detailUrlIncludes: ["/product/"]
+  - key: specialty-media
+    category: 专用培养基
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/specialty-media/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/specialty-media/"]
+      detailUrlIncludes: ["/product/"]
+  - key: stem-cell-media-and-reagents
+    category: 干细胞培养基与试剂
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/stem-cell-media-and-reagents/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/stem-cell-media-and-reagents/"]
+      detailUrlIncludes: ["/product/"]
+  - key: transfection-media
+    category: 转染培养基
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/transfection-media/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/transfection-media/"]
+      detailUrlIncludes: ["/product/"]
+  - key: bovine-calf-serum
+    category: 小牛血清
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/bovine-calf-serum/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/bovine-calf-serum/"]
+      detailUrlIncludes: ["/product/"]
+  - key: fetal-bovine-serum
+    category: 胎牛血清
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/fetal-bovine-serum/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/fetal-bovine-serum/"]
+      detailUrlIncludes: ["/product/"]
+  - key: other-serum
+    category: 其他血清
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/other-serum/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/other-serum/"]
+      detailUrlIncludes: ["/product/"]
+  - key: microcarriers
+    category: 微载体
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/microcarriers/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/microcarriers/"]
+      detailUrlIncludes: ["/product/"]
+  - key: antibiotics-and-selection-reagents
+    category: 抗生素与筛选试剂
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/antibiotics-and-selection-reagents/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/antibiotics-and-selection-reagents/"]
+      detailUrlIncludes: ["/product/"]
+  - key: cryopreservation-media
+    category: 冻存培养基
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/cryopreservation-media/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/cryopreservation-media/"]
+      detailUrlIncludes: ["/product/"]
+  - key: density-gradient-media
+    category: 密度梯度介质
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/density-gradient-media/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/density-gradient-media/"]
+      detailUrlIncludes: ["/product/"]
+  - key: cell-disassociation-reagents
+    category: 细胞解离试剂
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/cell-disassociation-reagents/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/cell-disassociation-reagents/"]
+      detailUrlIncludes: ["/product/"]
+  - key: feed-supplements-media-and-feeds
+    category: 补料
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/feed-supplements-media-and-feeds/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/feed-supplements-media-and-feeds/"]
+      detailUrlIncludes: ["/product/"]
+  - key: medium-supplements
+    category: 培养基添加剂
+    startUrls:
+      - "https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/medium-supplements/"
+    match:
+      listUrlIncludes: ["https://learning.cytivalifesciences.com.cn/product/category/cell-culture-and-fermentation/media-and-feeds/medium-supplements/"]
+      detailUrlIncludes: ["/product/"]
