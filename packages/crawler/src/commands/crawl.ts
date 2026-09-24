@@ -15,7 +15,7 @@ import {
   type ListItem,
   type NormalizedProduct,
 } from '@competitor-crawler/shared';
-import { siteConfigPath, loadSiteConfig, resolveSections } from '../config/loader.js';
+import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
@@ -39,6 +39,18 @@ export interface CrawlOpts {
   limit?: number;
   /** 渲染模式 ssr/spa/auto */
   render?: string;
+  /**
+   * 爬取范围数据源（需求①·决策B，可切换）：
+   * - 'config'（默认）：扫描 config/sites/*.yaml 作为真相源，公司/品类按 YAML 自动 upsert 入库
+   * - 'seeds'：沿用库内 categories（种子 Excel 入库）作为范围（旧行为）
+   */
+  source?: 'config' | 'seeds';
+  /** 仅跑指定栏目 key（逗号分隔）；两数据源均生效 */
+  section?: string;
+  /** 仅跑指定品类名（子串匹配，不区分大小写）；两数据源均生效 */
+  category?: string;
+  /** 仅跑指定产品线（仅 --source seeds 生效，对应 categories.product_line）；config 模式忽略并提示 */
+  productLine?: string;
 }
 
 interface PendingProduct {
@@ -74,6 +86,8 @@ interface CrawlSummary {
   /** 本轮写入的价格历史条数（仅变化时记） */
   pricePoints: number;
   failed: number;
+  /** 检测到「YAML 配置 ↔ 代码适配器 互斥」的站点数（已跳过、待用户处理） */
+  conflicts: number;
 }
 
 /**
@@ -100,6 +114,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     delisted: 0,
     pricePoints: 0,
     failed: 0,
+    conflicts: 0,
   };
 
   const [crawlRow] = await db
@@ -126,51 +141,38 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   };
 
   try {
-    // 1) 活跃品类 + 归属公司
-    const rows = await db
-      .select({ cat: categories, company: companies })
-      .from(categories)
-      .innerJoin(companies, eq(categories.companyId, companies.id))
-      .where(isNull(categories.removedAt));
+    const source: 'config' | 'seeds' = opts.source === 'seeds' ? 'seeds' : 'config';
 
-    // 2) 按域名分组（可 --site 过滤）
-    const byDomain = new Map<string, typeof rows>();
-    for (const r of rows) {
-      const d = domainOf(r.cat.url);
-      if (!d) continue;
-      if (opts.site && d !== opts.site) continue;
-      const list = byDomain.get(d) ?? [];
-      list.push(r);
-      byDomain.set(d, list);
+    // 数据源切换（需求①·决策B）：config 扫描 config/sites/*.yaml / seeds 读库内 categories，可切换。
+    // 两种模式都做「YAML 配置 ↔ 代码适配器 互斥检测」（决策A）：共存则记录冲突、跳过、跑完汇总提示。
+    if (opts.productLine && source !== 'seeds') {
+      progress.update('[crawl] 警告：--product-line 仅在 --source seeds 生效，config 模式已忽略');
     }
 
-    if (byDomain.size === 0) {
-      progress.done(`[crawl] 没有匹配的活跃品类（site=${opts.site ?? '全部'}）`);
+    const { targets: rawTargets, conflicts } = await buildTargets(db, source, opts, progress);
+    const targets = applyFilters(rawTargets, opts);
+
+    if (targets.size === 0) {
+      const scope = opts.site ? `site=${opts.site}` : '全部';
+      progress.done(`[crawl] 没有匹配的站点配置（source=${source}, ${scope}）`);
       await finalize(db, crawlRow.id, 'partial', summary);
       return;
     }
 
-    for (const [domain, list] of byDomain) {
-      summary.categories += list.length;
-      // 同域名品类通常同公司：取第一个品类所属公司
-      const companyId = list[0].company.id;
+    for (const [domain, target] of targets) {
+      summary.categories += target.sections.length;
+      summary.sections += target.sections.length;
+      const companyId = target.companyId;
       companyIds.add(companyId);
 
-      if (!fs.existsSync(siteConfigPath(domain))) {
-        progress.update(`[crawl] 跳过 ${domain}：无适配器配置 config/sites/${domain}.yaml`);
-        continue;
-      }
-      const cfg = loadSiteConfig(domain);
-      const sections = resolveSections(cfg);
-      summary.sections += sections.length;
-
-      for (const section of sections) {
+      for (const ts of target.sections) {
+        const section = ts.section;
         if (section.startUrls.length === 0) {
           progress.update(`[crawl] 跳过 ${domain} [${section.key}]：未配置 startUrls`);
           summary.failed++;
           continue;
         }
-        const categoryId = resolveCategoryId(section, list);
+        const categoryId = ts.categoryId;
 
         const pending: PendingProduct[] = [];
         // 模型兜底（形态 E）本栏目统计：补全字段数 / 失败条数 + 首条失败原因
@@ -243,8 +245,15 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     }
 
     summary.companies = companyIds.size;
+    if (conflicts.length > 0) {
+      progress.update(
+        `[crawl] ⚠️ 检测到 ${conflicts.length} 个站点同时存在 YAML 配置与代码适配器（互斥），已跳过待处理：${conflicts.join(', ')}`,
+      );
+      progress.update('[crawl] 请移除其一后再跑：config/sites/<domain>.yaml 或 packages/crawler/src/adapters/<domain>.ts');
+      summary.conflicts = conflicts.length;
+    }
     progress.done(
-      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}`,
+      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}${summary.conflicts ? ` / 冲突 ${summary.conflicts}` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary);
   } catch (e) {
@@ -259,10 +268,204 @@ function resolveCategoryId(
   list: Array<{ cat: { id: number; name: string } }>,
 ): number | null {
   if (section.category) {
-    const hit = list.find((r) => r.cat.name === section.category);
-    if (hit) return hit.cat.id;
+  const hit = list.find((r) => r.cat.name === section.category);
+  if (hit) return hit.cat.id;
   }
   return list.length === 1 ? list[0].cat.id : null;
+}
+
+/** 爬取目标：一个域名 → 归属公司 + 一组已绑定 DB 品类的栏目 */
+interface SiteTarget {
+  domain: string;
+  companyId: number;
+  sections: TargetSection[];
+}
+
+/** 已绑定到 DB 品类的栏目（携带用于 --category 过滤的品类名） */
+interface TargetSection {
+  section: ResolvedSection;
+  categoryId: number | null;
+  /** 用于 --category 过滤的品类名（config: section.category ?? `<domain>::<key>`；seeds: section.category ?? domain） */
+  categoryName: string;
+}
+
+/**
+ * 按数据源构建爬取目标（需求①·决策B）。
+ * - config：扫描 `config/sites/*.yaml` 作为爬取范围真相源；YAML 与代码适配器共存 → 记冲突并跳过。
+ * - seeds：读库内 categories（可按产品线过滤）；同样做共存检测。
+ * 返回所有「未冲突」的目标 + 冲突域名清单（供跑完汇总提示）。
+ */
+async function buildTargets(
+  db: Db,
+  source: 'config' | 'seeds',
+  opts: CrawlOpts,
+  progress: Progress,
+): Promise<{ targets: Map<string, SiteTarget>; conflicts: string[] }> {
+  const conflicts: string[] = [];
+  const targets = new Map<string, SiteTarget>();
+
+  if (source === 'config') {
+    for (const domain of listSiteConfigs()) {
+      if (opts.site && domain !== opts.site) continue;
+      // 决策A：YAML 与代码适配器互斥，共存则记录冲突、跳过该站点
+      if (hasCodeAdapter(domain)) {
+        conflicts.push(domain);
+        continue;
+      }
+      const cfg = loadSiteConfig(domain);
+      const sections = resolveSections(cfg);
+      const companyId = await resolveCompanyId(db, cfg);
+      const targetSections: TargetSection[] = [];
+      for (const section of sections) {
+        const categoryName = section.category ?? `${domain}::${section.key}`;
+        const categoryId = await upsertCategory(
+          db,
+          companyId,
+          categoryName,
+          section.startUrls[0] ?? cfg.startUrl ?? '',
+          null,
+        );
+        targetSections.push({ section, categoryId, categoryName });
+      }
+      targets.set(domain, { domain, companyId, sections: targetSections });
+    }
+    return { targets, conflicts };
+  }
+
+  // source === 'seeds'
+  const conds = [isNull(categories.removedAt)];
+  if (opts.productLine) conds.push(eq(categories.productLine, opts.productLine));
+  const rows = await db
+    .select({ cat: categories, company: companies })
+    .from(categories)
+    .innerJoin(companies, eq(categories.companyId, companies.id))
+    .where(and(...conds));
+
+  const byDomain = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const d = domainOf(r.cat.url);
+    if (!d) continue;
+    if (opts.site && d !== opts.site) continue;
+    const list = byDomain.get(d) ?? [];
+    list.push(r);
+    byDomain.set(d, list);
+  }
+
+  for (const [domain, list] of byDomain) {
+    if (!fs.existsSync(siteConfigPath(domain))) {
+      progress.update(`[crawl] 跳过 ${domain}：无适配器配置 config/sites/${domain}.yaml`);
+      continue;
+    }
+    // 决策A：YAML 与代码适配器互斥，共存则记录冲突、跳过该站点
+    if (hasCodeAdapter(domain)) {
+      conflicts.push(domain);
+      continue;
+    }
+    const cfg = loadSiteConfig(domain);
+    const sections = resolveSections(cfg);
+    const companyId = list[0].company.id;
+    const targetSections: TargetSection[] = sections.map((section) => {
+      const categoryId = resolveCategoryId(section, list);
+      const categoryName = section.category ?? domain;
+      return { section, categoryId, categoryName };
+    });
+    targets.set(domain, { domain, companyId, sections: targetSections });
+  }
+
+  return { targets, conflicts };
+}
+
+/** 按 --section / --category 过滤栏目（两数据源通用） */
+function applyFilters(
+  targets: Map<string, SiteTarget>,
+  opts: CrawlOpts,
+): Map<string, SiteTarget> {
+  const sectionSet = opts.section
+    ? new Set(opts.section.split(',').map((s) => s.trim()).filter(Boolean))
+    : null;
+  const catFilter = opts.category ? opts.category.toLowerCase() : null;
+  const out = new Map<string, SiteTarget>();
+  for (const [domain, target] of targets) {
+    const secs = target.sections.filter((ts) => {
+      if (sectionSet && !sectionSet.has(ts.section.key)) return false;
+      if (catFilter && !ts.categoryName.toLowerCase().includes(catFilter)) return false;
+      return true;
+    });
+    if (secs.length > 0) out.set(domain, { ...target, sections: secs });
+  }
+  return out;
+}
+
+/**
+ * config 模式公司解析：优先复用「website 命中该域名」或「name 命中 YAML company」的已存在公司，
+ * 避免与种子入库的公司重复建行；都找不到才按 name=company??domain 新建。
+ */
+async function resolveCompanyId(
+  db: Db,
+  cfg: { domain: string; company?: string },
+): Promise<number> {
+  const domain = cfg.domain;
+  const all = await db.select().from(companies).where(isNull(companies.removedAt));
+  const byWeb = all.find((c) => domainOf(c.website) === domain);
+  if (byWeb) {
+    if (cfg.company && cfg.company !== byWeb.name) {
+      await db
+        .update(companies)
+        .set({ name: cfg.company, updatedAt: nowSeconds() })
+        .where(eq(companies.id, byWeb.id));
+    }
+    return byWeb.id;
+  }
+  return upsertCompany(db, cfg.company ?? domain);
+}
+
+/** 按 name upsert 公司（config 模式新建 / 复用） */
+async function upsertCompany(db: Db, name: string): Promise<number> {
+  const t = nowSeconds();
+  const existing = await db.select().from(companies).where(eq(companies.name, name)).limit(1);
+  if (existing.length) {
+    await db.update(companies).set({ removedAt: null, updatedAt: t }).where(eq(companies.id, existing[0].id));
+    return existing[0].id;
+  }
+  const [ins] = await db
+    .insert(companies)
+    .values({ name, removedAt: null, createdAt: t, updatedAt: t })
+    .returning();
+  return ins.id;
+}
+
+/** 按 (companyId, productLine, name) 业务主键 upsert 品类（config 模式新建 / 复用） */
+async function upsertCategory(
+  db: Db,
+  companyId: number,
+  name: string,
+  url: string,
+  productLine: string | null,
+): Promise<number> {
+  const t = nowSeconds();
+  const existing = await db
+    .select()
+    .from(categories)
+    .where(
+      and(
+        eq(categories.companyId, companyId),
+        productLine === null ? isNull(categories.productLine) : eq(categories.productLine, productLine),
+        eq(categories.name, name),
+      ),
+    )
+    .limit(1);
+  if (existing.length) {
+    await db
+      .update(categories)
+      .set({ url, productLine, removedAt: null, updatedAt: t })
+      .where(eq(categories.id, existing[0].id));
+    return existing[0].id;
+  }
+  const [ins] = await db
+    .insert(categories)
+    .values({ companyId, productLine, name, url, removedAt: null, createdAt: t, updatedAt: t })
+    .returning();
+  return ins.id;
 }
 
 /** 模型兜底（形态 E）的栏目级统计 */

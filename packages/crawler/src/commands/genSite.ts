@@ -113,6 +113,8 @@ function parseYamlConfig(text: string, opts: GenSiteOpts): SiteConfig {
   // 补全关键字段，保证产出可直接被 probe / crawl 消费
   cfg.domain = opts.domain;
   cfg.startUrl = opts.listUrl;
+  // 归属公司：优先用用户传入的 companyKey；否则保留模型可能写出的 company
+  cfg.company = opts.companyKey ?? cfg.company;
   cfg.listTraversal = cfg.listTraversal ?? { strategy: 'pagination-html', maxPages: 50, fallbackToUi: true };
   cfg.parseDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };
   return cfg;

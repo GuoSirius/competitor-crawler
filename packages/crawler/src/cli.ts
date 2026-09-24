@@ -72,6 +72,10 @@ async function main() {
       pages: typeof flags.pages === 'string' ? Number(flags.pages) : undefined,
       limit: typeof flags.limit === 'string' ? Number(flags.limit) : undefined,
       render: typeof flags.render === 'string' ? flags.render : undefined,
+      source: typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : undefined,
+      section: typeof flags.section === 'string' ? flags.section : undefined,
+      category: typeof flags.category === 'string' ? flags.category : undefined,
+      productLine: typeof flags['product-line'] === 'string' ? flags['product-line'] : undefined,
     });
   } else if (cmd === 'report') {
     await report({
@@ -83,6 +87,7 @@ async function main() {
     });
   } else {
     console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|report> [--flags]');
+    console.log('  crawl 额外参数: --source config|seeds (默认 config) --site <d> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');
   }
 }
 

@@ -6,10 +6,38 @@ import type { ListTraversalConfig, ResolvedSection, SiteConfig } from './types.j
 
 // 仓库根统一由 shared/src/paths.ts 提供（避免各处重复上溯算错层级）
 const sitesDir = path.join(repoRoot, 'config', 'sites');
+// 代码型适配器目录（YAML 之外的逃生舱；与 YAML 互斥，见 docs/05）
+const adaptersDir = path.join(repoRoot, 'packages', 'crawler', 'src', 'adapters');
 
 /** 站点配置文件路径：config/sites/<domain>.yaml */
 export function siteConfigPath(domain: string): string {
   return path.join(sitesDir, `${domain}.yaml`);
+}
+
+/** 代码型适配器路径：packages/crawler/src/adapters/<domain>.ts */
+export function adapterPath(domain: string): string {
+  return path.join(adaptersDir, `${domain}.ts`);
+}
+
+/**
+ * 某站点是否存在「代码型适配器」（YAML 之外的逃生舱）。
+ * 与 YAML 配置**互斥**：两者同时存在视为冲突，crawl 记录并跳过、跑完汇总提示（docs/05、需求①·决策A）。
+ */
+export function hasCodeAdapter(domain: string): boolean {
+  return fs.existsSync(adapterPath(domain));
+}
+
+/**
+ * 扫描 config/sites 下全部站点配置（排除 `_template*` 模板），返回域名数组（升序）。
+ * 作为「config 目录即爬取范围真相源」时的站点清单。
+ */
+export function listSiteConfigs(): string[] {
+  if (!fs.existsSync(sitesDir)) return [];
+  return fs
+    .readdirSync(sitesDir)
+    .filter((f) => f.toLowerCase().endsWith('.yaml') && !f.startsWith('_'))
+    .map((f) => f.replace(/\.yaml$/i, ''))
+    .sort();
 }
 
 /** 读取并解析站点配置；不存在时给出明确提示（引导先用 gen-site 生成） */

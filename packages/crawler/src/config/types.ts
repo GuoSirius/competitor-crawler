@@ -151,6 +151,12 @@ export interface SectionConfig {
 export interface SiteConfig {
   domain: string;
   /**
+   * 站点归属公司名（写入 companies.name）。省略时 config 驱动模式回退为 domain。
+   * 用于「config 目录即爬取范围真相源」（crawl --source config）时，自动 upsert 公司 / 品类进库；
+   * 若公司已由种子 Excel 入库（website 命中域名或 name 命中本值），会复用而非新建，避免重复。
+   */
+  company?: string;
+  /**
    * 站点币种（一个站点一种，如 CNY / USD）。缺省按 CNY。
    * 写入 products.currency，供跨站点比价时做币种区分。
    */
