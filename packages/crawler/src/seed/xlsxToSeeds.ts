@@ -49,12 +49,22 @@ function detectColumns(headers: (string | null)[]): Record<string, number> {
   if (line >= 0) map.productLine = line;
   const cat = idx('品类');
   if (cat >= 0) map.category = cat;
-  const url = idx('链接', '网址', 'URL');
-  if (url >= 0) map.url = url;
+  // 品类链接列：明确优先「竞品品类链接 / 品类链接」（即真实品类/列表页），
+  // 不能误命中「官网链接」——否则种子全变首页，爬不动。
+  const catLink = idx('竞品品类链接', '品类链接');
+  if (catLink >= 0) map.catLink = catLink;
+  // 官网/首页列：用于公司官网，也是品类链接缺失时的兜底。
+  const homepage = idx('官网链接', '官网', '域名');
+  if (homepage >= 0) map.homepage = homepage;
+  // 通用 URL 列（无上述专用列时兜底）。
+  const generic = idx('链接', '网址', 'URL');
+  if (generic >= 0) map.genericUrl = generic;
   const type = idx('类型');
   if (type >= 0) map.type = type;
-  const site = idx('官网', '域名');
-  if (site >= 0) map.website = site;
+  // categoryUrl 来源优先级：品类链接 > 官网首页 > 通用 URL
+  map.url = catLink >= 0 ? catLink : homepage >= 0 ? homepage : generic;
+  // website 来源优先级：官网首页 > 通用 URL
+  map.website = homepage >= 0 ? homepage : generic;
   return map;
 }
 
@@ -91,7 +101,11 @@ export async function xlsxToSeeds(): Promise<string> {
         const row = ws.getRow(r);
         const companyName = cellText(row.getCell(col.company)) ?? '';
         const categoryName = cellText(row.getCell(col.category)) ?? '';
-        const categoryUrl = cellUrl(row.getCell(col.url));
+        // 品类链接优先；该列为空（如赛默飞）时回退官网首页，保证品类至少被播种而不整行丢弃
+        const categoryUrl =
+          (col.catLink != null ? cellUrl(row.getCell(col.catLink)) : undefined) ??
+          (col.homepage != null ? cellUrl(row.getCell(col.homepage)) : undefined) ??
+          (col.genericUrl != null ? cellUrl(row.getCell(col.genericUrl)) : undefined);
         if (!companyName || !categoryName || !categoryUrl) continue;
 
         const sourceRow: Record<string, unknown> = {};
