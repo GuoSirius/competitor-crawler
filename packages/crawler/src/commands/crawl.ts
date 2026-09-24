@@ -301,6 +301,7 @@ async function buildTargets(
 ): Promise<{ targets: Map<string, SiteTarget>; conflicts: string[] }> {
   const conflicts: string[] = [];
   const targets = new Map<string, SiteTarget>();
+  const dryRun = opts.dryRun === true;
 
   if (source === 'config') {
     for (const domain of listSiteConfigs()) {
@@ -312,7 +313,7 @@ async function buildTargets(
       }
       const cfg = loadSiteConfig(domain);
       const sections = resolveSections(cfg);
-      const companyId = await resolveCompanyId(db, cfg);
+      const companyId = await resolveCompanyId(db, cfg, dryRun, progress);
       const targetSections: TargetSection[] = [];
       for (const section of sections) {
         // --product-line 过滤（config 模式）：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
@@ -324,6 +325,8 @@ async function buildTargets(
           categoryName,
           section.startUrls[0] ?? cfg.startUrl ?? '',
           section.productLine ?? null,
+          dryRun,
+          progress,
         );
         targetSections.push({ section, categoryId, categoryName });
       }
@@ -399,22 +402,33 @@ function applyFilters(
 /**
  * config 模式公司解析：优先复用「website 命中该域名」或「name 命中 YAML company」的已存在公司，
  * 避免与种子入库的公司重复建行；都找不到才按 name=company??domain 新建。
+ * dryRun：改为仅预览——命中已存在公司返回其 id（不改名），未命中只记「将新建」并返回哨兵 0，不做任何写入。
  */
 async function resolveCompanyId(
   db: Db,
   cfg: { domain: string; company?: string },
+  dryRun: boolean,
+  progress: Progress,
 ): Promise<number> {
   const domain = cfg.domain;
   const all = await db.select().from(companies).where(isNull(companies.removedAt));
   const byWeb = all.find((c) => domainOf(c.website) === domain);
   if (byWeb) {
     if (cfg.company && cfg.company !== byWeb.name) {
-      await db
-        .update(companies)
-        .set({ name: cfg.company, updatedAt: nowSeconds() })
-        .where(eq(companies.id, byWeb.id));
+      if (dryRun) {
+        progress.update(`[crawl] (dry-run) 将更新公司名称 ${byWeb.name} → ${cfg.company} (id=${byWeb.id})`);
+      } else {
+        await db
+          .update(companies)
+          .set({ name: cfg.company, updatedAt: nowSeconds() })
+          .where(eq(companies.id, byWeb.id));
+      }
     }
     return byWeb.id;
+  }
+  if (dryRun) {
+    progress.update(`[crawl] (dry-run) 将新建公司 ${cfg.company ?? domain}`);
+    return 0;
   }
   return upsertCompany(db, cfg.company ?? domain);
 }
@@ -434,13 +448,18 @@ async function upsertCompany(db: Db, name: string): Promise<number> {
   return ins.id;
 }
 
-/** 按 (companyId, productLine, name) 业务主键 upsert 品类（config 模式新建 / 复用） */
+/**
+ * 按 (companyId, productLine, name) 业务主键 upsert 品类（config 模式新建 / 复用）。
+ * dryRun：改为仅预览——命中返回其 id（不更新），未命中只记「将新建」并返回哨兵 0，不做任何写入。
+ */
 async function upsertCategory(
   db: Db,
   companyId: number,
   name: string,
   url: string,
   productLine: string | null,
+  dryRun: boolean,
+  progress: Progress,
 ): Promise<number> {
   const t = nowSeconds();
   const existing = await db
@@ -455,11 +474,17 @@ async function upsertCategory(
     )
     .limit(1);
   if (existing.length) {
-    await db
-      .update(categories)
-      .set({ url, productLine, removedAt: null, updatedAt: t })
-      .where(eq(categories.id, existing[0].id));
+    if (!dryRun) {
+      await db
+        .update(categories)
+        .set({ url, productLine, removedAt: null, updatedAt: t })
+        .where(eq(categories.id, existing[0].id));
+    }
     return existing[0].id;
+  }
+  if (dryRun) {
+    progress.update(`[crawl] (dry-run) 将新建品类 ${name} (productLine=${productLine ?? 'null'}, company=${companyId})`);
+    return 0;
   }
   const [ins] = await db
     .insert(categories)
