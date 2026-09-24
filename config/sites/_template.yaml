@@ -204,6 +204,9 @@ parseDetail:
 #   子对象数组    → list: true + map: { key: <FieldSpec> }
 #   任意深度嵌套  → map 内再写 map（见「五、map 内再 map」）
 #   异步接口      → parseDetail.api: [{ target, url, rootPath, pick }]（见「六」）
+#   模型兜底      → parseDetail.modelFallback: true（形态 E / 懒加载 Tab；读可见文本，只补空）
+#                   也可是对象：{ targets: [specs, sku], screenshot: true }；不写=不调模型
+#                   ⚠️ 多 Tab 页先看内容在不在 HTML 里（在 → 直接写选择器，不用点击），见 docs/05 §5.3.5
 #
 # ★ 内置字段（写这些名字会被归一化到 products 对应列，其余一律进 row 兜底）：
 #   身份：name / englishName / sourceProductId / sku / detailUrl

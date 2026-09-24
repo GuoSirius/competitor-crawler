@@ -18,6 +18,8 @@ import {
 import { siteConfigPath, loadSiteConfig, resolveSections } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { applyApiSources } from '../adapter/apiSource.js';
+import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
+import { recordAlert } from '../util/alerts.js';
 import { traverseList } from '../fetch/listTraversal.js';
 import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
@@ -171,9 +173,11 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         const categoryId = resolveCategoryId(section, list);
 
         const pending: PendingProduct[] = [];
+        // 模型兜底（形态 E）本栏目统计：补全字段数 / 失败条数 + 首条失败原因
+        const modelStat: ModelStat = { filled: 0, failed: 0 };
         try {
           await collectSection({
-            progress, mode, opts, section, companyId, categoryId, pending, seenSet,
+            progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
           });
         } catch (e) {
           summary.failed++;
@@ -181,9 +185,37 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           continue;
         }
 
+        if (modelStat.filled > 0) {
+          progress.update(`[crawl] ${domain} [${section.key}] 模型兜底：补全 ${modelStat.filled} 个字段`);
+        }
+        if (modelStat.failed > 0) {
+          progress.update(
+            `[crawl] ${domain} [${section.key}] 模型兜底失败 ${modelStat.failed} 条：${modelStat.lastError ?? '未知原因'}`,
+          );
+        }
+
         if (opts.dryRun) {
           progress.update(`[crawl] (dry-run) ${domain} [${section.key}] 解析 ${pending.length} 条`);
           continue;
+        }
+
+        // 模型失败落告警（type=MODEL_FAILURE）：模型是增强不是单点，失败只降级不阻塞整轮（docs/04 §4.6）
+        if (modelStat.failed > 0) {
+          await recordAlert(db, {
+            type: 'MODEL_FAILURE',
+            severity: 'warning',
+            companyId,
+            message: `[${domain}] [${section.key}] 模型兜底提取失败 ${modelStat.failed} 条`,
+            payload: {
+              domain,
+              sectionKey: section.key,
+              failed: modelStat.failed,
+              lastError: modelStat.lastError ?? null,
+              modelMode: process.env.MODEL_MODE ?? null,
+              configFile: `config/sites/${domain}.yaml`,
+              configPath: 'parseDetail.modelFallback',
+            },
+          });
         }
 
         const existed = await loadExisting(db, companyId, section.key);
@@ -233,6 +265,16 @@ function resolveCategoryId(
   return list.length === 1 ? list[0].cat.id : null;
 }
 
+/** 模型兜底（形态 E）的栏目级统计 */
+interface ModelStat {
+  /** 成功补全的字段个数 */
+  filled: number;
+  /** 失败条数 */
+  failed: number;
+  /** 首条失败原因（便于告警里给可读信息） */
+  lastError?: string;
+}
+
 /** 抓取一个栏目的全部 startUrls：翻页 → 详情 → 归一化入 pending */
 async function collectSection(args: {
   progress: Progress;
@@ -243,8 +285,9 @@ async function collectSection(args: {
   categoryId: number | null;
   pending: PendingProduct[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
+  modelStat: ModelStat;
 }): Promise<void> {
-  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet } = args;
+  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat } = args;
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
 
@@ -284,6 +327,20 @@ async function collectSection(args: {
       // 形态 D：人工登记的异步接口数据源（config/sites/<domain>.yaml 的 parseDetail.api）
       if (section.parseDetail.api?.length) {
         await applyApiSourcesLogged(normalized, detailUrl, section.parseDetail.api, progress);
+      }
+      // 形态 E：模型兜底（仅 section 显式配置 parseDetail.modelFallback 时调用；只补空，不覆盖上面两步）
+      if (isModelFallbackEnabled(section.parseDetail.modelFallback)) {
+        const outcome = await applyModelFallback(
+          normalized,
+          html,
+          { detailUrl, name: it.name },
+          section.parseDetail.modelFallback,
+        );
+        if (outcome?.ok) modelStat.filled += outcome.filled.length;
+        else if (outcome) {
+          modelStat.failed++;
+          modelStat.lastError ??= outcome.error;
+        }
       }
       // source_product_id 语义纯净：只装「站点自身的产品 id」，没有就留空（**不用货号兜底**）。
       // 去重键随后由 pickDedupeKey 兜底到 canonical(detail_url)，见下方 dedupeKey。

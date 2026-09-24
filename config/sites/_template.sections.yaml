@@ -178,4 +178,9 @@ sections:
 # 4) 命名约定：
 #      · key 用小写短横线（all-products / new-arrivals / promo），稳定后勿随意改名（改名等于换去重键）；
 #      · key 唯一，不要与 'default' 冲突（'default' 保留给单规则写法）。
+#
+# 5) 模型兜底（形态 E，默认关）：
+#      在 section.parseDetail 下写 modelFallback: true 才启用，只补空、不覆盖静态结果；
+#      模型走 MODEL_MODE / config/model.yaml 配置，失败落 MODEL_FAILURE 告警、不阻塞整轮。
+#      多 Tab 详情页请先判断内容是否已在 HTML 里（在 → 直接写选择器，不需要点击），见 docs/05 §5.3.5。
 # ============================================================================

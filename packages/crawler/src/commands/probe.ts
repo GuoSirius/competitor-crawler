@@ -5,6 +5,7 @@ import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { detectSpecPriceShape } from '../adapter/shapeDetect.js';
 import { applyApiSources } from '../adapter/apiSource.js';
+import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
 import { recordAlert } from '../util/alerts.js';
 import { Progress } from '../util/progress.js';
 
@@ -106,8 +107,9 @@ export async function probe(opts: ProbeOpts): Promise<void> {
           printProductSample(it.name, np);
 
           // 已配置接口 → 实测（这才是「配好了没」的判据）
-          if (section.parseDetail.api?.length) {
-            const results = await applyApiSources(np, it.detailUrl, section.parseDetail.api);
+          const hasApi = Boolean(section.parseDetail.api?.length);
+          if (hasApi) {
+            const results = await applyApiSources(np, it.detailUrl, section.parseDetail.api!);
             for (const r of results) {
               console.log(
                 r.ok
@@ -118,8 +120,29 @@ export async function probe(opts: ProbeOpts): Promise<void> {
                 console.log(`     样本：${JSON.stringify(r.picked[0])}`);
               }
             }
-            continue; // 已配接口就不再提示形态
           }
+
+          // 形态 E：模型兜底（仅显式启用时；在「静态选择器 → 异步接口」之后，只补空）
+          if (isModelFallbackEnabled(section.parseDetail.modelFallback)) {
+            console.log(`  模型兜底：调用模型抽取（MODEL_MODE=${process.env.MODEL_MODE ?? '(未设，默认 hybrid)'}）…`);
+            const outcome = await applyModelFallback(
+              np,
+              html,
+              { detailUrl: it.detailUrl, name: it.name },
+              section.parseDetail.modelFallback,
+            );
+            if (outcome?.ok) {
+              console.log(
+                `  ✅ 补全 ${outcome.filled.length} 项（${outcome.filled.join('、') || '无'}），attempts=${outcome.attempts}，confidence=${outcome.confidence ?? 'n/a'}`,
+              );
+              if (outcome.notes) console.log(`     模型说明：${outcome.notes}`);
+              printProductSample(it.name, np);
+            } else {
+              console.log(`  ❌ 模型兜底失败（attempts=${outcome?.attempts ?? 0}）：${outcome?.error}`);
+            }
+          }
+
+          if (hasApi) continue; // 已配接口就不再提示形态
 
           const f = detectSpecPriceShape(html);
           findings.push({ sectionKey: section.key, shape: f.shape, needsApi: f.needsApi });
