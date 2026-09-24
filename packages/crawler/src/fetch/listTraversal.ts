@@ -1,5 +1,5 @@
 import type { ListTraversalConfig } from '../config/types.js';
-import { fetchPage, type RenderMode } from './page.js';
+import { fetchPage, waitForSpaSettle, type RenderMode } from './page.js';
 import { Progress } from '../util/progress.js';
 
 export interface TraverseOpts {
@@ -69,9 +69,12 @@ export function buildPageUrl(base: string, template: string, page: number): stri
  */
 export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> {
   const { url, traversal, mode, maxPages } = opts;
-  // 取「调用方上限 / 配置上限 / 硬上限 500」三者最小，防意外无限翻页
-  const configured = traversal.maxPages ?? maxPages;
-  const max = Math.max(1, Math.min(configured, maxPages, 500));
+  // 翻页上限语义（「显式意图放行」）：
+  // - 显式配置（YAML traversal.maxPages / CLI --pages，二者取小）→ 尊重配置，不受 500 限制；
+  // - 两边都没显式配置（YAML 未写 maxPages 且 CLI 未传 --pages）→ 500 硬兜底，
+  //   防配置失误导致的意外无限翻页（静默写入海量数据）。
+  const explicit = Math.min(traversal.maxPages ?? Number.POSITIVE_INFINITY, maxPages);
+  const max = Math.max(1, Number.isFinite(explicit) ? explicit : 500);
 
   // URL 模板翻页：不改写 HTML、不启浏览器，按 maxPages 顺序拼 URL 逐页抓取
   if (traversal.strategy === 'pagination-url') {
@@ -123,6 +126,9 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   try {
     const page = await browser.newPage();
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // SPA 首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
+    // 否则首次 page.content() 拿到空壳 → 解析 0 条直接终止
+    await waitForSpaSettle(page);
 
     while (pages < max) {
       const html = await page.content();

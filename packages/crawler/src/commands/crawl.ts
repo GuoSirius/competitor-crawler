@@ -529,7 +529,7 @@ async function collectSection(args: {
       url: listUrl,
       traversal: section.listTraversal,
       mode,
-      maxPages: opts.pages ?? Number.MAX_SAFE_INTEGER,
+      maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
       progress,
       onPage: (html, _pageNo, pageUrl) => {
         const pageItems = parseListWithConfig(html, section.parseList, section.key);
