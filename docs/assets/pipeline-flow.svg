@@ -1,0 +1,282 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1500" width="1440" height="1500"
+     font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+  <!--
+    竞品爬虫 · 数据流转与处理细节（决策 / 分支 / 兜底）
+    配套：architecture.svg（端到端架构总览）
+    维护约定：节点名与 docs/05（站点接入指南）、docs/07（告警与自愈）、docs/11（脚本手册）保持一致。
+  -->
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <marker id="f" markerWidth="9" markerHeight="9" refX="7" refY="2.6" orient="auto">
+      <path d="M0,0 L7,2.6 L0,5.2 Z" fill="#334155"/>
+    </marker>
+    <marker id="fp" markerWidth="9" markerHeight="9" refX="7" refY="2.6" orient="auto">
+      <path d="M0,0 L7,2.6 L0,5.2 Z" fill="#7c3aed"/>
+    </marker>
+    <marker id="fr" markerWidth="9" markerHeight="9" refX="7" refY="2.6" orient="auto">
+      <path d="M0,0 L7,2.6 L0,5.2 Z" fill="#dc2626"/>
+    </marker>
+    <style>
+      .T1{font-size:24px;font-weight:700;fill:#0f172a}
+      .T2{font-size:13px;fill:#475569}
+      .ST{font-size:12px;font-weight:700;fill:#94a3b8;letter-spacing:1px}
+      .bt{font-size:13px;font-weight:700;fill:#0f172a}
+      .bs{font-size:11px;fill:#475569}
+      .bd{font-size:10px;fill:#64748b}
+      .rh{font-size:13px;font-weight:700;fill:#0f172a}
+      .rt{font-size:11px;font-weight:700;fill:#334155}
+      .rb{font-size:10px;fill:#64748b}
+    </style>
+  </defs>
+
+  <rect width="1440" height="1500" fill="url(#bg2)"/>
+
+  <text x="36" y="44" class="T1">竞品爬虫 · 数据流转与处理细节</text>
+  <text x="36" y="70" class="T2">左：主链路逐节点流转（含决策分支）　·　右：分支细节 / 兜底 / 失败隔离 / 落库口径　·　总览见 docs/assets/architecture.svg</text>
+
+  <!-- ==================== 左：主链路 ==================== -->
+  <text x="36" y="102" class="ST">主链路　（决策=黄框，告警分支=红框）</text>
+
+  <!-- 范围 -->
+  <text x="36" y="126" class="bs" font-weight="700" fill="#0369a1">① 确定爬取范围</text>
+  <rect x="48" y="136" width="680" height="54" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
+  <text x="64" y="157" class="bt">pnpm crawl</text>
+  <text x="64" y="176" class="bd">--source seeds|config　--site　--section　--category　--product-line　--render　--pages　--limit　--dry-run（全程零写入）</text>
+
+  <rect x="48" y="202" width="680" height="46" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="2"/>
+  <text x="64" y="221" class="bt">决策：范围真相源？</text>
+  <text x="64" y="238" class="bd">seeds = 库内 categories（旧行为，默认）　|　config = 扫描 config/sites/*.yaml（后期驱动）</text>
+
+  <rect x="48" y="260" width="330" height="52" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
+  <text x="64" y="280" class="bt">seeds 分支</text>
+  <text x="64" y="298" class="bd">读 categories（可 --product-line 过滤）→ 按 URL 域名分组</text>
+
+  <rect x="398" y="260" width="330" height="52" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
+  <text x="414" y="280" class="bt">config 分支</text>
+  <text x="414" y="298" class="bd">listSiteConfigs() → 逐域解析 YAML（按 company 归公司）</text>
+
+  <rect x="48" y="324" width="680" height="50" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
+  <text x="64" y="344" class="bt">SiteTarget[] : domain → companyId → sections[ ResolvedSection ]</text>
+  <text x="64" y="362" class="bd">resolveSections() 把单规则 / sections 多规则统一归一化；栏目 category 绑定品类，未绑定按域名兜底</text>
+
+  <!-- 列表 -->
+  <text x="36" y="404" class="bs" font-weight="700" fill="#0e7490">② 列表翻页与解析</text>
+  <rect x="48" y="414" width="680" height="58" rx="10" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
+  <text x="64" y="435" class="bt">traverseList(url, listTraversal, render)</text>
+  <text x="64" y="454" class="bd">按策略驱动翻页；每页回调 onPage() 解析。终止：本页 0 条 / 达 maxPages / 点击失败 / 抓取异常</text>
+
+  <rect x="48" y="484" width="680" height="52" rx="10" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
+  <text x="64" y="504" class="bt">parseListWithConfig(html, parseList, sectionKey)</text>
+  <text x="64" y="522" class="bd">itemSelector → FieldSpec 抽 detailUrl / name / sku …；其余字段进 ListItem.raw 供详情兜底</text>
+
+  <rect x="48" y="548" width="680" height="52" rx="10" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
+  <text x="64" y="568" class="bt">dedupeListItems() · 列表段先去重</text>
+  <text x="64" y="586" class="bd">按 canonical(detailUrl) 去重 —— 修掉「pc/web 双模板 + 图文双链接」造成的重复抓取与计数虚高</text>
+
+  <!-- 详情 -->
+  <text x="36" y="628" class="bs" font-weight="700" fill="#4338ca">③ 详情抓取与字段兜底（三级防线）</text>
+  <rect x="48" y="638" width="680" height="52" rx="10" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>
+  <text x="64" y="658" class="bt">fetchPage(detailUrl, render) → parseDetailWithConfig()</text>
+  <text x="64" y="676" class="bd">YAML FieldSpec 静态抽取：取值（文本 / attr / regex）× 结构（list / map）× 附加（number / $self / json）</text>
+
+  <rect x="48" y="702" width="680" height="48" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="2"/>
+  <text x="64" y="721" class="bt">决策：规格 × 多价格属哪种形态？</text>
+  <text x="64" y="738" class="bd">A 表格行 / B 下拉项 $self / C 内联 JSON / D 异步接口 / E 前端计算 —— 与「多 Tab T1/T2/T3」正交</text>
+
+  <rect x="48" y="762" width="330" height="52" rx="10" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>
+  <text x="64" y="782" class="bt">A / B / C</text>
+  <text x="64" y="800" class="bd">静态即可抽全 → 直接进入合并</text>
+
+  <rect x="398" y="762" width="330" height="52" rx="10" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>
+  <text x="414" y="782" class="bt">D 已配 parseDetail.api</text>
+  <text x="414" y="800" class="bd">applyApiSources() 逐源请求，单源失败隔离</text>
+
+  <rect x="48" y="826" width="680" height="48" rx="10" fill="#fef2f2" stroke="#f87171" stroke-width="2"/>
+  <text x="64" y="845" class="bt">D 未配 api → 发 NEEDS_API_HINT 告警（幂等不重复）</text>
+  <text x="64" y="862" class="bd">不主动逆向接口；由人从浏览器 Network 找到地址后回填 YAML，下轮生效</text>
+
+  <rect x="48" y="886" width="680" height="48" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="2"/>
+  <text x="64" y="905" class="bt">决策：字段仍缺 且 配了 parseDetail.modelFallback？</text>
+  <text x="64" y="922" class="bd">否 → 直接合并；是 → 走形态 E 模型兜底（最后一道防线）</text>
+
+  <rect x="48" y="946" width="680" height="58" rx="10" fill="#f5f3ff" stroke="#a78bfa" stroke-width="2"/>
+  <text x="64" y="967" class="bt">applyModelFallback() · 形态 E</text>
+  <text x="64" y="985" class="bd">可见文本（+ 可选整页截图）→ 模型 → Zod 校验 → 只补空字段；失败重试后发 MODEL_FAILURE 告警</text>
+
+  <rect x="48" y="1016" width="680" height="52" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="64" y="1036" class="bt">mergeListFallback() · 详情优先 / 列表兜底</text>
+  <text x="64" y="1054" class="bd">详情页缺的货号 / 规格 / 价格，用列表阶段随 ListItem.raw 带下来的值补空（不覆盖已有值）</text>
+
+  <rect x="48" y="1080" width="680" height="46" rx="10" fill="#f8fafc" stroke="#64748b" stroke-width="2"/>
+  <text x="64" y="1100" class="bt">NormalizedProduct</text>
+  <text x="64" y="1116" class="bd">内置字段名提升为列，其余全部留 row JSON —— 零数据丢失</text>
+
+  <!-- 落库 -->
+  <text x="36" y="1156" class="bs" font-weight="700" fill="#15803d">④ 增量落库</text>
+  <rect x="48" y="1166" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <text x="64" y="1186" class="bt">pickDedupeKey() : COALESCE(source_product_id, canonical(detail_url))</text>
+  <text x="64" y="1204" class="bd">⚠️ 货号 sku 不参与 —— 去重键表达「页面级」唯一，货号是「产品级」唯一</text>
+
+  <rect x="48" y="1230" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <text x="64" y="1250" class="bt">upsert ON CONFLICT (company_id, dedupe_key, section_key)</text>
+  <text x="64" y="1268" class="bd">口径 B：同 SKU 出现在不同栏目 → 分列两条；单规则站点统一 section_key='default'</text>
+
+  <rect x="48" y="1294" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <text x="64" y="1314" class="bt">price_history 追加</text>
+  <text x="64" y="1332" class="bd">条件：首次入库 或 价格变化（新旧价全空则不记）；当前只写入、不消费</text>
+
+  <rect x="48" y="1358" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <text x="64" y="1378" class="bt">softDeleteMissing() · 两轮确认</text>
+  <text x="64" y="1396" class="bd">本轮未见 → missing_since=now 仍 active；连续两轮未见 → status=delisted（物理不删）</text>
+
+  <!-- 输出 -->
+  <rect x="48" y="1424" width="212" height="52" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="62" y="1444" class="bt">report → Excel</text>
+  <text x="62" y="1462" class="bd">总览 / 价格清单 / 字段覆盖</text>
+
+  <rect x="272" y="1424" width="212" height="52" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <text x="286" y="1444" class="bt">report --charts</text>
+  <text x="286" y="1462" class="bd">自包含 ECharts 六图</text>
+
+  <rect x="496" y="1424" width="232" height="52" rx="10" fill="#fef2f2" stroke="#f87171" stroke-width="2"/>
+  <text x="510" y="1444" class="bt">alerts + crawls.summary</text>
+  <text x="510" y="1462" class="bd">六类告警分级；批次可审计</text>
+
+  <!-- 主链路箭头 -->
+  <line x1="388" y1="190" x2="388" y2="198" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,248 L388,252 L213,252 L213,256" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,248 L388,252 L563,252 L563,256" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M213,312 L213,318 L388,318 L388,320" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M563,312 L563,318 L388,318" fill="none" stroke="#334155" stroke-width="2"/>
+  <line x1="388" y1="374" x2="388" y2="410" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="472" x2="388" y2="480" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="536" x2="388" y2="544" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="600" x2="388" y2="634" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="690" x2="388" y2="698" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,750 L388,754 L213,754 L213,758" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,750 L388,754 L563,754 L563,758" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M213,814 L213,820 L388,820 L388,822" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M563,814 L563,820 L388,820" fill="none" stroke="#334155" stroke-width="2"/>
+  <line x1="388" y1="874" x2="388" y2="882" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="934" x2="388" y2="942" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="1004" x2="388" y2="1012" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="1068" x2="388" y2="1076" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="1126" x2="388" y2="1162" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="1218" x2="388" y2="1226" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="1282" x2="388" y2="1290" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="388" y1="1346" x2="388" y2="1354" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,1410 L388,1418 L154,1418 L154,1422" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,1410 L388,1418 L378,1418 L378,1422" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+  <path d="M388,1410 L388,1418 L612,1418 L612,1422" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#f)"/>
+
+  <!-- ==================== 右：分支细节 ==================== -->
+  <text x="764" y="102" class="ST">分支细节与兜底</text>
+
+  <!-- R1 翻页策略 -->
+  <rect x="764" y="116" width="640" height="272" rx="14" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
+  <text x="784" y="142" class="rh">翻页四策略（listTraversal.strategy）</text>
+
+  <rect x="784" y="154" width="600" height="46" rx="8" fill="#fff" stroke="#a5f3fc"/>
+  <text x="800" y="173" class="rt">pagination-url　URL 模板翻页</text>
+  <text x="800" y="190" class="rb">拼 ?page={page} 逐页抓；不启浏览器；urlTemplate 支持「完整 URL / ?查询串 / /绝对路径」三种写法</text>
+
+  <rect x="784" y="206" width="600" height="46" rx="8" fill="#fff" stroke="#a5f3fc"/>
+  <text x="800" y="225" class="rt">pagination-html　点下一页整页重渲染</text>
+  <text x="800" y="242" class="rb">Playwright 点 nextSelector；禁用态（disabled / aria-disabled / 空 href）视为终止</text>
+
+  <rect x="784" y="258" width="600" height="46" rx="8" fill="#fff" stroke="#a5f3fc"/>
+  <text x="800" y="277" class="rt">pagination-api　XHR 翻页（可选优化）</text>
+  <text x="800" y="294" class="rb">当前同样走 UI 驱动；接口逆向仅作稳定、无签名站点的性能优化，失败自动回退 UI</text>
+
+  <rect x="784" y="310" width="600" height="46" rx="8" fill="#fff" stroke="#a5f3fc"/>
+  <text x="800" y="329" class="rt">scroll-api　无限滚动</text>
+  <text x="800" y="346" class="rb">滚到底等新节点；页面高度不再增长即判定到底</text>
+
+  <text x="784" y="376" class="rb" fill="#0e7490">统一终止条件：本页解析 0 条 / 达 maxPages（取值 调用方 vs 配置 vs 硬上限 500）</text>
+
+  <!-- R2 形态 -->
+  <rect x="764" y="404" width="640" height="300" rx="14" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>
+  <text x="784" y="430" class="rh">规格 × 多价格：五形态与抽取手段</text>
+
+  <rect x="784" y="442" width="600" height="48" rx="8" fill="#fff" stroke="#c7d2fe"/>
+  <text x="800" y="461" class="rt">A · 表格行</text>
+  <text x="800" y="478" class="rb">每行一个规格取 DOM 文本 → list + map（无需点击）</text>
+
+  <rect x="784" y="496" width="600" height="48" rx="8" fill="#fff" stroke="#c7d2fe"/>
+  <text x="800" y="515" class="rt">B · 下拉项自带属性</text>
+  <text x="800" y="532" class="rb">&lt;option data-spec data-price&gt; → list + map + sel:'$self'（$self = 读元素自身）</text>
+
+  <rect x="784" y="550" width="600" height="48" rx="8" fill="#fff" stroke="#c7d2fe"/>
+  <text x="800" y="569" class="rt">C · 内联 JSON / JSON-LD</text>
+  <text x="800" y="586" class="rb">script 内 JSON → json:true + jsonPath + pick（键重命名）</text>
+
+  <rect x="784" y="604" width="600" height="48" rx="8" fill="#fff" stroke="#c7d2fe"/>
+  <text x="800" y="623" class="rt">D · 异步接口</text>
+  <text x="800" y="640" class="rb">parseDetail.api：url 支持 {字段} 占位；失败隔离；未配则发 NEEDS_API_HINT</text>
+
+  <rect x="784" y="658" width="600" height="38" rx="8" fill="#f5f3ff" stroke="#c4b5fd"/>
+  <text x="800" y="683" class="rt" fill="#6d28d9">E · 前端计算 → 模型兜底（最后防线，只补空）</text>
+
+  <!-- R3 失败隔离 -->
+  <rect x="764" y="720" width="640" height="272" rx="14" fill="#fef2f2" stroke="#f87171" stroke-width="2"/>
+  <text x="784" y="746" class="rh" fill="#b91c1c">失败隔离与告警自愈闭环</text>
+
+  <text x="784" y="770" class="rt">失败隔离（不让单点拖垮整轮）</text>
+  <text x="800" y="787" class="rb">单条详情失败 → 跳过该条、计 failed、继续下一条</text>
+  <text x="800" y="803" class="rb">单栏目失败 → 继续下一栏目；单站失败 → 继续下一站</text>
+  <text x="800" y="819" class="rb">接口源失败 → 记在返回值里，不影响其它源</text>
+
+  <text x="784" y="845" class="rt">告警 → 处理动作</text>
+  <text x="800" y="862" class="rb">NEEDS_API_HINT　→ 人工从 Network 找到接口，回填 parseDetail.api</text>
+  <text x="800" y="878" class="rb">MODEL_FAILURE　　→ 检查 MODEL_MODE / 模型服务连通性 / 提示词</text>
+  <text x="800" y="894" class="rb">MISSING_FIELD　　→ 补 YAML 选择器；BULK_DRIFT → 疑似改版，跑 probe 复核</text>
+  <text x="800" y="910" class="rb">SITE_UNREACHABLE → 国外站不可达，按 docs/06 处理（代理 / VPN）</text>
+  <text x="800" y="932" class="rb">FIELD_CHANGED　　→ 归因（真更新 vs 规则该改）后决定是否改 YAML</text>
+  <text x="784" y="958" class="rb" fill="#b91c1c">告警按类型幂等：同一问题不重复堆积（alerts.status: open / ack / resolved / auto_fixed）</text>
+  <text x="784" y="976" class="rb" fill="#b91c1c">闭环：告警 → 改 YAML / 补接口 → pnpm probe 单站验证 → 纳入下轮 crawl</text>
+
+  <!-- R4 落库口径 -->
+  <rect x="764" y="1008" width="640" height="272" rx="14" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <text x="784" y="1034" class="rh" fill="#15803d">落库口径（★核心）</text>
+
+  <text x="784" y="1058" class="rt">组合唯一索引</text>
+  <text x="884" y="1058" class="rb">UNIQUE(company_id, dedupe_key, section_key)　冲突即 upsert</text>
+
+  <text x="784" y="1082" class="rt">dedupe_key 生成</text>
+  <text x="800" y="1099" class="rb">COALESCE(source_product_id, canonical(detail_url))</text>
+  <text x="800" y="1115" class="rb">canonical = 转小写 → 去 utm_* 追踪参数 → 去锚点 → 去末尾斜杠</text>
+
+  <text x="784" y="1139" class="rt">为什么货号不参与去重</text>
+  <text x="800" y="1156" class="rb">货号是「产品级」唯一，同一货号常对应多张规格页（如 100μL / 1mL 各自成页）</text>
+  <text x="800" y="1172" class="rb">拿它当去重键会误合并 → 数据丢失；货号只用于跨公司对齐 / 比价</text>
+
+  <text x="784" y="1196" class="rt">四层字段</text>
+  <text x="800" y="1213" class="rb">① 身份（company/category/section/dedupe/sourceProductId/sku/name/detailUrl）</text>
+  <text x="800" y="1229" class="rb">② 可比（price/currency/priceText/specText/brand/englishName）</text>
+  <text x="800" y="1245" class="rb">③ 描述（description/introMedia）　④ 扩展（row/specs/applications/cloneNumber）</text>
+  <text x="784" y="1268" class="rb" fill="#15803d">字段晋升：row 中重要字段 → 加列 → pnpm db:push → pnpm backfill 回填（幂等）</text>
+
+  <!-- R5 交付 -->
+  <rect x="764" y="1296" width="640" height="164" rx="14" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <text x="784" y="1322" class="rh">下游交付与应用</text>
+  <text x="784" y="1346" class="rt">Excel（pnpm report）</text>
+  <text x="960" y="1346" class="rb">总览（公司 × 品类 产品数矩阵）/ 价格清单（specs 展开多行）/ 字段覆盖（货号·价格·克隆号覆盖率）</text>
+  <text x="784" y="1370" class="rt">图表（--charts）</text>
+  <text x="960" y="1370" class="rb">公司产品总数 / 公司 × 品类 / 品类占比 / 价格分布 / 克隆号覆盖 / 入库趋势（自包含 HTML）</text>
+  <text x="784" y="1394" class="rt">应用页（web）</text>
+  <text x="960" y="1394" class="rb">Nuxt 4 + Drizzle 直读 products：按公司 / 品类下钻，筛选排序</text>
+  <text x="784" y="1418" class="rt">筛选</text>
+  <text x="960" y="1418" class="rb">--company / --category / --out；只读 status='active'</text>
+  <text x="784" y="1444" class="rb">⚠️ 价格类图基于当前快照，不消费 price_history（该表只写不读）</text>
+
+  <!-- 右侧虚线连接：形态决策 → 形态表 -->
+  <line x1="728" y1="726" x2="760" y2="560" stroke="#818cf8" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#f)"/>
+  <line x1="728" y1="874" x2="760" y2="762" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#fr)"/>
+  <line x1="728" y1="975" x2="760" y2="830" stroke="#a78bfa" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#fp)"/>
+  <line x1="728" y1="1192" x2="760" y2="1060" stroke="#4ade80" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#f)"/>
+  <line x1="728" y1="1450" x2="760" y2="1360" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#f)"/>
+
+  <text x="36" y="1492" class="bd">说明：本图为「怎么跑、每一步产出什么、哪里可能失败、失败了怎么办」。架构分层与模块职责见 architecture.svg；字段与表结构见 docs/03；告警类型见 docs/07。</text>
+</svg>

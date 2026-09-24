@@ -5,10 +5,19 @@
 ## 技术栈
 
 - 语言：**Node.js + TypeScript（ESM）**
-- 抓取：Playwright（无头浏览器）+ undici/axios（HTTP）+ cheerio（服务端渲染解析）
+- 抓取：undici/HTTP 优先，Playwright（无头浏览器）+ cheerio（服务端渲染解析）作回退
 - 模型辅助：本地轻量模型（Ollama/vLLM，如 Qwen2.5-VL）+ 云端大模型兜底（通义 / DeepSeek / Claude），经 OpenAI 兼容接口统一调用
-- 存储：**Drizzle ORM**，本地 SQLite，生产切 MySQL / PostgreSQL（无感切换）
-- 下游：ExcelJS（导出）、ECharts（图表）、Nuxt 3（应用页）
+- 存储：**Drizzle ORM** + better-sqlite3，本地 SQLite，生产切 MySQL / PostgreSQL（无感切换）
+- 下游：ExcelJS（导出）、ECharts（图表）、Nuxt 4（应用页）
+
+## 架构与流程图
+
+| 图 | 用途 |
+|---|---|
+| [`docs/assets/architecture.svg`](docs/assets/architecture.svg) | **总体架构图**：分了几层、每层干什么、模块与职责边界、关键不变量、质量门禁 |
+| [`docs/assets/pipeline-flow.svg`](docs/assets/pipeline-flow.svg) | **流程图 / 时序图**：数据从种子到交付的逐节点流转、决策分支、失败隔离与告警自愈闭环、落库口径、适配器钩子介入点 |
+
+> 对外讲解项目用这两张配合：先 architecture 讲"有什么"，再 pipeline-flow 跟着数据走一遍"怎么流转、卡住怎么办"。
 
 ## 快速开始
 
@@ -21,7 +30,9 @@ cp .env.example .env              # 3. 准备环境变量
 pnpm --filter @competitor-crawler/shared db:push   # 4. 初始化数据库表结构
 ```
 
-常用命令（完整清单见 [`docs/11-脚本命令手册.md`](docs/11-脚本命令手册.md)）：`pnpm seed` / `pnpm crawl` / `pnpm report` / `pnpm probe`（单站验证，多规则站点可 `--section`）/ `pnpm gen-site`（模型生成站点配置）/ `pnpm backfill`（字段晋升回填）/ `pnpm db:push`（表结构迁移）/ `pnpm release`（版本发布 + CHANGELOG + 打标签，运行时选类型）/ `pnpm typecheck`（类型检查，暂只跑 shared+crawler）。
+常用命令（完整清单见 [`docs/11-脚本命令手册.md`](docs/11-脚本命令手册.md)）：`pnpm seed` / `pnpm crawl` / `pnpm report` / `pnpm probe`（单站验证，多规则站点可 `--section`）/ `pnpm gen-site`（模型生成站点配置）/ `pnpm gen-site:template` + `pnpm gen-site:batch`（批量生成配置）/ `pnpm backfill`（字段晋升回填）/ `pnpm db:push`（表结构迁移）/ `pnpm release`（版本发布 + CHANGELOG + 打标签，运行时选类型）/ `pnpm typecheck`（类型检查）。
+
+> 🧩 **站点适配是"加性"的**：首选写 `config/sites/<domain>.yaml`；YAML 表达不了的环节（过 WAF、自定义分页、解析后补字段）**再加**一个 `packages/crawler/src/adapters/<domain>.ts` 只写需要的钩子——二者**可共存、不互斥**，路由优先级 `YAML → 代码 Adapter → 模型兜底`，没有适配器文件时行为与纯 YAML 完全一致。详见 [`docs/05` §5.3](docs/05-站点接入指南.md)。
 
 > 📌 web 包类型检查已**自动纳管**：根 `pnpm typecheck` 依次检查 shared → crawler → web。
 > 其中 web 需要 `vue-tsc`（已写进 `packages/web/package.json`）；**未安装时该步会自动跳过并提示**，
