@@ -71,6 +71,7 @@ sections:
   # 栏目 1：全量覆盖 —— 自带列表页、命中条件、翻页策略与列表/详情规则
   # ==========================================================================
   - key: all-products                       # 栏目标识：写入 ListItem.sectionKey 与 products.section_key
+    productLine: 细胞试剂                     # 产品线（可选）：写入 categories.product_line；crawl --product-line 可据此过滤
     startUrls:                              # 该栏目的列表页入口（可多个；省略则回退顶层 startUrl）
       - "https://example.com/products"
       - "https://example.com/products/page2"

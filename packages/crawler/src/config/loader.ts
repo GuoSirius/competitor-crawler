@@ -85,6 +85,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       return {
         key: s.key || 'default',
         category: s.category,
+        productLine: s.productLine ?? cfg.productLine,
         currency,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
         listTraversal: s.listTraversal ?? topTraversal,
@@ -102,6 +103,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   return [
     {
       key: 'default',
+      productLine: cfg.productLine,
       currency,
       startUrls: topStartUrls,
       listTraversal: topTraversal,

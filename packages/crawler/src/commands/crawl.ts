@@ -141,13 +141,11 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   };
 
   try {
-    const source: 'config' | 'seeds' = opts.source === 'seeds' ? 'seeds' : 'config';
+    const source: 'config' | 'seeds' = opts.source === 'config' ? 'config' : 'seeds';
 
     // 数据源切换（需求①·决策B）：config 扫描 config/sites/*.yaml / seeds 读库内 categories，可切换。
+    // 默认 seeds（旧行为，稳定）；config 作后期驱动，显式 --source config 启用。
     // 两种模式都做「YAML 配置 ↔ 代码适配器 互斥检测」（决策A）：共存则记录冲突、跳过、跑完汇总提示。
-    if (opts.productLine && source !== 'seeds') {
-      progress.update('[crawl] 警告：--product-line 仅在 --source seeds 生效，config 模式已忽略');
-    }
 
     const { targets: rawTargets, conflicts } = await buildTargets(db, source, opts, progress);
     const targets = applyFilters(rawTargets, opts);
@@ -317,13 +315,15 @@ async function buildTargets(
       const companyId = await resolveCompanyId(db, cfg);
       const targetSections: TargetSection[] = [];
       for (const section of sections) {
+        // --product-line 过滤（config 模式）：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
+        if (opts.productLine && section.productLine !== opts.productLine) continue;
         const categoryName = section.category ?? `${domain}::${section.key}`;
         const categoryId = await upsertCategory(
           db,
           companyId,
           categoryName,
           section.startUrls[0] ?? cfg.startUrl ?? '',
-          null,
+          section.productLine ?? null,
         );
         targetSections.push({ section, categoryId, categoryName });
       }

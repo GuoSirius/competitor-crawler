@@ -122,6 +122,11 @@ export interface SectionConfig {
    * 缺省时按域名兜底（该域名只有一个品类就用它，否则 category_id 记空）。
    */
   category?: string;
+  /**
+   * 产品线（对应 categories.product_line）。可选；用于 `crawl --product-line` 过滤。
+   * 缺省该栏目不绑定产品线；指定 --product-line 时仅跑 productLine 命中的栏目。
+   */
+  productLine?: string;
   /** 该栏目的列表页入口（可多个）。省略则回退顶层 startUrl */
   startUrls?: string[];
   /**
@@ -157,6 +162,11 @@ export interface SiteConfig {
    */
   company?: string;
   /**
+   * 站点级默认产品线（对应 categories.product_line）。缺省回退到各 section 自己的 productLine；
+   * 用于 config 驱动模式（`crawl --source config`）按产品线 upsert / 过滤品类。
+   */
+  productLine?: string;
+  /**
    * 站点币种（一个站点一种，如 CNY / USD）。缺省按 CNY。
    * 写入 products.currency，供跨站点比价时做币种区分。
    */
@@ -181,6 +191,8 @@ export interface ResolvedSection {
   key: string;
   /** 绑定的种子品类名（透传自 SectionConfig.category） */
   category?: string;
+  /** 产品线（透传自 SectionConfig.productLine，缺省回退 SiteConfig.productLine） */
+  productLine?: string;
   /** 站点币种（透传自 SiteConfig.currency，缺省 CNY） */
   currency: string;
   startUrls: string[];
