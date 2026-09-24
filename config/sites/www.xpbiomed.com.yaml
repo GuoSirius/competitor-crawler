@@ -45,3 +45,12 @@ sections:
     match:
       listUrlIncludes: ["lcid=5"]
       detailUrlIncludes: ["info.aspx?itemid="]
+
+  # 血清（lcid=1）——种子「逍鹏生物 血清」对应栏目；同一套 ASP.NET 列表结构
+  - key: serum
+    category: 特级胎牛血清，特殊功能性血清
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=1"
+    match:
+      listUrlIncludes: ["lcid=1"]
+      detailUrlIncludes: ["info.aspx?itemid="]
