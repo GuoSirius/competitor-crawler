@@ -4,6 +4,8 @@ import { xlsxToSeeds } from './seed/xlsxToSeeds.js';
 import { loadSeeds } from './seed/loadSeeds.js';
 import { probe } from './commands/probe.js';
 import { genSite } from './commands/genSite.js';
+import { genSiteBatch } from './commands/genSiteBatch.js';
+import { genSiteTemplate } from './commands/genSiteTemplate.js';
 import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
 import { report } from './commands/report.js';
@@ -55,6 +57,14 @@ async function main() {
       rowKey,
       dry: flags.dry === true || flags.dry === 'true',
     });
+  } else if (cmd === 'gen-site-batch') {
+    await genSiteBatch({
+      file: typeof flags.file === 'string' ? flags.file : undefined,
+      dryRun: flags['dry-run'] === true || flags['dry-run'] === 'true',
+    });
+  } else if (cmd === 'gen-site-template') {
+    const saved = await genSiteTemplate(typeof flags.file === 'string' ? flags.file : undefined);
+    console.log(`[gen-site-template] 已生成模板 -> ${saved}`);
   } else if (cmd === 'crawl') {
     await crawl({
       site: typeof flags.site === 'string' ? flags.site : undefined,
@@ -72,7 +82,7 @@ async function main() {
       out: typeof flags.out === 'string' ? flags.out : undefined,
     });
   } else {
-    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|backfill|crawl|report> [--flags]');
+    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|report> [--flags]');
   }
 }
 
