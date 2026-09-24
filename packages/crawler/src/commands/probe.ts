@@ -126,6 +126,20 @@ export async function probe(opts: ProbeOpts): Promise<void> {
           console.log(`  形态判定：${f.shape} — ${f.title}`);
           for (const e of f.evidence) console.log(`    · 证据：${e}`);
 
+          // 多 Tab 维度（与形态正交）：决定「要不要点击」，见 docs/05 §5.3.5
+          if (f.tabs?.detected) {
+            const kindText =
+              f.tabs.kind === 'static'
+                ? '内容已随 HTML 下发 → 不需要点击，直接写选择器'
+                : f.tabs.kind === 'lazy'
+                  ? '点击后才加载 → 需要登记接口或启用模型兜底'
+                  : '未定位到面板容器 → 请人工确认内容是否在 HTML 中';
+            console.log(
+              `  多 Tab：${f.tabs.matches.join('、')}；面板 ${f.tabs.panelCount} 个（非激活 ${f.tabs.hiddenPanelCount} 个，其中有内容 ${f.tabs.hiddenFilledCount} 个）`,
+            );
+            console.log(`    → ${kindText}`);
+          }
+
           if (f.needsApi) {
             console.log('\n  🔔 该形态无法静态抽取，需要你提供接口地址：');
             console.log(indent(f.howTo, 4));

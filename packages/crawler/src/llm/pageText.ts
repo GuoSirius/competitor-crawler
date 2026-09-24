@@ -6,11 +6,15 @@ import * as cheerio from 'cheerio';
  * 为什么不直接把 HTML 丢给模型：详情页 HTML 动辄数百 KB，其中 90% 是脚本、样式、
  * 埋点与 class 噪声，既费 token 又干扰判断。这里**只保留用户肉眼能看到的内容**，
  * 并给块级元素补换行——否则 `.text()` 会把表格里各规格粘成一行，模型分不清边界。
+ *
+ * ⚠️ 只剔除「**结构上就没有内容**」的节点（script/style/…），
+ * **不要按 `hidden` / `aria-hidden` / `display:none` 剔**：多 Tab 详情页
+ * 正是用这些方式隐藏非激活面板，而规格参数常常恰好在被隐藏的那个面板里
+ * （见 docs/05 §5.3.5）。属性隐藏 ≠ 无内容，删掉等于自断数据源。
  */
 
-/** 不可见 / 无信息量的节点，直接删除 */
-const DROP_SELECTOR =
-  'script,style,noscript,iframe,svg,canvas,template,head,link,meta,[hidden],[aria-hidden="true"]';
+/** 结构上无内容可读的节点，直接删除 */
+const DROP_SELECTOR = 'script,style,noscript,iframe,svg,canvas,template,head,link,meta';
 
 /** 块级 / 表格单元 / 选项：结尾补换行，保住文本的行结构 */
 const BREAK_SELECTOR =

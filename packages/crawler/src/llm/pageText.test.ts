@@ -33,6 +33,18 @@ describe('htmlToVisibleText', () => {
     expect(t.split('\n')[0]).toHaveLength(100);
   });
 
+  it('保留被隐藏的节点内容（多 Tab 面板常被 hidden/aria-hidden 藏起来，规格参数就在里面）', () => {
+    const html = `<body>
+      <div role="tabpanel" class="tab-pane active">基本信息：胎牛血清</div>
+      <div role="tabpanel" class="tab-pane" hidden>规格：500mL / ￥1280</div>
+      <div role="tabpanel" class="tab-pane" aria-hidden="true" style="display:none">货号：ZQ1273</div>
+    </body>`;
+    const t = htmlToVisibleText(html);
+    expect(t).toContain('基本信息：胎牛血清');
+    expect(t).toContain('规格：500mL / ￥1280');
+    expect(t).toContain('货号：ZQ1273');
+  });
+
   it('空输入返回空串', () => {
     expect(htmlToVisibleText('')).toBe('');
   });

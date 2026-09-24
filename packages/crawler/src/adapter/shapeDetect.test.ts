@@ -92,3 +92,59 @@ describe('detectSpecPriceShape — 无规格结构', () => {
     expect(f.needsApi).toBe(false);
   });
 });
+
+describe('detectSpecPriceShape — 多 Tab（与形态正交的维度）', () => {
+  it('非激活面板已有内容 → static：明确「不需要点击」并给出面板选择器', () => {
+    const html = `
+      <div role="tablist"><button role="tab">基本信息</button><button role="tab">规格参数</button></div>
+      <div role="tabpanel" class="tab-pane active">基本信息：胎牛血清</div>
+      <div role="tabpanel" class="tab-pane" hidden>规格参数 100μL ￥1280 / 1mL ￥8800</div>`;
+    const f = detectSpecPriceShape(html);
+    expect(f.tabs?.detected).toBe(true);
+    expect(f.tabs?.kind).toBe('static');
+    expect(f.tabs?.hiddenFilledCount).toBe(1);
+    expect(f.evidence.join()).toMatch(/不需要点击/);
+    expect(f.howTo).toContain('tabpanel');
+    expect(f.needsApi).toBe(false);
+  });
+
+  it('Tab 内是表格 → 形态仍是 A-table，同时回报 Tab 信息', () => {
+    const html = `
+      <div class="tab-content">
+        <div class="tab-pane active"><table><tr><td>a</td><td>￥1</td></tr></table></div>
+        <div class="tab-pane" style="display:none"><table>
+          <tr><td>100μL</td><td>￥1,280</td></tr><tr><td>1mL</td><td>￥8,800</td></tr>
+        </table></div>
+      </div>`;
+    const f = detectSpecPriceShape(html);
+    expect(f.shape).toBe('A-table');
+    expect(f.tabs?.panelCount).toBe(2);
+    expect(f.tabs?.kind).toBe('static');
+  });
+
+  it('非激活面板在 HTML 里为空 → lazy，归入形态 D 并说明「不支持点击」', () => {
+    const html = `
+      <div class="el-tabs"><div class="el-tabs__item">规格参数</div></div>
+      <div class="el-tab-pane active">基本信息</div>
+      <div class="el-tab-pane"></div>`;
+    const f = detectSpecPriceShape(html);
+    expect(f.shape).toBe('D-async');
+    expect(f.needsApi).toBe(true);
+    expect(f.tabs?.kind).toBe('lazy');
+    expect(f.howTo).toMatch(/不支持点击/);
+  });
+
+  it('误命中防护：class 含 table / ytable / price-table 不算 Tab（"table" 里含 "tab"）', () => {
+    const html = `
+      <table class="ytable"><tr><td>100μL</td><td>￥1,280</td></tr><tr><td>1mL</td><td>￥8,800</td></tr></table>
+      <table class="price-table"><tr><td>100μL</td><td>￥1,280</td></tr></table>`;
+    const f = detectSpecPriceShape(html);
+    expect(f.tabs?.detected).toBe(false);
+    expect(f.shape).toBe('A-table');
+  });
+
+  it('无 Tab 结构时不回报 tabs', () => {
+    const f = detectSpecPriceShape(`<h1>培养基</h1><div class="price">￥56.00</div>`);
+    expect(f.tabs?.detected).toBe(false);
+  });
+});
