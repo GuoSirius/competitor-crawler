@@ -81,6 +81,8 @@ export interface CategorySeed {
   companyName: string;
   website?: string;
   competitorType?: string;
+  /** 公司属性：own=我方品牌，competitor=竞品。缺省按 competitor 处理。 */
+  role?: string;
   productLine?: string;
   categoryName: string;
   categoryUrl: string;

@@ -6,11 +6,19 @@ export const companies = sqliteTable('companies', {
   name: text('name').notNull().unique(),
   website: text('website'),
   competitorType: text('competitor_type'),
+  /**
+   * 公司属性维度：own=我方品牌（普诺赛/伊莱瑞特），competitor=竞品。
+   * 默认 competitor。下游报告按 role 区分「自己 vs 对手」，对标 SQL 零改动（按 role 分组/置顶即可）。
+   * 数据来源（爬自己站 or 内部产品库导入）待后续确定，先留标志位。
+   */
+  role: text('role').notNull().default('competitor'),
   sourceRow: text('source_row', { mode: 'json' }),
   removedAt: integer('removed_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-});
+}, (t) => [
+  index('idx_company_role').on(t.role),
+]);
 
 // 品类（Excel 一行：公司 + 产品线 + 品类名 + 品类链接）
 //

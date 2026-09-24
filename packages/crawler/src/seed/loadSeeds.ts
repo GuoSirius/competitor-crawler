@@ -11,6 +11,19 @@ import {
 const now = nowSeconds;
 
 /**
+ * 把种子里的 role 文本归一化为枚举值：own=我方品牌，competitor=竞品。
+ * 仅当明确表达「我方」时才算 own；其余（缺省/竞品/任意未知值）一律 competitor。
+ */
+function normalizeRole(raw: string | undefined): 'own' | 'competitor' {
+  if (!raw) return 'competitor';
+  const v = raw.trim().toLowerCase();
+  if (v === 'own' || v === '我方' || v === '自有' || v === 'yes' || v === 'true' || v === '是') {
+    return 'own';
+  }
+  return 'competitor';
+}
+
+/**
  * 读取标准 seeds.json，增量同步到 DB：
  * - 公司：按 name upsert
  * - 品类：按 (companyId, productLine, categoryName) 业务主键 upsert
@@ -40,6 +53,7 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
         .set({
           website: s.website ?? existing[0].website,
           competitorType: s.competitorType ?? existing[0].competitorType,
+          role: normalizeRole(s.role),
           sourceRow: s.sourceRow,
           removedAt: null,
           updatedAt: t,
@@ -52,6 +66,7 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
           name: s.companyName,
           website: s.website,
           competitorType: s.competitorType,
+          role: normalizeRole(s.role),
           sourceRow: s.sourceRow,
           removedAt: null,
           createdAt: t,

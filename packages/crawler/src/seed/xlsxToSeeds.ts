@@ -11,6 +11,8 @@ export interface RawSeed {
   companyName: string;
   website?: string;
   competitorType?: string;
+  /** 公司属性：own=我方品牌，competitor=竞品。缺省按 competitor。 */
+  role?: string;
   productLine?: string;
   categoryName: string;
   categoryUrl: string;
@@ -61,6 +63,9 @@ function detectColumns(headers: (string | null)[]): Record<string, number> {
   if (generic >= 0) map.genericUrl = generic;
   const type = idx('类型');
   if (type >= 0) map.type = type;
+  // 公司属性：own=我方品牌，competitor=竞品（如「是否我方/归属/品牌方」列）
+  const role = idx('是否我方', '归属', '品牌方', 'role');
+  if (role >= 0) map.role = role;
   // categoryUrl 来源优先级：品类链接 > 官网首页 > 通用 URL
   map.url = catLink >= 0 ? catLink : homepage >= 0 ? homepage : generic;
   // website 来源优先级：官网首页 > 通用 URL
@@ -117,6 +122,7 @@ export async function xlsxToSeeds(): Promise<string> {
           companyName,
           website: col.website != null ? (cellText(row.getCell(col.website)) ?? undefined) : undefined,
           competitorType: col.type != null ? (cellText(row.getCell(col.type)) ?? undefined) : undefined,
+          role: col.role != null ? (cellText(row.getCell(col.role)) ?? undefined) : undefined,
           productLine:
             col.productLine != null ? (cellText(row.getCell(col.productLine)) ?? undefined) : undefined,
           categoryName,
