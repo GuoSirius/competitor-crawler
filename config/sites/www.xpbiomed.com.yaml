@@ -54,3 +54,94 @@ sections:
     match:
       listUrlIncludes: ["lcid=1"]
       detailUrlIncludes: ["info.aspx?itemid="]
+
+  # —— 以下为 2026-09-24 扩充的多栏目（探针确认各 lcid 均返回商品列表，结构同上）——
+  # 血清家族
+  - key: bovine-serum
+    category: 牛血清
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=2"
+    match:
+      listUrlIncludes: ["lcid=2"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: special-serum
+    category: 特殊加工工艺血清
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=3"
+    match:
+      listUrlIncludes: ["lcid=3"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: other-bovine
+    category: 其他牛血清
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=4"
+    match:
+      listUrlIncludes: ["lcid=4"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: other-animal
+    category: 其他动物血清
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=81"
+    match:
+      listUrlIncludes: ["lcid=81"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  # 基础培养基 / 辅助试剂家族
+  - key: basal-media
+    category: 液体基础培养基
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=29"
+    match:
+      listUrlIncludes: ["lcid=29"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: buffer
+    category: 液体缓冲液
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=92"
+    match:
+      listUrlIncludes: ["lcid=92"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: complete-media
+    category: 完全培养基
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=93"
+    match:
+      listUrlIncludes: ["lcid=93"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: antibiotic
+    category: 抗生素与消毒试剂
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=94"
+    match:
+      listUrlIncludes: ["lcid=94"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: cell-aux
+    category: 细胞辅助溶液
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=95"
+    match:
+      listUrlIncludes: ["lcid=95"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: digestion
+    category: 消化与冻存试剂
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=96"
+    match:
+      listUrlIncludes: ["lcid=96"]
+      detailUrlIncludes: ["info.aspx?itemid="]
+
+  - key: sfm
+    category: 无血清培养基与添加剂
+    startUrls:
+      - "https://www.xpbiomed.com/Products/index.aspx?lcid=97"
+    match:
+      listUrlIncludes: ["lcid=97"]
+      detailUrlIncludes: ["info.aspx?itemid="]
