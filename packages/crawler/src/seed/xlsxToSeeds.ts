@@ -33,9 +33,26 @@ function cellText(cell: ExcelJS.Cell): string | null {
 }
 
 function cellUrl(cell: ExcelJS.Cell): string | null {
-  const hl = (cell as unknown as { hyperlink?: { target?: string; text?: string } }).hyperlink;
-  if (hl?.target && /^https?:\/\//.test(hl.target)) return hl.target.trim();
-  if (hl?.text && /^https?:\/\//.test(hl.text)) return hl.text.trim();
+  // ExcelJS 超链接单元格：cell.value 是 HyperlinkValue { text, hyperlink }，
+  // 其中 URL 在 `.hyperlink`（不是 `.target`）。cell.hyperlink getter 在 4.x 也可能直接返回 URL 字符串。
+  // 旧代码误读 `hl.target` → 永远取不到，导致品类链接列的真实 URL 被整列丢弃、categoryUrl 全回退到首页。
+  const value = (cell as unknown as { value?: unknown }).value;
+  let hl: string | undefined;
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>;
+    if (typeof v.hyperlink === 'string') hl = v.hyperlink;
+    else if (typeof v.target === 'string') hl = v.target;
+  }
+  if (!hl) {
+    const viaGetter = (cell as unknown as { hyperlink?: unknown }).hyperlink;
+    if (typeof viaGetter === 'string') hl = viaGetter;
+    else if (viaGetter && typeof viaGetter === 'object') {
+      const g = viaGetter as Record<string, unknown>;
+      if (typeof g.hyperlink === 'string') hl = g.hyperlink;
+      else if (typeof g.target === 'string') hl = g.target;
+    }
+  }
+  if (hl && /^https?:\/\//.test(hl)) return hl.trim();
   const t = cellText(cell);
   if (t && /^https?:\/\//.test(t)) return t;
   return null;
