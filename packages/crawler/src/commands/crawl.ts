@@ -86,8 +86,8 @@ interface CrawlSummary {
   /** 本轮写入的价格历史条数（仅变化时记） */
   pricePoints: number;
   failed: number;
-  /** 检测到「YAML 配置 ↔ 代码适配器 互斥」的站点数（已跳过、待用户处理） */
-  conflicts: number;
+  /** 启用了代码适配器钩子（加性补充）的站点数；0 表示全仓走纯 YAML，行为与旧版一致 */
+  adapterSites: number;
 }
 
 /**
@@ -115,7 +115,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     delisted: 0,
     pricePoints: 0,
     failed: 0,
-    conflicts: 0,
+    adapterSites: 0,
   };
 
   let crawlRow: { id: number };
@@ -152,10 +152,17 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
 
     // 数据源切换（需求①·决策B）：config 扫描 config/sites/*.yaml / seeds 读库内 categories，可切换。
     // 默认 seeds（旧行为，稳定）；config 作后期驱动，显式 --source config 启用。
-    // 两种模式都做「YAML 配置 ↔ 代码适配器 互斥检测」（决策A）：共存则记录冲突、跳过、跑完汇总提示。
+    // 代码适配器是**加性补充**（docs/05 §5.3）：与 YAML 共存不冲突、不跳过，只是给该站点多挂几个钩子。
 
-    const { targets: rawTargets, conflicts } = await buildTargets(db, source, opts, progress);
+    const { targets: rawTargets, adapterSites } = await buildTargets(db, source, opts, progress);
     const targets = applyFilters(rawTargets, opts);
+
+    if (adapterSites.length > 0) {
+      progress.update(
+        `[crawl] ${adapterSites.length} 个站点挂有代码适配器（钩子生效）：${adapterSites.join(', ')}`,
+      );
+      summary.adapterSites = adapterSites.length;
+    }
 
     if (targets.size === 0) {
       const scope = opts.site ? `site=${opts.site}` : '全部';
@@ -250,15 +257,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     }
 
     summary.companies = companyIds.size;
-    if (conflicts.length > 0) {
-      progress.update(
-        `[crawl] ⚠️ 检测到 ${conflicts.length} 个站点同时存在 YAML 配置与代码适配器（互斥），已跳过待处理：${conflicts.join(', ')}`,
-      );
-      progress.update('[crawl] 请移除其一后再跑：config/sites/<domain>.yaml 或 packages/crawler/src/adapters/<domain>.ts');
-      summary.conflicts = conflicts.length;
-    }
     progress.done(
-      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}${summary.conflicts ? ` / 冲突 ${summary.conflicts}` : ''}`,
+      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
   } catch (e) {
@@ -296,28 +296,28 @@ interface TargetSection {
 
 /**
  * 按数据源构建爬取目标（需求①·决策B）。
- * - config：扫描 `config/sites/*.yaml` 作为爬取范围真相源；YAML 与代码适配器共存 → 记冲突并跳过。
- * - seeds：读库内 categories（可按产品线过滤）；同样做共存检测。
- * 返回所有「未冲突」的目标 + 冲突域名清单（供跑完汇总提示）。
+ * - config：扫描 `config/sites/*.yaml` 作为爬取范围真相源。
+ * - seeds：读库内 categories（可按产品线过滤）。
+ *
+ * 代码适配器是**加性补充**（docs/05 §5.3）：与 YAML 共存不算冲突、**不跳过**，
+ * 只是给该站点多挂几个可选钩子（过 WAF / 自定义分页 / 解析后补字段）。
+ * 返回目标 + 「挂有代码适配器」的域名清单（仅供日志说明，不影响执行）。
  */
 async function buildTargets(
   db: Db,
   source: 'config' | 'seeds',
   opts: CrawlOpts,
   progress: Progress,
-): Promise<{ targets: Map<string, SiteTarget>; conflicts: string[] }> {
-  const conflicts: string[] = [];
+): Promise<{ targets: Map<string, SiteTarget>; adapterSites: string[] }> {
+  const adapterSites: string[] = [];
   const targets = new Map<string, SiteTarget>();
   const dryRun = opts.dryRun === true;
 
   if (source === 'config') {
     for (const domain of listSiteConfigs()) {
       if (opts.site && domain !== opts.site) continue;
-      // 决策A：YAML 与代码适配器互斥，共存则记录冲突、跳过该站点
-      if (hasCodeAdapter(domain)) {
-        conflicts.push(domain);
-        continue;
-      }
+      // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
+      if (hasCodeAdapter(domain)) adapterSites.push(domain);
       const cfg = loadSiteConfig(domain);
       const sections = resolveSections(cfg);
       const companyId = await resolveCompanyId(db, cfg, dryRun, progress);
@@ -339,7 +339,7 @@ async function buildTargets(
       }
       targets.set(domain, { domain, companyId, sections: targetSections });
     }
-    return { targets, conflicts };
+    return { targets, adapterSites };
   }
 
   // source === 'seeds'
@@ -366,11 +366,8 @@ async function buildTargets(
       progress.update(`[crawl] 跳过 ${domain}：无适配器配置 config/sites/${domain}.yaml`);
       continue;
     }
-    // 决策A：YAML 与代码适配器互斥，共存则记录冲突、跳过该站点
-    if (hasCodeAdapter(domain)) {
-      conflicts.push(domain);
-      continue;
-    }
+    // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
+    if (hasCodeAdapter(domain)) adapterSites.push(domain);
     const cfg = loadSiteConfig(domain);
     const sections = resolveSections(cfg);
     const companyId = list[0].company.id;
@@ -382,7 +379,7 @@ async function buildTargets(
     targets.set(domain, { domain, companyId, sections: targetSections });
   }
 
-  return { targets, conflicts };
+  return { targets, adapterSites };
 }
 
 /** 按 --section / --category 过滤栏目（两数据源通用） */

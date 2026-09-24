@@ -6,7 +6,7 @@ import type { ListTraversalConfig, ResolvedSection, SiteConfig } from './types.j
 
 // 仓库根统一由 shared/src/paths.ts 提供（避免各处重复上溯算错层级）
 const sitesDir = path.join(repoRoot, 'config', 'sites');
-// 代码型适配器目录（YAML 之外的逃生舱；与 YAML 互斥，见 docs/05）
+// 代码型适配器目录（对 YAML 的**加性补充**，不是替代；见 docs/05 §5.3）
 const adaptersDir = path.join(repoRoot, 'packages', 'crawler', 'src', 'adapters');
 
 /** 站点配置文件路径：config/sites/<domain>.yaml */
@@ -20,8 +20,12 @@ export function adapterPath(domain: string): string {
 }
 
 /**
- * 某站点是否存在「代码型适配器」（YAML 之外的逃生舱）。
- * 与 YAML 配置**互斥**：两者同时存在视为冲突，crawl 记录并跳过、跑完汇总提示（docs/05、需求①·决策A）。
+ * 某站点是否存在「代码型适配器」。
+ *
+ * **加性、不替换（docs/05 §5.3）**：代码适配器只提供 YAML 表达不了的**可选钩子**
+ * （如过 WAF 的 preflight、需 JS 计算的分页、解析后补字段），YAML 始终是主力与真相源。
+ * 二者**可以共存**：共存时先按 YAML 解析，再用适配器钩子补齐缺口；
+ * 某站点没有适配器文件时，行为与「没有这套机制」完全一致（零回归）。
  */
 export function hasCodeAdapter(domain: string): boolean {
   return fs.existsSync(adapterPath(domain));
