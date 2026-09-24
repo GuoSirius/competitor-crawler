@@ -23,7 +23,9 @@ pnpm --filter @competitor-crawler/shared db:push   # 4. 初始化数据库表结
 
 常用命令（完整清单见 [`docs/11-脚本命令手册.md`](docs/11-脚本命令手册.md)）：`pnpm seed` / `pnpm crawl` / `pnpm report` / `pnpm probe`（单站验证，多规则站点可 `--section`）/ `pnpm gen-site`（模型生成站点配置）/ `pnpm backfill`（字段晋升回填）/ `pnpm db:push`（表结构迁移）/ `pnpm release`（版本发布 + CHANGELOG + 打标签，运行时选类型）/ `pnpm typecheck`（类型检查，暂只跑 shared+crawler）。
 
-> ⚠️ web 包类型检查**暂被屏蔽**（缺 `vue-tsc`）：根 `pnpm typecheck` 目前只跑 shared + crawler。后期开发 web 时**务必补回**（见 [`docs/12` §12.9](docs/12-工程规范.md)）。
+> 📌 web 包类型检查已**自动纳管**：根 `pnpm typecheck` 依次检查 shared → crawler → web。
+> 其中 web 需要 `vue-tsc`（已写进 `packages/web/package.json`）；**未安装时该步会自动跳过并提示**，
+> 跑一次 `pnpm install` 即生效，无需再改脚本或 CI（见 [`docs/12` §12.9](docs/12-工程规范.md)）。
 
 ## 提交规范（commitlint）
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// 提交前门禁（pre-commit）：typecheck（shared + crawler）+ 单元测试 **全绿** 才放行。
+// 提交前门禁（pre-commit）：typecheck（shared + crawler + web）+ 单元测试 **全绿** 才放行。
 //
 // 为什么是 node 脚本而不是直接写在 hook 文件里：
 //   本机钩子进程的 PATH 取自系统环境变量（不含 Git\usr\bin），曾出现
@@ -22,6 +22,9 @@ process.chdir(repoRoot);
 
 const TSC = 'node_modules/typescript/bin/tsc';
 const VITEST = 'node_modules/vitest/vitest.mjs';
+// typecheck 的「查哪些包」收敛在 scripts/typecheck.mjs（shared + crawler + web），
+// 这里只负责调用它，避免三处各写一份导致漂移。
+const TYPECHECK = 'scripts/typecheck.mjs';
 
 // 依赖未安装（未执行 pnpm install）→ 跳过，不阻塞首次提交
 if (!fs.existsSync(TSC) || !fs.existsSync(VITEST)) {
@@ -41,9 +44,8 @@ function run(label, args) {
 }
 
 const checks = [
-  ['[1/3] typecheck shared', [TSC, '-p', 'packages/shared/tsconfig.json', '--noEmit']],
-  ['[2/3] typecheck crawler', [TSC, '-p', 'packages/crawler/tsconfig.json', '--noEmit']],
-  ['[3/3] unit tests', [VITEST, 'run']],
+  ['[1/2] typecheck（shared + crawler + web）', [TYPECHECK]],
+  ['[2/2] unit tests', [VITEST, 'run']],
 ];
 
 for (const [label, args] of checks) {

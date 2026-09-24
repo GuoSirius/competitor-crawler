@@ -36,10 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 说明：web 包 typecheck 暂未纳入（缺 vue-tsc，见 docs/12 §12.9），
-      #      故此处用 `pnpm typecheck`（= shared + crawler）而非 `pnpm typecheck:all`。
-      #      后续 web 进入实质开发、补上 vue-tsc 后，应改为 `pnpm typecheck:all`。
-      - name: Typecheck (shared + crawler)
+      # `pnpm typecheck` = `node scripts/typecheck.mjs`，依次跑 shared → crawler → web（见 docs/12 §12.9）。
+      # web 那一步是**自适应**的：装了 vue-tsc 就检查，没装就跳过并提示（本地/CI 同一份逻辑）。
+      - name: Typecheck (shared + crawler + web)
         run: pnpm typecheck
 
       # 含「环境变量契约」测试：校验 process.env 读取点与 .env.example 声明双向一致。
