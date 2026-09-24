@@ -1,0 +1,55 @@
+# 站点适配器：Proteintech www.ptglab.com（B 类 · JS 渲染站，爬取必须带 --render spa）
+# 结构（2026-09-24 渲染实测）：
+#   - /products/<品类>/ 静态页是纯导航（分类链接），真列表在搜索结果页 /results?q=<词>
+#   - 渲染后 li.search-result-wrapper.result-group（首屏 21 条）：卡片自身属性就带
+#     data-name="TGFBR3 Polyclonal antibody" + data-catno="28992-1-AP"（$self 读）
+#   - 详情页 /products/<slug>-<catno>.htm
+#   - ⚠️ 品类过滤用 q= 词近似（elisa 干净；polyclonal 混入 2 条二抗）；
+#     ⚠️ 无 URL 翻页控件 → 每次查询仅首屏 21 条（接口逆向见 docs/14 NEEDS_API_HINT）
+domain: www.ptglab.com
+company: Proteintech
+currency: USD
+
+parseList:
+  itemSelector: "li.search-result-wrapper.result-group"
+  fields:
+    detailUrl: { sel: "a[href*='.htm']", attr: href }
+    name:      { sel: "$self", attr: data-name }
+    sku:       { sel: "$self", attr: data-catno }
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+  captureRest: true
+
+sections:
+  - key: polyclonal
+    category: Polyclonal Antibodies
+    startUrls:
+      - "https://www.ptglab.com/results?category=&q=polyclonal&target="
+    match:
+      detailUrlIncludes: [".htm"]
+  - key: monoclonal
+    category: Monoclonal Antibodies
+    startUrls:
+      - "https://www.ptglab.com/results?category=&q=monoclonal&target="
+    match:
+      detailUrlIncludes: [".htm"]
+  - key: recombinant
+    category: Uni-rAb Recombinant Antibodies
+    startUrls:
+      - "https://www.ptglab.com/results?category=&q=recombinant&target="
+    match:
+      detailUrlIncludes: [".htm"]
+  - key: flow-cytometry
+    category: Flow Cytometry Antibodies
+    startUrls:
+      - "https://www.ptglab.com/results?category=&q=flow+cytometry&target="
+    match:
+      detailUrlIncludes: [".htm"]
+  - key: elisa-kits
+    category: ELISA Kits
+    startUrls:
+      - "https://www.ptglab.com/results?category=&q=elisa&target="
+    match:
+      detailUrlIncludes: [".htm"]

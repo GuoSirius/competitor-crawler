@@ -3,6 +3,11 @@
 #   - 叶子分类页 ul.products li.product（产品卡）：a(/product/<slug>/) + h2.woocommerce-loop-product__title + .price
 #   - 翻页 ?product-page=N；个别分类下还有子分类（li.product-category 已被 :not 过滤，产出 0 条自动停）
 #   - 种子品类「特级胎牛血清、马血清」对应 serum 家族；此处按站点真实分类全量接入
+#   - ⚠️ 纯询价站（用户 2026-09-24 核实）：列表页「¥1.00」是数量选择器占位（可加减数量点询价，
+#     询价页只回显数量无价格），全站无真实价格 → 不抓 price，价格列留空，只做「有货/规格」维度
+#   - 规格×SKU（形态 C）：详情页 form.variations_form 的 data-product_variations 属性内联全部
+#     变体 JSON（{attributes:{attribute_规格}, sku, variation_id…}，规格名 URL 编码）；
+#     切换规格纯前端、无请求 → 静态可抽，specs 数组承载「规格 → 货号」映射
 domain: learning.cytivalifesciences.com.cn
 company: Cytiva
 currency: CNY
@@ -19,10 +24,17 @@ parseList:
   fields:
     detailUrl: { sel: "a", attr: href }
     name:      { sel: "h2.woocommerce-loop-product__title", text: true }
-    price:     { sel: ".price", text: true, regex: '¥\s*([\d,]+\.?\d*)', number: true }
 
 parseDetail:
-  fields: {}
+  fields:
+    # 形态 C：WooCommerce 可变产品，变体全量内联在 form 属性里（display_price=1 是占位，不抽）
+    specs:
+      sel: "form.variations_form"
+      attr: data-product_variations
+      json: true
+      pick:
+        spec: "attributes.attribute_%e8%a7%84%e6%a0%bc"
+        sku: "sku"
   captureRest: true
 
 sections:

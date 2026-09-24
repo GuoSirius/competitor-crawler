@@ -1,0 +1,62 @@
+# 站点适配器：碧云天 www.beyotime.com（SSR，2026-09-24 实测 + 用户纠正后探明）
+# 结构：产品列表是服务端渲染大表，入口为左侧导航（#leftpart）的 goods.do 分类页：
+#   - lcode2 = 一级品类聚合页（如 ?method=lcode2&lcode2=001001），**单页全量产品行**（3.8MB/6162 行，无翻页）
+#   - lcode3 / lcode 为下级细分（本 YAML 取 lcode2 粒度，9 个品类全覆盖）
+#   - 产品行 tr.searchproduct：td#<货号> + a[href*='/product/<货号>.htm'] 名称/详情
+#     + 第3列规格 + 第4列价格（「109.00元」）+ 加购按钮
+#   - 种子 Excel 里的「竞品品类链接」是 support/BiochemicalDetection.htm（支持页，非列表）
+#     —— 种子品类链接不可信、以站点真实分类为准的又一例证
+domain: www.beyotime.com
+company: 碧云天（Beyotime）
+currency: CNY
+
+parseList:
+  itemSelector: "tr.searchproduct"
+  fields:
+    sku:       { sel: "td[id]", text: true }
+    detailUrl: { sel: "a[href*='/product/']", attr: href }
+    name:      { sel: "a[href*='/product/']", text: true }
+    specText:  { sel: "td:nth-child(3)", text: true }
+    price:     { sel: "td:nth-child(4)", text: true, regex: '([\d.]+)', number: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: nucleic-acid
+    category: 核酸相关
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001001"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: peptide-protein
+    category: 多肽与蛋白
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001002"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: cell-related
+    category: 细胞相关
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001003"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: signal-transduction
+    category: 信号转导
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001004"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: antibody
+    category: 抗体
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001005"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: inhibitors
+    category: 抑制剂激活剂等
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001006"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: common-reagents
+    category: 常用试剂
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=001008"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: instruments
+    category: 仪器
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=002001"]
+    match: { detailUrlIncludes: ["/product/"] }
+  - key: consumables
+    category: 耗材
+    startUrls: ["https://www.beyotime.com/goods.do?method=lcode2&lcode2=003001"]
+    match: { detailUrlIncludes: ["/product/"] }

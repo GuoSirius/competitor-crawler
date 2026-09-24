@@ -1,0 +1,30 @@
+# 站点适配器：ATCC www.atcc.org（B 类 · JS 渲染站，爬取必须带 --render spa）
+# 结构（2026-09-24 渲染实测）：Coveo 搜索驱动
+#   - 列表页 /cell-products 渲染后 div.product-search-listing-card ×24（CoveoResult）
+#   - 卡片：a[href*="/products/<slug>"] + h3.product-search-listing-card__name + 货号在
+#     p.product-search-listing-card__no-bsl 文本内（如 TIB-202 / HB-8065）
+#   - 详情页 h1.pdp-page-content__product-name；价格需登录，未登录无价（不抓 price）
+#   - ⚠️ 翻页：Coveo API 驱动，无 URL 翻页规律 → 每栏目仅首屏 24 条（逆向接口见 docs/14）
+domain: www.atcc.org
+company: ATCC
+currency: USD
+
+parseList:
+  itemSelector: "div.product-search-listing-card"
+  fields:
+    detailUrl: { sel: "a[href*='/products/']", attr: href }
+    name:      { sel: "h3.product-search-listing-card__name", text: true }
+    sku:       { sel: "p.product-search-listing-card__no-bsl", text: true, regex: '([A-Z]{2,4}-\d+)' }
+
+parseDetail:
+  fields:
+    name: { sel: "h1.pdp-page-content__product-name", text: true }
+  captureRest: true
+
+sections:
+  - key: default
+    category: 细胞系、原代细胞
+    startUrls:
+      - "https://www.atcc.org/cell-products"
+    match:
+      detailUrlIncludes: ["/products/"]
