@@ -39,7 +39,10 @@ export function renameKeys(v: unknown, pick?: Record<string, string>): unknown {
     const src = o as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [mine, theirs] of Object.entries(pick)) {
-      if (src[theirs] !== undefined) out[mine] = src[theirs];
+      // theirs 支持点号路径（如 'attributes.attribute_规格'：WooCommerce 可变产品
+      // 的规格文本藏在嵌套 attributes 里，浅层键取不到）；无点号时与直取等价
+      const val = walkPath(src, theirs);
+      if (val !== undefined) out[mine] = val;
     }
     return out;
   };

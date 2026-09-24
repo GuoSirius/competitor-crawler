@@ -25,6 +25,8 @@ export type ListStrategy =
 
 export interface SpecItem {
   spec?: string | null;
+  /** 该规格变体的货号（catalog number）。形态 C/D 用 pick 映射（如 WooCommerce 可变产品每个变体各有一个 sku） */
+  sku?: string | null;
   /** 现价 / 售价 */
   priceNow?: string | null;
   /** 原价 / 划线价 / 市场价 */

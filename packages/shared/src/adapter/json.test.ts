@@ -43,6 +43,24 @@ describe('renameKeys（站点键 → 我方键）', () => {
     ]);
   });
 
+  it('站点键支持点号路径（WooCommerce 变体：规格藏在嵌套 attributes 里）', () => {
+    const variants = [
+      { attributes: { 'attribute_%e8%a7%84%e6%a0%bc': '500mL（国产）' }, sku: 'SV30306.01' },
+      { attributes: { 'attribute_%e8%a7%84%e6%a0%bc': '500mL' }, sku: 'SH30809.01' },
+    ];
+    expect(
+      renameKeys(variants, {
+        spec: 'attributes.attribute_%e8%a7%84%e6%a0%bc',
+        sku: 'sku',
+      }),
+    ).toEqual([
+      { spec: '500mL（国产）', sku: 'SV30306.01' },
+      { spec: '500mL', sku: 'SH30809.01' },
+    ]);
+    // 嵌套路径取不到时该键不写入（与浅层语义一致）
+    expect(renameKeys([{ attributes: {} }], { spec: 'attributes.x' })).toEqual([{}]);
+  });
+
   it('未传 pick 或值为标量/null 时原样返回', () => {
     expect(renameKeys({ a: 1 })).toEqual({ a: 1 });
     expect(renameKeys(null, pick)).toBeNull();
