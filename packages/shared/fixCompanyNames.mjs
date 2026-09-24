@@ -3,8 +3,11 @@
 // 必须在 `pnpm seed` 之前运行，避免 loadSeeds 按新名 upsert 时留下孤儿旧行、丢产品。
 import Database from 'better-sqlite3';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const dbPath = 'D:/workspace/resource/竞品爬虫项目/competitor-crawler/data/crawler.sqlite';
+// 仓库根 = packages/shared 上溯两级（相对脚本定位，换机器/挪目录均可用）
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const dbPath = path.join(REPO, 'data', 'crawler.sqlite');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 

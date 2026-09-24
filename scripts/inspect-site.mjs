@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-const require = createRequire('D:/workspace/resource/竞品爬虫项目/competitor-crawler/packages/crawler/package.json');
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(path.join(REPO, 'packages', 'crawler', 'package.json'));
 const cheerio = require('cheerio');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';

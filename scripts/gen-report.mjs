@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-const REPO = 'D:/workspace/resource/竞品爬虫项目/competitor-crawler';
+import { fileURLToPath } from 'node:url';
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const inv = JSON.parse(fs.readFileSync(path.join(REPO, 'data/seeds/crawl-inventory.json'), 'utf-8'));
 
 function fmt(u) {

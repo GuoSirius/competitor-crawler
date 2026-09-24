@@ -1,12 +1,11 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-const require = createRequire(
-  'D:/workspace/resource/竞品爬虫项目/competitor-crawler/packages/crawler/package.json'
-);
+import { fileURLToPath } from 'node:url';
+// 仓库根 = scripts/ 上溯一级（相对脚本定位，换机器/挪目录均可用）
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(path.join(REPO, 'packages', 'crawler', 'package.json'));
 const cheerio = require('cheerio');
-
-const REPO = 'D:/workspace/resource/竞品爬虫项目/competitor-crawler';
 const seeds = JSON.parse(fs.readFileSync(path.join(REPO, 'data/seeds/seeds.json'), 'utf-8'));
 // 临时 HTML 统一放 .tmp/（gitignore），用完即删；只 sanitize 文件名，绝不动目录路径
 const HTML_DIR = path.join(REPO, '.tmp', 'probe-html');

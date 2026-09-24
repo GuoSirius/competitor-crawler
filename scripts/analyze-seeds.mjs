@@ -1,5 +1,8 @@
 import fs from 'node:fs';
-const seeds = JSON.parse(fs.readFileSync('data/seeds/seeds.json', 'utf-8'));
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const seeds = JSON.parse(fs.readFileSync(path.join(REPO, 'data/seeds/seeds.json'), 'utf-8'));
 const byCo = new Map();
 for (const s of seeds) {
   if (!byCo.has(s.companyName)) byCo.set(s.companyName, []);
