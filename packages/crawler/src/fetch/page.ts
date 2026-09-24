@@ -39,3 +39,22 @@ async function spaFetch(url: string, progress?: Progress): Promise<string> {
     await browser.close();
   }
 }
+
+/**
+ * 截取整页截图（JPEG，质量 70）——只给「模型兜底」在 `modelFallback.screenshot: true` 时用。
+ *
+ * 为何单独一个函数而不并要求 fetchPage 一起返回：截图需要真实渲染，成本远高于取 HTML，
+ * 且只有少部分站点需要「读图」；让不需要的站点零成本。
+ */
+export async function fetchScreenshot(url: string, progress?: Progress): Promise<Buffer> {
+  progress?.update(`PLAYWRIGHT 截图 ${url}`);
+  const { chromium } = await import('playwright');
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.goto(url, { waitUntil: 'networkidle' });
+    return await page.screenshot({ fullPage: true, type: 'jpeg', quality: 70 });
+  } finally {
+    await browser.close();
+  }
+}

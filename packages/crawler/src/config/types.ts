@@ -47,6 +47,32 @@ export interface ApiSourceConfig {
   pick?: Record<string, string>;
 }
 
+/**
+ * 形态 E「前端计算」的模型兜底配置（docs/04 §4.3、docs/05 §5.3.5）。
+ *
+ * 触发条件：静态选择器 + 异步接口都取不到规格/价格时，才让模型从**页面可见文本**
+ * （可选 + 截图）里抽结构化结果。模型只**补空**，绝不覆盖已抽到的值。
+ *
+ * 模型自身的选择完全走配置（`MODEL_MODE` / `config/model.yaml`），见 docs/04 §4.2——
+ * 换本地/云端、换厂商都不需要改这里。
+ *
+ * 可直接写简写 `modelFallback: true`，等价于 `{ enabled: true }`。
+ */
+export interface ModelFallbackConfig {
+  /** 是否启用（缺省视为启用；显式写 false 可临时关掉） */
+  enabled?: boolean;
+  /**
+   * 只让模型抽这些目标：`specs` / `introMedia` / 其他内置标量字段名（如 `sku`）。
+   * 省略 = 全部（specs + introMedia + 模型给出的标量）。
+   */
+  targets?: string[];
+  /**
+   * 是否附带**整页截图**给多模态模型（需 `MODEL_*` 指向视觉模型，如 `qwen2.5-vl:7b`）。
+   * 开启后会额外用 Playwright 截一次图，成本更高；仅当「可见文本不足以判断」时才开。
+   */
+  screenshot?: boolean;
+}
+
 /** 详情页解析规则 */
 export interface DetailParseConfig {
   fields: Record<string, FieldSpec>;
@@ -54,6 +80,8 @@ export interface DetailParseConfig {
   captureRest?: boolean;
   /** 异步接口数据源（形态 D）；由 probe 告警后人工回填 */
   api?: ApiSourceConfig[];
+  /** 模型兜底（形态 E）：`true` 或配置对象；省略/`false` 则完全不调模型 */
+  modelFallback?: boolean | ModelFallbackConfig;
 }
 
 /** 翻页遍历配置 */

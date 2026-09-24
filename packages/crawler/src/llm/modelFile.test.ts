@@ -3,6 +3,7 @@ import {
   parseModelFile,
   pickEndpoint,
   pickTaskTemperature,
+  pickTaskRetries,
   interpolateEnv,
   resolveModelMode,
   loadModelFile,
@@ -122,6 +123,26 @@ describe('pickTaskTemperature', () => {
 
   it('env 非法值时忽略，继续走文件优先级', () => {
     expect(pickTaskTemperature('summary', 'abc', file)).toBe(0.3);
+  });
+});
+
+describe('pickTaskRetries', () => {
+  const file = parseModelFile({ maxRetries: 2, tasks: { extraction: { maxRetries: 0 } } });
+
+  it('env 优先于按任务覆写', () => {
+    expect(pickTaskRetries('extraction', '3', file)).toBe(3);
+  });
+
+  it('未设 env 时用 tasks[task].maxRetries（0 表示不重试）', () => {
+    expect(pickTaskRetries('extraction', undefined, file)).toBe(0);
+  });
+
+  it('任务未覆写时用顶层 maxRetries', () => {
+    expect(pickTaskRetries('summary', undefined, file)).toBe(2);
+  });
+
+  it('全都缺省时为 1（失败重试一次）', () => {
+    expect(pickTaskRetries('summary', undefined, {})).toBe(1);
   });
 });
 

@@ -158,6 +158,28 @@ export function resolveTaskTemperature(task: string): number {
   return pickTaskTemperature(task, process.env.MODEL_TEMPERATURE, loadModelFile());
 }
 
+/**
+ * 按任务解析「校验失败重试次数」。
+ * 优先级：`MODEL_MAX_RETRIES`（显式设置时）＞ `tasks[task].maxRetries` ＞ 顶层 `maxRetries` ＞ 1。
+ * 纯函数，便于单测。
+ */
+export function pickTaskRetries(
+  task: string,
+  envRetries: string | undefined,
+  file: ModelFileConfig,
+): number {
+  const fromEnv = asNumber(envRetries);
+  if (fromEnv !== undefined) return fromEnv;
+  const taskRetries = file.tasks?.[task]?.maxRetries;
+  if (taskRetries !== undefined) return taskRetries;
+  return file.maxRetries ?? 1;
+}
+
+/** 读磁盘版：`resolveTaskRetries('extraction')`（默认 1 = 失败重试一次，见 docs/04 §4.3） */
+export function resolveTaskRetries(task: string): number {
+  return pickTaskRetries(task, process.env.MODEL_MAX_RETRIES, loadModelFile());
+}
+
 /** 清空缓存（仅单测用：需要重新读取改动后的 yaml 时调用） */
 export function resetModelFileCache(): void {
   cached = undefined;
