@@ -24,10 +24,12 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(repoRoot);
 
-const TSC = 'node_modules/typescript/bin/tsc';
-const WEB_DIR = 'packages/web';
-const WEB_VUE_TSC = `${WEB_DIR}/node_modules/vue-tsc`;
-const WEB_NUXI = `${WEB_DIR}/node_modules/nuxt/bin/nuxt.mjs`;
+// ⚠️ 二进制路径一律**绝对化**：run() 会切换 cwd（web 要在 packages/web 下跑），
+// 若传相对路径，Node 会按**当时的 cwd** 再解析一次，拼成 `packages/web/packages/web/...` 而报 MODULE_NOT_FOUND。
+const TSC = path.join(repoRoot, 'node_modules/typescript/bin/tsc');
+const WEB_DIR = path.join(repoRoot, 'packages/web');
+const WEB_VUE_TSC = path.join(WEB_DIR, 'node_modules/vue-tsc');
+const WEB_NUXT = path.join(WEB_DIR, 'node_modules/nuxt/bin/nuxt.mjs');
 
 // 依赖未安装（未执行 pnpm install）→ 跳过，不阻塞首次提交（与 precommit 同一策略）
 if (!fs.existsSync(TSC)) {
@@ -43,8 +45,8 @@ function run(label, args, cwd = repoRoot) {
 }
 
 const packages = [
-  ['[shared]', ['-p', 'packages/shared/tsconfig.json', '--noEmit']],
-  ['[crawler]', ['-p', 'packages/crawler/tsconfig.json', '--noEmit']],
+  ['[shared]', ['-p', path.join(repoRoot, 'packages/shared/tsconfig.json'), '--noEmit']],
+  ['[crawler]', ['-p', path.join(repoRoot, 'packages/crawler/tsconfig.json'), '--noEmit']],
 ];
 
 for (const [label, args] of packages) {
@@ -63,7 +65,7 @@ if (!fs.existsSync(WEB_VUE_TSC)) {
 
 // `nuxt typecheck` 内部会先 writeTypes（生成 .nuxt/ 类型）再跑 `vue-tsc --noEmit`；
 // 而 web/tsconfig.json 继承 `./.nuxt/tsconfig.json`，所以必须走这个命令而不是直接调 vue-tsc。
-if (!run('[web] typecheck', [WEB_NUXI, 'typecheck'], WEB_DIR)) {
+if (!run('[web] typecheck', [WEB_NUXT, 'typecheck'], WEB_DIR)) {
   console.error('typecheck: ✗ [web] 失败');
   process.exit(1);
 }
