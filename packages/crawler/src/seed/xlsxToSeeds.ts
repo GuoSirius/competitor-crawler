@@ -105,13 +105,25 @@ export async function xlsxToSeeds(): Promise<string> {
       for (let r = 2; r <= ws.rowCount; r++) {
         const row = ws.getRow(r);
         const companyName = cellText(row.getCell(col.company)) ?? '';
-        const categoryName = cellText(row.getCell(col.category)) ?? '';
-        // 品类链接优先；该列为空（如赛默飞）时回退官网首页，保证品类至少被播种而不整行丢弃
+        // 公司名缺失直接跳过；其余 demo 列缺失不再整行丢弃（避免静默漏掉竞对）
+        if (!companyName) continue;
+        const productLine =
+          col.productLine != null ? (cellText(row.getCell(col.productLine)) ?? undefined) : undefined;
+        const categoryNameRaw = cellText(row.getCell(col.category)) ?? '';
+        const categoryName = categoryNameRaw || productLine || '产品中心';
+        // 品类链接列常是「品类名文本」而非 URL；按 品类链接 > 官网首页 > 通用URL > website文本 兜底，
+        // 保证即便 demo 列缺失，公司仍被播种。
+        const urlOf = (c: number | undefined): string | undefined => {
+          if (c == null) return undefined;
+          return cellUrl(row.getCell(c)) ?? undefined;
+        };
         const categoryUrl =
-          (col.catLink != null ? cellUrl(row.getCell(col.catLink)) : undefined) ??
-          (col.homepage != null ? cellUrl(row.getCell(col.homepage)) : undefined) ??
-          (col.genericUrl != null ? cellUrl(row.getCell(col.genericUrl)) : undefined);
-        if (!companyName || !categoryName || !categoryUrl) continue;
+          urlOf(col.catLink) ?? urlOf(col.homepage) ?? urlOf(col.genericUrl) ?? urlOf(col.website) ?? '';
+        // website：优先真实 http(s)（含超链接与目标文本），占位文本（含“官网”且无协议）视为缺失
+        const webCell = col.website != null ? row.getCell(col.website) : undefined;
+        const webText = webCell ? cellText(webCell) : undefined;
+        const website =
+          urlOf(col.website) ?? (webText && /^https?:/i.test(webText) ? webText : undefined);
 
         const sourceRow: Record<string, unknown> = {};
         headerRow.eachCell((cell, c) => {
@@ -120,11 +132,10 @@ export async function xlsxToSeeds(): Promise<string> {
 
         seeds.push({
           companyName,
-          website: col.website != null ? (cellText(row.getCell(col.website)) ?? undefined) : undefined,
+          website,
           competitorType: col.type != null ? (cellText(row.getCell(col.type)) ?? undefined) : undefined,
           role: col.role != null ? (cellText(row.getCell(col.role)) ?? undefined) : undefined,
-          productLine:
-            col.productLine != null ? (cellText(row.getCell(col.productLine)) ?? undefined) : undefined,
+          productLine,
           categoryName,
           categoryUrl,
           sourceRow,
