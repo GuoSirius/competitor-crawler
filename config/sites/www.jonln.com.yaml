@@ -1,0 +1,25 @@
+# 站点适配器：江莱生物 www.jonln.com（SSR，2026-09-27 实测探明）
+# 结构（用户原 D 类判「分类/产品页共用 /products/<id>.html 无法区分」→ 实为服务端渲染列表，碧云天型）
+#   - 列表页 ?article/50.shtml：div.catalog_box 为分类块，每块含 a.title(分类名) + ul>li>a[href*="/products/<id>.html"](产品)
+#   - 产品 <a> 的 href 含前导空格（站点 HTML 瑕疵），用 regex 提取干净绝对 URL
+#   - 列表阶段仅名称+详情链接；货号/价格来自详情页（captureRest 兜底进 row）
+domain: www.jonln.com
+company: 江莱生物（Jonln）
+currency: CNY
+
+parseList:
+  itemSelector: "div.catalog_box ul li"
+  fields:
+    detailUrl:       { sel: "a[href*='/products/']", attr: href, regex: '(https?://[^" ]+/products/\d+\.html)' }
+    name:            { sel: "a[href*='/products/']", text: true, regex: '(\S(?:\S.*\S)?)' }
+    sourceProductId: { sel: "a[href*='/products/']", attr: href, regex: 'products/(\d+)\.html' }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: default
+    category: 江莱产品
+    startUrls: ["http://www.jonln.com/?article/50.shtml"]
+    match: { detailUrlIncludes: ["/products/"] }

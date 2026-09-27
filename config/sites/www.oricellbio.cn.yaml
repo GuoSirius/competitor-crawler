@@ -1,0 +1,28 @@
+# 站点适配器：赛业（oricellbio）www.oricellbio.cn（SSR，2026-09-27 实测探明）
+# 结构（碧云天型，原 D 类「需业务确认爬哪些系列」→ 结构本身可配，仅 scope 待用户拍板）：
+#   - 站点全量产品在同一种列表页渲染（reagents/mediums.html 即返回 862 个 a.title[href*="/product/"]；
+#     各 /cell/* 分类页同源同量，故单 startUrl 即覆盖全部产品，去重按 detailUrl 唯一化）
+#   - 产品项即 <a class="title" href*="/product/">，自身承载名称与详情链接（用 $self 读）
+#   - 货号在 URL 路径 /product/<SY-xxxx>.html 中，regex 提取为 sourceProductId
+# ⚠️ 业务范围待确认：oricellbio.cn 与母公司 cyagen.cn 的归属（见 docs/14 D 类）；
+#   本配置仅爬 oricellbio.cn 自有域，cyagen.cn 不纳入（待周一用户确认）。
+domain: www.oricellbio.cn
+company: 赛业（oricellbio）
+currency: CNY
+
+parseList:
+  itemSelector: "a.title[href*='/product/']"
+  fields:
+    detailUrl:       { sel: "$self", attr: href }
+    name:            { sel: "$self", text: true }
+    sourceProductId: { sel: "$self", attr: href, regex: 'product/([^.]+)\.html' }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: default
+    category: 赛业产品
+    startUrls: ["https://www.oricellbio.cn/reagents/mediums.html"]
+    match: { detailUrlIncludes: ["/product/"] }
