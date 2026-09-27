@@ -1,5 +1,14 @@
 import { Progress } from '../util/progress.js';
 
+/**
+ * 默认 UA：用桌面 Chrome 标识。早期用 `CompetitorCrawler/0.1` Bot UA，
+ * 实测部分 SSR 站（如江莱 www.jonln.com）会据此返回被剥离的空壳列表（0 条），
+ * 换成浏览器 UA 后才返回完整产品列表。浏览器 UA 是抓取场景最被接受的标识，
+ * 不会比 Bot UA 更易触发 WAF，故作为默认。
+ */
+export const DEFAULT_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
 /** 渲染模式：ssr=静态 fetch；spa=Playwright 渲染；auto=先 ssr，内容过少回退 spa */
 export type RenderMode = 'ssr' | 'spa' | 'auto';
 
@@ -22,7 +31,7 @@ export async function fetchPage(url: string, mode: RenderMode = 'auto', progress
 
 async function ssrFetch(url: string, progress?: Progress): Promise<string> {
   progress?.update(`GET ${url} (ssr)`);
-  const res = await fetch(url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; CompetitorCrawler/0.1)' } });
+  const res = await fetch(url, { headers: { 'user-agent': DEFAULT_UA } });
   if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
   return res.text();
 }
