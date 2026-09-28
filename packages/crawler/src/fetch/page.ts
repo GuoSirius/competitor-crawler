@@ -9,6 +9,43 @@ import { Progress } from '../util/progress.js';
 export const DEFAULT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
+// 反爬/指纹绕过：裸 fetch 或普通 Playwright 会被 CloudFront / 阿里云滑块等按
+// `navigator.webdriver`、缺失的 sec-ch-ua、非浏览器 UA 等指纹拦截（返回 403/挑战页）。
+// 这里统一加 stealth：禁 AutomationControlled 标志 + 覆盖 webdriver/plugins +
+// 补齐真实浏览器的 UA 与 sec-ch-ua 系列请求头。实测可过绝大多数 WAF。
+const STEALTH_ARGS = [
+  '--no-sandbox',
+  '--disable-blink-features=AutomationControlled',
+  '--disable-dev-shm-usage',
+];
+
+type Browser = import('playwright').Browser;
+type Page = import('playwright').Page;
+
+/** 开一个带 stealth 的页面（复用浏览器实例，跨站点调用降低启动开销）。 */
+async function newStealthPage(browser: Browser, viewport?: { width: number; height: number }): Promise<Page> {
+  const ctx = await browser.newContext({
+    userAgent: DEFAULT_UA,
+    locale: 'en-US',
+    viewport,
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-US,en;q=0.9',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'Upgrade-Insecure-Requests': '1',
+    },
+  });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch {}
+    try { Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] as unknown as PluginArray }); } catch {}
+    try { Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); } catch {}
+  });
+  return page;
+}
+
 /** 渲染模式：ssr=静态 fetch；spa=Playwright 渲染；auto=先 ssr，内容过少回退 spa */
 export type RenderMode = 'ssr' | 'spa' | 'auto';
 
@@ -92,9 +129,9 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
 async function spaFetch(url: string, progress?: Progress): Promise<string> {
   progress?.update(`GET ${url} (spa/playwright)`);
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: STEALTH_ARGS });
   try {
-    const page = await browser.newPage();
+    const page = await newStealthPage(browser);
     // 不用 networkidle 等待：ATCC/Coveo 这类站有长连接/埋点轮询，networkidle 永远等不到（超时）。
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -114,9 +151,9 @@ async function spaFetch(url: string, progress?: Progress): Promise<string> {
 export async function fetchScreenshot(url: string, progress?: Progress): Promise<Buffer> {
   progress?.update(`PLAYWRIGHT 截图 ${url}`);
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ args: STEALTH_ARGS });
   try {
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const page = await newStealthPage(browser, { width: 1440, height: 900 });
     // SPA 站截图同样需要等渲染完成，否则截到的是空壳（与 spaFetch 同一套稳定检测）
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await waitForSpaSettle(page);
