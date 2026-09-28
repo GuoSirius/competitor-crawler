@@ -1,0 +1,77 @@
+# 站点适配器：赛百慷（上海）生物技术股份有限公司 icellbioscience.com
+# 结构：服务端渲染列表页 /select_product?id=<栏目>&figure=<类>（figure=0 原代细胞 / 1 细胞系 …）
+#   - 产品卡 div.product-list-content（每页若干条）
+#   - 名称+详情 a[href^=cellDetail/]（相对路径，crawl 阶段按列表页绝对化）
+#   - 货号 div.col-lg-3[title]（如 RAT-iCell-a012）
+#   - 价格 div.col-lg-1（如「￥ 4050.0」）
+#   - 翻页 .next（class="pagination" 包裹）
+# 列表页即 SSR（无需 --render spa），fetchPage auto 模式即可。
+# 抓取命令：pnpm crawl -- --site www.icellbioscience.com
+domain: www.icellbioscience.com
+company: 赛百慷（上海）生物技术股份有限公司
+currency: CNY
+
+parseList:
+  itemSelector: "div.product-list-content"
+  fields:
+    detailUrl: { sel: "a[href^='cellDetail/']", attr: href }
+    name:       { sel: "a[href^='cellDetail/']", text: true }
+    sku:        { sel: "div.col-lg-3[title]", text: true }
+    priceText:  { sel: "div.col-lg-1", text: true }
+    price:      { sel: "div.col-lg-1", text: true, number: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: primary-human
+    category: 原代细胞-人
+    startUrls: ["https://www.icellbioscience.com/select_product?id=1&figure=0"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: primary-rat
+    category: 原代细胞-大鼠
+    startUrls: ["https://www.icellbioscience.com/select_product?id=2&figure=0"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: primary-mouse
+    category: 原代细胞-小鼠
+    startUrls: ["https://www.icellbioscience.com/select_product?id=3&figure=0"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: primary-rabbit
+    category: 原代细胞-兔
+    startUrls: ["https://www.icellbioscience.com/select_product?id=33&figure=0"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: primary-pig
+    category: 原代细胞-猪
+    startUrls: ["https://www.icellbioscience.com/select_product?id=178&figure=0"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: primary-sheep
+    category: 原代细胞-羊
+    startUrls: ["https://www.icellbioscience.com/select_product?id=179&figure=0"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: line-human
+    category: 细胞系-人源
+    startUrls: ["https://www.icellbioscience.com/select_product?id=75&figure=1"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: line-rat
+    category: 细胞系-大鼠
+    startUrls: ["https://www.icellbioscience.com/select_product?id=76&figure=1"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: line-mouse
+    category: 细胞系-小鼠
+    startUrls: ["https://www.icellbioscience.com/select_product?id=77&figure=1"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }
+  - key: line-hamster
+    category: 细胞系-仓鼠
+    startUrls: ["https://www.icellbioscience.com/select_product?id=182&figure=1"]
+    match: { detailUrlIncludes: ["icellbioscience.com/cellDetail"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".next", maxPages: 60, fallbackToUi: true }

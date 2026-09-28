@@ -1,0 +1,66 @@
+# 站点适配器：斯达特（Starter）真实商品域 ua-bio.com（跨域，2026-09-28 探明）
+# ⚠️ 自查修正：原 docs/14 记「ua-bio.com 是另一品牌、非斯达特商品域、勿跨域配」系**误判**。
+#   实测 starter-bio.com 仅品牌导航壳；其「产品」下拉里斯达特自有品类（细胞因子/检测试剂盒/
+#   药物筛选/诊断抗原/特色产品/酶制剂/药物靶点&FC受体）全部 deep-link 到
+#   ua-bio.com/goodsList.html?typeld=N（带 mk_channel=starter_topnav），真实产品数据在此。
+#   故 config 域用 ua-bio.com、company 绑「斯达特（Starter）」。
+# 结构（Vue/Element-UI SPA，须 --render spa）：
+#   - 列表页 goodsList.html?typeld=<栏目ID>，每页 20 条产品卡
+#   - 产品卡 div.goods-item-view；名称 a.hover-a > strong；详情 a.hover-a href（/ua<id>_*.html）
+#   - 货号 span.stock_number 文本「货号：UA040005」；价格 span.price > strong（￥460）
+#   - 翻页 el-pagination，下一页 .el-pagination .btn-next（SPA 点按触发 Vue 加载）
+# 抓取命令：pnpm crawl -- --site www.ua-bio.com --render spa
+domain: www.ua-bio.com
+company: 斯达特（Starter）
+currency: CNY
+
+parseList:
+  itemSelector: "div.goods-item-view"
+  fields:
+    detailUrl:       { sel: "a.hover-a", attr: href }
+    name:            { sel: "a.hover-a strong", text: true }
+    sourceProductId: { sel: "a.hover-a", attr: href, regex: 'ua(\d+)_' }
+    sku:             { sel: "span.stock_number", text: true, regex: 'UA(\d+)' }
+    priceText:       { sel: "span.price", text: true }
+    price:           { sel: "span.price strong", text: true, number: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: cyto-kits
+    category: 细胞因子
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=11"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }
+  - key: assay-kits
+    category: 检测试剂盒
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=42"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }
+  - key: drug-screen
+    category: 药物筛选试剂盒
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=48"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }
+  - key: diag-antigen
+    category: 诊断抗原
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=1"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }
+  - key: featured
+    category: 特色产品
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=17"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }
+  - key: enzymes
+    category: 酶制剂
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=21"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }
+  - key: targets-fc
+    category: 药物靶点&FC受体
+    startUrls: ["https://www.ua-bio.com/goodsList.html?typeld=8"]
+    match: { detailUrlIncludes: ["ua-bio.com/ua"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".el-pagination .btn-next", maxPages: 140, fallbackToUi: true }

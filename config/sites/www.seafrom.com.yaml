@@ -1,0 +1,52 @@
+# 站点适配器：同立海源 seafrom.com（单抗产品）
+# 结构：服务端渲染列表页 /mAb.html?ptype=<栏目>（ptype=16/17/18/33/34/50 为各单抗子类）
+#   - 产品网格 ul > li > a[href^="/product-info/"]；名称 span.p1（含 <i>级别</i>），货号/宿主/纯度在后续 span.p2~p4
+#   - 详情 /product-info/<id>.html
+#   - 翻页 .pro-page 为 JS 注入（空容器），先按单页抓；若需翻页再补 pagination-url 参数
+# 列表页 SSR 可见，fetchPage auto 即可（无需 --render spa）。
+# 抓取命令：pnpm crawl -- --site www.seafrom.com
+domain: www.seafrom.com
+company: 同立海源
+currency: CNY
+
+parseList:
+  itemSelector: "ul li a[href^='/product-info/']"
+  fields:
+    detailUrl: { sel: "$self", attr: href }
+    name:       { sel: "span.p1", text: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: mab-16
+    category: 单抗-ptype16
+    startUrls: ["https://www.seafrom.com/mAb.html?ptype=16"]
+    match: { detailUrlIncludes: ["seafrom.com/product-info"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".pro-page a.next", maxPages: 20, fallbackToUi: true }
+  - key: mab-17
+    category: 单抗-ptype17
+    startUrls: ["https://www.seafrom.com/mAb.html?ptype=17"]
+    match: { detailUrlIncludes: ["seafrom.com/product-info"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".pro-page a.next", maxPages: 20, fallbackToUi: true }
+  - key: mab-18
+    category: 单抗-ptype18
+    startUrls: ["https://www.seafrom.com/mAb.html?ptype=18"]
+    match: { detailUrlIncludes: ["seafrom.com/product-info"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".pro-page a.next", maxPages: 20, fallbackToUi: true }
+  - key: mab-33
+    category: 单抗-ptype33
+    startUrls: ["https://www.seafrom.com/mAb.html?ptype=33"]
+    match: { detailUrlIncludes: ["seafrom.com/product-info"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".pro-page a.next", maxPages: 20, fallbackToUi: true }
+  - key: mab-34
+    category: 单抗-ptype34
+    startUrls: ["https://www.seafrom.com/mAb.html?ptype=34"]
+    match: { detailUrlIncludes: ["seafrom.com/product-info"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".pro-page a.next", maxPages: 20, fallbackToUi: true }
+  - key: mab-50
+    category: 单抗-ptype50
+    startUrls: ["https://www.seafrom.com/mAb.html?ptype=50"]
+    match: { detailUrlIncludes: ["seafrom.com/product-info"] }
+    listTraversal: { strategy: pagination-html, nextSelector: ".pro-page a.next", maxPages: 20, fallbackToUi: true }
