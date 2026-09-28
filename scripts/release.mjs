@@ -94,6 +94,17 @@ function readVersion() {
   }
 }
 
+/** 计算 bump 后的版本号字符串；非标准 semver 返回 null */
+function bumpVersion(current, type) {
+  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(current).trim());
+  if (!m) return null;
+  let [major, minor, patch] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (type === 'major') { major += 1; minor = 0; patch = 0; }
+  else if (type === 'minor') { minor += 1; patch = 0; }
+  else { patch += 1; }
+  return `${major}.${minor}.${patch}`;
+}
+
 /** 文本输入（非 TTY 时返回空串 → 由调用方按取消处理） */
 function askText(question) {
   return new Promise((resolve) => {
@@ -136,7 +147,11 @@ function selectReleaseType(beforeVersion) {
       const mark = selected ? cyan('❯') : ' ';
       const label = (selected ? bold : dim)(options[i].label.padEnd(6));
       const desc = selected ? options[i].desc : dim(options[i].desc);
-      return `${mark} ${label} ${desc}`;
+      const target = bumpVersion(beforeVersion, options[i].value);
+      const preview = target
+        ? (selected ? ` ${bold('→ v' + target)}` : ` ${dim('→ v' + target)}`)
+        : ` ${dim('→ (无法推断)')}`;
+      return `${mark} ${label} ${desc}${preview}`;
     };
     const draw = (first) => {
       if (!first) moveCursor(stdout, 0, -options.length);
