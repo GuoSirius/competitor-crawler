@@ -106,6 +106,22 @@ export interface ListTraversalConfig {
 }
 
 /**
+ * 面包屑动态分类（categoryFromPage）：从详情页 HTML 抽「根→叶」分类路径，
+ * 爬取时经 upsertCategoryPath 动态建树，产品挂到叶子分类。
+ * 优先级：categoryFromPage（动态，最准）> categoryPath（YAML 静态）> category 单名兜底。
+ */
+export interface CategoryFromPageConfig {
+  /** 面包屑条目选择器（按文档顺序依次取文本，如 `.breadcrumb li` / `#crumb a`） */
+  itemSelector: string;
+  /** 剔除的段（站点名 / 首页 / 产品中心 等固定词），精确匹配 */
+  strip?: string[];
+  /** 保留末段（默认 false：末段通常是产品名本身，不是分类） */
+  keepLast?: boolean;
+  /** 最多取前 N 段（防异常页面超长），缺省 4 */
+  maxDepth?: number;
+}
+
+/**
  * 栏目级规则（多规则站点）。
  *
  * 同一站点可有多个列表页 + 对应详情页、但爬取规则不同：
@@ -137,6 +153,8 @@ export interface SectionConfig {
    * 用于构建通用分类表的无限层级树（parent_id + path）；省略时回退为单层级 `[category]`。
    */
   categoryPath?: string[];
+  /** 面包屑动态分类：从详情页抽分类路径建树（优先于 categoryPath/category） */
+  categoryFromPage?: CategoryFromPageConfig;
   /**
    * 产品线（对应 categories.product_line）。可选；用于 `crawl --product-line` 过滤。
    * 缺省该栏目不绑定产品线；指定 --product-line 时仅跑 productLine 命中的栏目。
@@ -200,6 +218,8 @@ export interface SiteConfig {
    * 站点级默认品类面包屑路径（section 未指定 categoryPath 时继承；见 SectionConfig.categoryPath）。
    */
   categoryPath?: string[];
+  /** 站点级默认面包屑动态分类（section 未指定 categoryFromPage 时继承） */
+  categoryFromPage?: CategoryFromPageConfig;
   /** 站点级默认品类名（section 未指定 category 时继承；见 SectionConfig.category） */
   category?: string;
   /** 顶层默认翻页策略（section 未单独指定时继承） */
@@ -224,6 +244,8 @@ export interface ResolvedSection {
   category?: string;
   /** 品类面包屑路径（透传自 SectionConfig.categoryPath，缺省由 category 推断为单层级） */
   categoryPath?: string[];
+  /** 面包屑动态分类（透传自 SectionConfig/SiteConfig.categoryFromPage） */
+  categoryFromPage?: CategoryFromPageConfig;
   /** 产品线（透传自 SectionConfig.productLine，缺省回退 SiteConfig.productLine） */
   productLine?: string;
   /** 站点币种（透传自 SiteConfig.currency，缺省 CNY） */

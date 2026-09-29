@@ -19,6 +19,7 @@ import {
 } from '@competitor-crawler/shared';
 import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
+import { parseBreadcrumb } from '../adapter/breadcrumb.js';
 import { loadCodeAdapter } from '../adapter/adapterLoader.js';
 import type { CodeAdapter, CodeAdapterCtx } from '../adapters/types.js';
 import { applyApiSources } from '../adapter/apiSource.js';
@@ -46,9 +47,9 @@ export interface CrawlOpts {
   /** 渲染模式 ssr/spa/auto */
   render?: string;
   /**
-   * 爬取范围数据源（需求①·决策B，可切换）：
-   * - 'config'（默认）：扫描 config/sites/*.yaml 作为真相源，公司/品类按 YAML 自动 upsert 入库
-   * - 'seeds'：沿用库内 categories（种子 Excel 入库）作为范围（旧行为）
+   * 爬取范围数据源（YAML 是唯一真相源，docs/05）：
+   * - 'config'（默认）：扫描 config/sites/*.yaml 作为范围真相源，公司/品类按 YAML 自动 upsert 入库
+   * - 'seeds'：读库内 categories（种子 Excel 入库）。Excel 已降级为一次性初始化导入工具，日常不用
    */
   source?: 'config' | 'seeds';
   /** 仅跑指定栏目 key（逗号分隔）；两数据源均生效 */
@@ -64,6 +65,8 @@ export interface CrawlOpts {
 interface PendingProduct {
   companyId: number;
   categoryId: number | null;
+  /** 详情页面包屑分类路径（categoryFromPage 动态解析）；非空时优先于 categoryId 建树落库 */
+  breadcrumb: string[] | null;
   sectionKey: string;
   identityKey: string;
   sourceProductId: string | null;
@@ -163,10 +166,9 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   };
 
   try {
-    const source: 'config' | 'seeds' = opts.source === 'config' ? 'config' : 'seeds';
+    const source: 'config' | 'seeds' = opts.source === 'seeds' ? 'seeds' : 'config';
 
-    // 数据源切换（需求①·决策B）：config 扫描 config/sites/*.yaml / seeds 读库内 categories，可切换。
-    // 默认 seeds（旧行为，稳定）；config 作后期驱动，显式 --source config 启用。
+    // 数据源切换：config 扫描 config/sites/*.yaml（默认，YAML 唯一真相源）/ seeds 读库内 categories（Excel 初始化导入后的一次性场景）
     // 代码适配器是**加性补充**（docs/05 §5.3）：与 YAML 共存不冲突、不跳过，只是给该站点多挂几个钩子。
 
     const { targets: rawTargets, adapterSites } = await buildTargets(db, source, opts, progress);
@@ -317,6 +319,19 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           progress.update(
             `[crawl] ${domain} [${section.key}] 去重键唯一化：${pending.length} → ${unique.length} 条`,
           );
+        }
+        // 面包屑动态分类：categoryFromPage 解析到的路径动态建树（同路径只建一次），产品挂叶子；
+        // 未解析到面包屑的产品沿用栏目绑定分类（categoryPath/category）
+        const catCache = new Map<string, number>();
+        for (const p of unique) {
+          if (!p.breadcrumb?.length) continue;
+          const key = p.breadcrumb.join(' > ');
+          let cid = catCache.get(key);
+          if (cid === undefined) {
+            cid = await upsertCategoryPath(db, companyId, p.breadcrumb, null, section.productLine ?? null, dryRun, progress);
+            catCache.set(key, cid);
+          }
+          if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
         }
         for (const p of unique) {
           const prev = existed.get(p.identityKey);
@@ -493,8 +508,8 @@ function applyFilters(
 }
 
 /**
- * config 模式公司解析：优先复用「website 命中该域名」或「name 命中 YAML company」的已存在公司，
- * 避免与种子入库的公司重复建行；都找不到才按 name=company??domain 新建。
+ * config 模式公司解析：优先复用「website 命中该域名」或「name 命中 YAML company」的已存在公司
+ * （含人工手动插入的行），避免重复建行；都找不到才按 name=company??domain 新建。
  * dryRun：改为仅预览——命中已存在公司返回其 id（不改名），未命中只记「将新建」并返回哨兵 0，不做任何写入。
  */
 async function resolveCompanyId(
@@ -504,6 +519,7 @@ async function resolveCompanyId(
   progress: Progress,
 ): Promise<number> {
   const domain = cfg.domain;
+  const wantName = cfg.company ?? domain;
   const all = await db.select().from(companies).where(isNull(companies.removedAt));
   const byWeb = all.find((c) => domainOf(c.website) === domain);
   if (byWeb) {
@@ -519,15 +535,30 @@ async function resolveCompanyId(
     }
     return byWeb.id;
   }
+  // name 命中（含人工手动插入的公司）：复用并补全 website
+  const byName = all.find((c) => c.name === wantName);
+  if (byName) {
+    if (!byName.website) {
+      if (dryRun) {
+        progress.update(`[crawl] (dry-run) 复用公司 ${byName.name} (id=${byName.id}) 并补 website=https://${domain}`);
+      } else {
+        await db
+          .update(companies)
+          .set({ website: `https://${domain}`, updatedAt: nowSeconds() })
+          .where(eq(companies.id, byName.id));
+      }
+    }
+    return byName.id;
+  }
   if (dryRun) {
-    progress.update(`[crawl] (dry-run) 将新建公司 ${cfg.company ?? domain}`);
+    progress.update(`[crawl] (dry-run) 将新建公司 ${wantName}`);
     return 0;
   }
-  return upsertCompany(db, cfg.company ?? domain);
+  return upsertCompany(db, wantName, `https://${domain}`);
 }
 
-/** 按 name upsert 公司（config 模式新建 / 复用） */
-async function upsertCompany(db: Db, name: string): Promise<number> {
+/** 按 name upsert 公司（config 模式新建 / 复用）；website 仅在为空时补全，不覆盖人工维护值 */
+async function upsertCompany(db: Db, name: string, website?: string): Promise<number> {
   const t = nowSeconds();
   const existing = await db.select().from(companies).where(eq(companies.name, name)).limit(1);
   if (existing.length) {
@@ -536,7 +567,7 @@ async function upsertCompany(db: Db, name: string): Promise<number> {
   }
   const [ins] = await db
     .insert(companies)
-    .values({ name, removedAt: null, createdAt: t, updatedAt: t })
+    .values({ name, website: website ?? null, removedAt: null, createdAt: t, updatedAt: t })
     .returning();
   return ins.id;
 }
@@ -590,12 +621,13 @@ async function upsertCategoryNode(
 /**
  * 自顶向下建树并 upsert 栏目绑定的分类：breadcrumb（从根到栏目）逐层建节点，
  * 计算 parent_id / path / level；productLine 作为最顶层根（兼容 --product-line）。返回叶子（本栏目所属分类）id。
+ * url 仅写在叶子节点上（分类列表页地址；动态面包屑场景传 null）。
  */
-async function upsertCategoryPath(
+export async function upsertCategoryPath(
   db: Db,
   companyId: number,
   breadcrumb: string[],
-  url: string,
+  url: string | null,
   productLine: string | null,
   dryRun: boolean,
   progress: Progress,
@@ -720,9 +752,12 @@ async function collectSection(args: {
       const sourceProductId = normalized.sourceProductId ?? null;
       const identityKey = pickIdentityKey(sourceProductId, detailUrl);
       if (!identityKey) return;
+      // 面包屑动态分类：配置了 categoryFromPage 才解析；空数组时落库侧回落栏目绑定分类
+      const breadcrumb = section.categoryFromPage ? parseBreadcrumb(html, section.categoryFromPage) : null;
       pending.push({
         companyId,
         categoryId,
+        breadcrumb: breadcrumb && breadcrumb.length > 0 ? breadcrumb : null,
         sectionKey: section.key,
         identityKey,
         sourceProductId,

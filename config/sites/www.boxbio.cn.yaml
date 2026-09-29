@@ -10,6 +10,13 @@ company: 盒子生工（Boxbio）
 currency: CNY
 startUrl: "https://www.boxbio.cn/products/762/"
 
+# 面包屑动态分类（2026-09-29 实测）：详情页 .breadcrumb li = 首页 > 产品分类 > 专题 > 系列
+# 末段就是分类（无产品名），故 keepLast: true；落库为 产品线? > 专题 > 系列 的分类树
+categoryFromPage:
+  itemSelector: ".breadcrumb li"
+  strip: ["首页", "产品分类"]
+  keepLast: true
+
 listTraversal:
   strategy: pagination-url
   urlTemplate: "?page={page}&prop_filter=%7B%7D"
