@@ -4,6 +4,11 @@ export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   modules: ['@unocss/nuxt', '@pinia/nuxt'],
   devtools: { enabled: false },
+  // 监听所有网卡：局域网内其他设备 / 手机可直接通过本机 IP 访问（不仅限 localhost）
+  devServer: {
+    host: '0.0.0.0',
+    port: 3000,
+  },
   nitro: {
     // 生产部署为独立 Node 服务（便于团队内网托管）
     preset: 'node-server',
