@@ -2,7 +2,10 @@
 // 服务端（Nitro）直连共享 better-sqlite3 库（createDb 已在 shared 内按 repoRoot 解析，与爬虫共用同一库）。
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
-  modules: ['@unocss/nuxt', '@pinia/nuxt'],
+  // pinia 已停用（docs/16 M3）：全包无跨页共享状态（主题走 useTheme + localStorage），页面级 ref 即可。
+  // nuxt.config 已摘除模块注册（运行时不再加载）；package.json 的两条依赖待用户下次
+  // pnpm install 时一并删除（lockfile 需同步，AI 不代跑 install，见用户偏好 #1）。
+  modules: ['@unocss/nuxt'],
   devtools: { enabled: false },
   // 监听所有网卡：局域网内其他设备 / 手机可直接通过本机 IP 访问（不仅限 localhost）
   devServer: {

@@ -2,16 +2,37 @@
 import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 
+/** /api/products/[id] 返回形状（server/api/products/[id].get.ts 的 select 列） */
+interface ProductDetail {
+  id: number;
+  name: string | null;
+  englishName: string | null;
+  brand: string | null;
+  detailUrl: string | null;
+  price: number | null;
+  currency: string | null;
+  priceText: string | null;
+  specText: string | null;
+  description: string | null;
+  cloneNumber: string | null;
+  applications: string[] | null;
+  row: Record<string, unknown>;
+  status: string;
+  sectionKey: string;
+  company: string | null;
+  category: string | null;
+}
+
 const route = useRoute();
 const id = route.params.id as string;
-const p = ref<any>(null);
+const p = ref<ProductDetail | null>(null);
 const error = ref('');
 
 onMounted(async () => {
   try {
-    p.value = await $fetch<any>(`/api/products/${id}`);
-  } catch (e: any) {
-    error.value = e?.statusMessage || '加载失败';
+    p.value = await $fetch<ProductDetail>(`/api/products/${id}`);
+  } catch (e) {
+    error.value = (e as { statusMessage?: string })?.statusMessage || '加载失败';
   }
 });
 </script>

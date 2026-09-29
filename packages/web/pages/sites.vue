@@ -22,18 +22,25 @@ async function loadSites() {
 async function viewYaml(domain: string) {
   selected.value = await $fetch<{ domain: string; content: string }>(`/api/sites/${domain}`);
 }
+/** POST /api/sites 返回（server/api/sites.post.ts） */
+interface AddSiteResult {
+  ok: boolean;
+  domain: string;
+  file: string;
+}
+
 async function submitAdd() {
   msg.value = '';
   try {
-    const r = await $fetch('/api/sites', { method: 'POST', body: form.value });
+    const r = await $fetch<AddSiteResult>('/api/sites', { method: 'POST', body: form.value });
     msgOk.value = true;
     msg.value = `已生成 ${r.file}，请运行 pnpm probe --domain ${r.domain} 验证后再爬取`;
     showAdd.value = false;
     form.value = { domain: '', company: '', startUrl: '', category: '' };
     await loadSites();
-  } catch (e: any) {
+  } catch (e) {
     msgOk.value = false;
-    msg.value = '失败：' + (e?.statusMessage || e?.message || '未知错误');
+    msg.value = '失败：' + ((e as { statusMessage?: string })?.statusMessage ?? (e as Error)?.message ?? '未知错误');
   }
 }
 
