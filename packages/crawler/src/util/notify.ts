@@ -100,6 +100,8 @@ export async function sendAlert(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(buildWebhookBody(channel.type, text)),
+      // 超时熔断（docs/16 S4）：webhook 不可达时最多挂 10s，不拖垮整轮推送
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     return { ok: true };

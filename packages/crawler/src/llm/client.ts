@@ -97,12 +97,20 @@ export function resolveTemperature(): number {
  * - MODEL_MODE: local | cloud | hybrid（默认 hybrid：本地优先、云端兜底）
  * - temperature 默认 0（防幻觉，配置生成要求稳定可复现）
  */
+// 客户端实例缓存（docs/16 P1）：hybrid 一轮 chat 建 2 个实例，按 target 缓存复用。
+// 配置在单次进程内视为稳定（CLI 生命周期短），如未来支持热更新配置需同步失效缓存。
+const clientCache = new Map<ModelTarget, { client: OpenAI; model: string }>();
+
 function clientFor(target: ModelTarget): { client: OpenAI; model: string } {
+  const hit = clientCache.get(target);
+  if (hit) return hit;
   const cfg = resolveModelConfig(target);
-  return {
+  const inst = {
     client: new OpenAI({ baseURL: cfg.baseURL, apiKey: cfg.apiKey, maxRetries: cfg.maxRetries }),
     model: cfg.model,
   };
+  clientCache.set(target, inst);
+  return inst;
 }
 
 /** openai SDK 的入参类型（避免手写一份容易漂移的消息联合类型） */

@@ -1,20 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { parseDateStr, toPendingContent } from './crawl.js';
+import { unixFromBjParts } from '@competitor-crawler/shared';
 import type { ListItem, NormalizedProduct } from '@competitor-crawler/shared';
 
-describe('parseDateStr · 常见日期写法 → Unix 秒', () => {
-  it('YYYY-MM-DD（- / . 分隔）按本地零点', () => {
+describe('parseDateStr · 常见日期写法 → Unix 秒（北京时间口径）', () => {
+  it('YYYY-MM-DD（- / . 分隔）按北京时间零点', () => {
     const s = parseDateStr('2026-09-29');
-    expect(s).toBe(Math.floor(new Date(2026, 8, 29).getTime() / 1000));
-    expect(parseDateStr('2026/9/5')).toBe(Math.floor(new Date(2026, 8, 5).getTime() / 1000));
-    expect(parseDateStr('2026.09.05')).toBe(Math.floor(new Date(2026, 8, 5).getTime() / 1000));
+    expect(s).toBe(unixFromBjParts(2026, 9, 29));
+    expect(parseDateStr('2026/9/5')).toBe(unixFromBjParts(2026, 9, 5));
+    expect(parseDateStr('2026.09.05')).toBe(unixFromBjParts(2026, 9, 5));
   });
 
   it('YYYY-MM-DD HH:mm[:ss] 带时间', () => {
     const s = parseDateStr('2026-09-29 12:30');
-    expect(s).toBe(Math.floor(new Date(2026, 8, 29, 12, 30, 0).getTime() / 1000));
+    expect(s).toBe(unixFromBjParts(2026, 9, 29, 12, 30, 0));
     const s2 = parseDateStr('2026-09-29 12:30:45');
-    expect(s2).toBe(Math.floor(new Date(2026, 8, 29, 12, 30, 45).getTime() / 1000));
+    expect(s2).toBe(unixFromBjParts(2026, 9, 29, 12, 30, 45));
   });
 
   it('数字时间戳：秒 / 毫秒自动判别，过小不猜', () => {

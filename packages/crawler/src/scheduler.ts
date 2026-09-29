@@ -1,5 +1,5 @@
 import { and, count, desc, eq } from 'drizzle-orm';
-import { alerts, crawls, createDb, nowSeconds } from '@competitor-crawler/shared';
+import { alerts, crawls, createDb, nowSeconds, bjParts, pad2 } from '@competitor-crawler/shared';
 import { crawl, type CrawlOpts } from './commands/crawl.js';
 import { notifyCrawlResult, type CrawlMeta, type CrawlSummaryLike } from './util/notify.js';
 import type { AlertDigestItem } from './llm/alertSummary.js';
@@ -18,12 +18,17 @@ export interface ScheduleSpec {
   minutes: number[]; // 0-59
 }
 
-/** 纯函数：给定时间是否命中调度规格 */
+/**
+ * 纯函数：给定时间是否命中调度规格。
+ * 时间口径固定 **Asia/Shanghai**（统一走 shared/time 的 bjParts，docs/16 T1）：
+ * 不依赖部署机时区，CI（UTC）与本机（GMT+8）行为一致。
+ */
 export function isScheduleDue(spec: ScheduleSpec, d: Date = new Date()): boolean {
-  if (spec.months.length && !spec.months.includes(d.getMonth() + 1)) return false;
-  if (spec.daysOfMonth.length && !spec.daysOfMonth.includes(d.getDate())) return false;
-  if (spec.hours.length && !spec.hours.includes(d.getHours())) return false;
-  if (spec.minutes.length && !spec.minutes.includes(d.getMinutes())) return false;
+  const bj = bjParts(d);
+  if (spec.months.length && !spec.months.includes(bj.month)) return false;
+  if (spec.daysOfMonth.length && !spec.daysOfMonth.includes(bj.day)) return false;
+  if (spec.hours.length && !spec.hours.includes(bj.hour)) return false;
+  if (spec.minutes.length && !spec.minutes.includes(bj.minute)) return false;
   return true;
 }
 
@@ -91,8 +96,9 @@ export function startDaemon(spec: ScheduleSpec, opts: CrawlOpts = {}): () => voi
   let lastKey = '';
   const tick = async () => {
     if (!isScheduleDue(spec)) return;
-    const now = new Date();
-    const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${now.getMinutes()}`;
+    // 去重键同样按北京口径（shared/time 统一封装），与 isScheduleDue 判定窗口一致
+    const bj = bjParts();
+    const key = `${bj.year}-${pad2(bj.month)}-${pad2(bj.day)} ${pad2(bj.hour)}:${pad2(bj.minute)}`;
     if (key === lastKey) return;
     lastKey = key;
     try {

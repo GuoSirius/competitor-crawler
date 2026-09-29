@@ -6,6 +6,7 @@
   "scripts": {
     "seed": "tsx src/cli.ts seed",
     "crawl": "tsx src/cli.ts crawl",
+    "schedule": "tsx src/cli.ts schedule",
     "report": "tsx src/cli.ts report",
     "probe": "tsx src/cli.ts probe",
     "gen-site": "tsx src/cli.ts gen-site",

@@ -68,7 +68,18 @@ export async function fetchPage(url: string, mode: RenderMode = 'auto', progress
 
 async function ssrFetch(url: string, progress?: Progress): Promise<string> {
   progress?.update(`GET ${url} (ssr)`);
-  const res = await fetch(url, { headers: { 'user-agent': DEFAULT_UA } });
+  // 与 SPA 分支对齐补齐浏览器头（docs/16 C4）：部分 WAF 对缺 sec-ch-ua / Accept 头的请求直接拦截
+  const res = await fetch(url, {
+    headers: {
+      'user-agent': DEFAULT_UA,
+      'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'accept-language': 'en-US,en;q=0.9',
+      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Windows"',
+      'upgrade-insecure-requests': '1',
+    },
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
   return res.text();
 }

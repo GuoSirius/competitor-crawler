@@ -103,8 +103,9 @@ async function main() {
       await runScheduledCrawl({ source });
     }
   } else {
-    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|report> [--flags]');
+    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|schedule|report> [--flags]');
     console.log('  crawl 额外参数: --source config|seeds (默认 seeds) --site <d> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');
+    console.log('  schedule 额外参数: --daemon（常驻守护，按季度首月 1 日 03:00 触发，北京时间口径）');
   }
 }
 

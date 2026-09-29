@@ -13,6 +13,7 @@ import {
   domainOf,
   pickDedupeKey,
   toNumber,
+  unixFromBjParts,
   type ListItem,
   type NormalizedProduct,
 } from '@competitor-crawler/shared';
@@ -197,7 +198,9 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         if (section.contentType !== 'products') {
           const pendingC: PendingContent[] = [];
           try {
-            await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet });
+            const detailFailedC = await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet });
+            // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
+            summary.failed += detailFailedC;
           } catch (e) {
             summary.failed++;
             progress.update(`[crawl] ${domain} [${section.key}] 内容采集失败：${(e as Error).message}`);
@@ -238,9 +241,14 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         // 模型兜底（形态 E）本栏目统计：补全字段数 / 失败条数 + 首条失败原因
         const modelStat: ModelStat = { filled: 0, failed: 0 };
         try {
-          await collectSection({
+          const detailFailed = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
           });
+          // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
+          summary.failed += detailFailed;
+          if (detailFailed > 0) {
+            progress.update(`[crawl] ${domain} [${section.key}] 详情失败 ${detailFailed} 条（已计入 summary.failed）`);
+          }
         } catch (e) {
           summary.failed++;
           progress.update(`[crawl] ${domain} [${section.key}] 失败：${(e as Error).message}`);
@@ -560,7 +568,7 @@ interface ModelStat {
   lastError?: string;
 }
 
-/** 抓取一个栏目的全部 startUrls：翻页 → 详情 → 归一化入 pending */
+/** 抓取一个栏目的全部 startUrls：翻页 → 详情 → 归一化入 pending。返回详情抓取失败条数（docs/16 E1） */
 async function collectSection(args: {
   progress: Progress;
   mode: RenderMode;
@@ -571,7 +579,7 @@ async function collectSection(args: {
   pending: PendingProduct[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
   modelStat: ModelStat;
-}): Promise<void> {
+}): Promise<number> {
   const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat } = args;
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
@@ -604,6 +612,8 @@ async function collectSection(args: {
   const targets = deduped.slice(0, limit);
   progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
 
+  // 详情失败可见化（docs/16 E1）：失败不再静默——逐条记日志，返回计数由调用方计入 summary.failed
+  let detailFailed = 0;
   for (const it of targets) {
     try {
       const html = await fetchPage(it.detailUrl, mode);
@@ -655,10 +665,13 @@ async function collectSection(args: {
         row: { ...normalized.row, listName: it.name ?? undefined },
       });
       seenSet(companyId, section.key).add(dedupeKey);
-    } catch {
-      // 详情失败隔离：跳过该条，继续
+    } catch (e) {
+      // 详情失败隔离：跳过该条继续，但**必须可见**（记日志 + 计数，不再静默丢数据）
+      detailFailed++;
+      progress.update(`[crawl] [${section.key}] 详情失败 ${it.detailUrl}：${(e as Error).message}`);
     }
   }
+  return detailFailed;
 }
 
 /**
@@ -893,7 +906,7 @@ async function collectContentSection(args: {
   companyId: number;
   pending: PendingContent[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
-}): Promise<void> {
+}): Promise<number> {
   const { progress, mode, opts, section, companyId, pending, seenSet } = args;
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
@@ -925,6 +938,8 @@ async function collectContentSection(args: {
   const targets = deduped.slice(0, limit);
   progress.update(`[crawl] [${section.key}] 内容详情解析 ${targets.length}/${deduped.length} 条`);
 
+  // 详情失败可见化（docs/16 E1，与产品管线同口径）
+  let detailFailed = 0;
   for (const it of targets) {
     try {
       const html = await fetchPage(it.detailUrl, mode);
@@ -934,10 +949,13 @@ async function collectContentSection(args: {
         pending.push(c);
         seenSet(companyId, section.key).add(c.dedupeKey);
       }
-    } catch {
-      // 单条失败隔离：跳过该条，继续
+    } catch (e) {
+      // 单条失败隔离：跳过该条继续，但记日志 + 计数（不再静默）
+      detailFailed++;
+      progress.update(`[crawl] [${section.key}] 内容详情失败 ${it.detailUrl}：${(e as Error).message}`);
     }
   }
+  return detailFailed;
 }
 
 /**
@@ -984,7 +1002,7 @@ export function toPendingContent(
 }
 
 /**
- * 常见日期写法 → Unix 秒（时区按本地，即采集机器为北京时间口径）：
+ * 常见日期写法 → Unix 秒（统一走 shared/time 封装，时区锁定 Asia/Shanghai，docs/16 T2）：
  * - 数字：>=1e12 视为毫秒、>=1e9 视为秒，其他不猜
  * - 字符串：`YYYY-MM-DD[ HH:mm[:ss]]`（支持 / . 分隔）优先，其次 Date.parse 可解析的 ISO 等格式
  */
@@ -1004,15 +1022,11 @@ export function parseDateStr(v: unknown): number | null {
   }
   const m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
   if (m) {
-    const d = new Date(
-      Number(m[1]),
-      Number(m[2]) - 1,
-      Number(m[3]),
-      Number(m[4] ?? 0),
-      Number(m[5] ?? 0),
-      Number(m[6] ?? 0),
+    // 页面日期按北京墙钟口径解析；分量非法（如时 25）返回 null，不做进位滚动
+    return unixFromBjParts(
+      Number(m[1]), Number(m[2]), Number(m[3]),
+      Number(m[4] ?? 0), Number(m[5] ?? 0), Number(m[6] ?? 0),
     );
-    return Number.isFinite(d.getTime()) ? Math.floor(d.getTime() / 1000) : null;
   }
   const t = Date.parse(s);
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;

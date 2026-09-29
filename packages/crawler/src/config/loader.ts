@@ -9,14 +9,26 @@ const sitesDir = path.join(repoRoot, 'config', 'sites');
 // 代码型适配器目录（对 YAML 的**加性补充**，不是替代；见 docs/05 §5.3）
 const adaptersDir = path.join(repoRoot, 'packages', 'crawler', 'src', 'adapters');
 
+/**
+ * 域名安全校验（docs/16 S3）：仅允许 字母/数字/./-_，
+ * 拒绝路径分隔符（/ \）、盘符（:）与「..」，杜绝 path.join 路径穿越
+ * （如 `--domain ../../model` 覆盖 config/model.yaml）。CLI 与 web 两侧入口统一走这里。
+ */
+function assertSafeDomain(domain: string): string {
+  if (!/^[A-Za-z0-9._-]+$/.test(domain) || domain.includes('..')) {
+    throw new Error(`非法域名: "${domain}"（仅允许 字母/数字/./-_，且不含 .. 与路径分隔符）`);
+  }
+  return domain;
+}
+
 /** 站点配置文件路径：config/sites/<domain>.yaml */
 export function siteConfigPath(domain: string): string {
-  return path.join(sitesDir, `${domain}.yaml`);
+  return path.join(sitesDir, `${assertSafeDomain(domain)}.yaml`);
 }
 
 /** 代码型适配器路径：packages/crawler/src/adapters/<domain>.ts */
 export function adapterPath(domain: string): string {
-  return path.join(adaptersDir, `${domain}.ts`);
+  return path.join(adaptersDir, `${assertSafeDomain(domain)}.ts`);
 }
 
 /**
