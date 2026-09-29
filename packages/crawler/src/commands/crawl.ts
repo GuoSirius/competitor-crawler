@@ -36,7 +36,7 @@ import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
 type Db = ReturnType<typeof createDb>['db'];
 
 export interface CrawlOpts {
-  /** 仅爬指定域名（调试 / 单站补跑） */
+  /** 仅爬指定域名，逗号分隔多个（调试 / 单站或少数站补跑） */
   site?: string;
   /** 只跑不入库（接站点前验证） */
   dryRun?: boolean;
@@ -410,10 +410,12 @@ async function buildTargets(
   const adapterSites: string[] = [];
   const targets = new Map<string, SiteTarget>();
   const dryRun = opts.dryRun === true;
+  // --site 支持逗号分隔多个域名
+  const siteSet = opts.site ? new Set(opts.site.split(',').map((s) => s.trim()).filter(Boolean)) : null;
 
   if (source === 'config') {
     for (const domain of listSiteConfigs()) {
-      if (opts.site && domain !== opts.site) continue;
+      if (siteSet && !siteSet.has(domain)) continue;
       // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
       if (hasCodeAdapter(domain)) adapterSites.push(domain);
       const cfg = loadSiteConfig(domain);
@@ -458,7 +460,7 @@ async function buildTargets(
   for (const r of rows) {
     const d = domainOf(r.cat.url);
     if (!d) continue;
-    if (opts.site && d !== opts.site) continue;
+    if (siteSet && !siteSet.has(d)) continue;
     const list = byDomain.get(d) ?? [];
     list.push(r);
     byDomain.set(d, list);
