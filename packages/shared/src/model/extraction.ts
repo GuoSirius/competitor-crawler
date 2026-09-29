@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { IntroMedia, SpecItem } from '../types.js';
+import { tryParseJson } from '../adapter/json.js';
 
 /**
  * 模型兜底提取的**输出契约**（docs/04 §4.3 防幻觉四件套之②：Zod 校验）。
@@ -73,17 +74,11 @@ export const AlertSummarySchema = z.object({
 export type AlertSummary = z.infer<typeof AlertSummarySchema>;
 
 /** 尝试 JSON.parse，失败返回 undefined（区分「解析出 null」与「解析失败」） */
-function tryParse(raw: string): unknown {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * 从模型返回文本里抠出 JSON。
  * 容忍三种常见形态：```json 围栏、``` 围栏、以及夹在解说文字中的裸 JSON。
+ * 括号切片复用 `adapter/json.ts` 的 tryParseJson（docs/16 M9：不重复实现）。
  * @returns 解析结果；失败返回 null（调用方据此判失败，勿静默放过）
  */
 export function extractJsonBlock(text: string | null | undefined): unknown {
@@ -91,17 +86,8 @@ export function extractJsonBlock(text: string | null | undefined): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = (fenced && fenced[1] ? fenced[1] : text).trim();
   if (!body) return null;
-
-  const direct = tryParse(body);
-  if (direct !== undefined) return direct;
-
-  // 兜底：截取第一个 { / [ 到最后一个 } / ] 之间的片段（模型常在 JSON 前后加"好的，结果如下："）
-  const start = body.search(/[[{]/);
-  if (start < 0) return null;
-  const end = Math.max(body.lastIndexOf('}'), body.lastIndexOf(']'));
-  if (end <= start) return null;
-  const sliced = tryParse(body.slice(start, end + 1));
-  return sliced ?? null;
+  // tryParseJson：直接 parse 失败时自动「截取最外层 {..} / [..] 再 parse」，语义与本函数兜底一致
+  return tryParseJson(body);
 }
 
 /** `toNormalizedFields` 的产出：只含「非空」字段，便于调用方按「仅补空」合并 */

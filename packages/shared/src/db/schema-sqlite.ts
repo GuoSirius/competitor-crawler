@@ -104,7 +104,7 @@ export const products = sqliteTable('products', {
 export const crawls = sqliteTable('crawls', {
   id: integer('id').primaryKey({ autoIncrement: true }), // 自增主键
   trigger: text('trigger').notNull(), // 触发方式：manual / schedule
-  status: text('status').notNull(), // 批次状态：running / done / failed
+  status: text('status').notNull(), // 批次状态：running / success / partial / failed（见 types.ts CRAWL_STATUSES）
   modelMode: text('model_mode'), // 模型部署模式（local/cloud/hybrid，可为空）
   summary: text('summary', { mode: 'json' }), // 批次汇总（JSON）
   startedAt: integer('started_at').notNull(), // 开始时间（Unix 秒）
@@ -133,7 +133,7 @@ export const alerts = sqliteTable('alerts', {
   id: integer('id').primaryKey({ autoIncrement: true }), // 自增主键
   crawlId: integer('crawl_id').references(() => crawls.id), // 关联爬取批次（外键 → crawls.id，可为空）
   type: text('type').notNull(), // 告警类型
-  severity: text('severity').notNull(), // 严重级别：info / warning / critical
+  severity: text('severity').notNull(), // 严重级别：info / warning / critical（见 types.ts ALERT_SEVERITIES）
   companyId: integer('company_id').references(() => companies.id), // 关联公司（外键 → companies.id，可为空）
   categoryId: integer('category_id').references(() => categories.id), // 关联品类（外键 → categories.id，可为空）
   productId: integer('product_id').references(() => products.id), // 关联产品（外键 → products.id，可为空）

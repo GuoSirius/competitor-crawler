@@ -10,11 +10,22 @@ export type AlertType =
   | 'NEEDS_API_HINT'
   | 'MODEL_FAILURE';
 
-export type AlertSeverity = 'info' | 'warning' | 'error';
-export type AlertStatus = 'open' | 'ack' | 'resolved' | 'auto_fixed';
-export type ProductStatus = 'active' | 'delisted';
-export type CrawlStatus = 'running' | 'success' | 'partial' | 'failed';
-export type CrawlTrigger = 'schedule' | 'manual';
+/**
+ * 告警严重级别（单一事实源，docs/16 M8）。
+ * 取值以**实际写入方**为准（crawl.ts 只写 warning/critical）；UI 徽章与 schema 注释与此对齐。
+ */
+export const ALERT_SEVERITIES = ['info', 'warning', 'critical'] as const;
+export type AlertSeverity = (typeof ALERT_SEVERITIES)[number];
+/** 告警处理状态：open 未处理 / ack 已认领 / resolved 已解决 / auto_fixed 自动修复 */
+export const ALERT_STATUSES = ['open', 'ack', 'resolved', 'auto_fixed'] as const;
+export type AlertStatus = (typeof ALERT_STATUSES)[number];
+export const PRODUCT_STATUSES = ['active', 'delisted'] as const;
+export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
+/** 批次状态：running 进行中 / success 全成 / partial 部分失败 / failed 整轮失败 */
+export const CRAWL_STATUSES = ['running', 'success', 'partial', 'failed'] as const;
+export type CrawlStatus = (typeof CRAWL_STATUSES)[number];
+export const CRAWL_TRIGGERS = ['schedule', 'manual'] as const;
+export type CrawlTrigger = (typeof CRAWL_TRIGGERS)[number];
 /** 列表翻页策略（单一事实源；crawler 的 config/types.ts 直接转出本类型，勿再各写一份） */
 export type ListStrategy =
   | 'pagination-html'
@@ -91,22 +102,6 @@ export interface CategorySeed {
   sourceRow: Record<string, unknown>;
 }
 
-// 适配器统一接口（Fetch 层提供页面句柄）
-export interface PageHandle {
-  html(): Promise<string>;
-  screenshot(): Promise<Buffer>;
-  click(selector: string): Promise<void>;
-  scroll(): Promise<void>;
-  waitFor(selector: string): Promise<void>;
-}
-
-export interface NodeHandle {
-  html(): string;
-  text(selector: string): string | null;
-  attr(selector: string, name: string): string | null;
-  list(selector: string): NodeHandle[];
-}
-
 export interface ListItem {
   detailUrl: string;
   name?: string;
@@ -123,9 +118,6 @@ export interface ListItem {
   raw?: Record<string, unknown>;
 }
 
-export interface SiteAdapter {
-  match(url: string): boolean;
-  listTraversal(page: PageHandle): Promise<ListItem[]>;
-  parseList(node: NodeHandle): ListItem;
-  parseDetail(page: PageHandle): NormalizedProduct;
-}
+// 说明：代码适配器契约不在 shared 定义——全量解析器形态（SiteAdapter）与现有
+// YAML 引擎不兼容且无人消费，已移除（docs/16 🔴-2 落地时改为 crawler 侧
+// `src/adapters/types.ts` 的「加性钩子」契约 CodeAdapter，见 docs/05 §5.3）。

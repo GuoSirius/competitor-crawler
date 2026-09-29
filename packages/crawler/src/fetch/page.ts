@@ -54,10 +54,18 @@ export type RenderMode = 'ssr' | 'spa' | 'auto';
  * - ssr 用 Node 原生 fetch（轻量、快）；
  * - spa 动态 import playwright，仅需要时加载，避免无谓依赖开销；
  * - auto 在 ssr 返回内容偏少时自动回退 Playwright，提升复杂站点的成功率。
+ *
+ * `headers`：附加请求头（如代码适配器 preflight 拿到的 Cookie，docs/16 🔴-2），
+ * 合并进 ssr 默认浏览器头（同名键覆盖）；spa 模式由浏览器自管 Cookie，此参数忽略。
  */
-export async function fetchPage(url: string, mode: RenderMode = 'auto', progress?: Progress): Promise<string> {
+export async function fetchPage(
+  url: string,
+  mode: RenderMode = 'auto',
+  progress?: Progress,
+  headers?: Record<string, string>,
+): Promise<string> {
   if (mode === 'spa') return spaFetch(url, progress);
-  const html = await ssrFetch(url, progress);
+  const html = await ssrFetch(url, progress, headers);
   if (mode === 'ssr') return html;
   if (html.length < 800) {
     progress?.update('静态抓取内容偏少，回退 Playwright 渲染…');
@@ -66,7 +74,11 @@ export async function fetchPage(url: string, mode: RenderMode = 'auto', progress
   return html;
 }
 
-async function ssrFetch(url: string, progress?: Progress): Promise<string> {
+async function ssrFetch(
+  url: string,
+  progress?: Progress,
+  headers?: Record<string, string>,
+): Promise<string> {
   progress?.update(`GET ${url} (ssr)`);
   // 与 SPA 分支对齐补齐浏览器头（docs/16 C4）：部分 WAF 对缺 sec-ch-ua / Accept 头的请求直接拦截
   const res = await fetch(url, {
@@ -78,6 +90,7 @@ async function ssrFetch(url: string, progress?: Progress): Promise<string> {
       'sec-ch-ua-mobile': '?0',
       'sec-ch-ua-platform': '"Windows"',
       'upgrade-insecure-requests': '1',
+      ...headers,
     },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);

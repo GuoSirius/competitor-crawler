@@ -19,6 +19,8 @@ import {
 } from '@competitor-crawler/shared';
 import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
+import { loadCodeAdapter } from '../adapter/adapterLoader.js';
+import type { CodeAdapter, CodeAdapterCtx } from '../adapters/types.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
 import { recordAlert } from '../util/alerts.js';
@@ -186,6 +188,22 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
       const companyId = target.companyId;
       companyIds.add(companyId);
 
+      // ── 代码适配器（docs/16 🔴-2）：按域名加载，preflight 每站整轮一次 ──
+      // 加载失败/无钩子时为 null → 行为与纯 YAML 完全一致（零回归）。
+      const adapter = await loadCodeAdapter(domain);
+      let extraHeaders: Record<string, string> = {};
+      if (adapter?.preflight) {
+        try {
+          extraHeaders = (await adapter.preflight({ domain })) ?? {};
+          if (Object.keys(extraHeaders).length > 0) {
+            progress.update(`[crawl] ${domain} preflight 完成：附加请求头 ${Object.keys(extraHeaders).join('/')}`);
+          }
+        } catch (e) {
+          // 前置失败不中断整轮：记录后按「无附加头」继续（适配器是增强不是单点）
+          progress.update(`[crawl] ${domain} preflight 失败（按无附加头继续）：${(e as Error).message}`);
+        }
+      }
+
       for (const ts of target.sections) {
         const section = ts.section;
         if (section.startUrls.length === 0) {
@@ -198,7 +216,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         if (section.contentType !== 'products') {
           const pendingC: PendingContent[] = [];
           try {
-            const detailFailedC = await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet });
+            const detailFailedC = await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet, domain, adapter, headers: extraHeaders });
             // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
             summary.failed += detailFailedC;
           } catch (e) {
@@ -243,6 +261,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         try {
           const detailFailed = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
+            domain, adapter, headers: extraHeaders,
           });
           // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
           summary.failed += detailFailed;
@@ -579,10 +598,17 @@ async function collectSection(args: {
   pending: PendingProduct[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
   modelStat: ModelStat;
+  /** 站点域名（供适配器钩子 ctx 使用） */
+  domain: string;
+  /** 代码适配器（docs/16 🔴-2）：null = 纯 YAML */
+  adapter: CodeAdapter | null;
+  /** preflight 产出的附加请求头（如 Cookie） */
+  headers: Record<string, string>;
 }): Promise<number> {
-  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat } = args;
+  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers } = args;
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
+  const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
 
   for (const listUrl of section.startUrls) {
     progress.update(`[crawl] [${section.key}] 列表翻页 ${listUrl}`);
@@ -592,9 +618,16 @@ async function collectSection(args: {
       mode,
       maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
       progress,
-      onPage: (html, _pageNo, pageUrl) => {
-        const pageItems = parseListWithConfig(html, section.parseList, section.key);
+      // 适配器钩子（docs/16 🔴-2）：preflight 附加头 + 自定义翻页拼装
+      headers,
+      buildPageUrlFn: adapter?.buildPageUrl
+        ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
+        : undefined,
+      onPage: async (html, _pageNo, pageUrl) => {
+        let pageItems = parseListWithConfig(html, section.parseList, section.key);
         for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+        // 适配器钩子：列表解析后二次加工（过滤/补字段）；同步异步均可，统一 await
+        if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
         return pageItems.length;
       },
@@ -616,8 +649,10 @@ async function collectSection(args: {
   let detailFailed = 0;
   for (const it of targets) {
     try {
-      const html = await fetchPage(it.detailUrl, mode);
-      const normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
+      const html = await fetchPage(it.detailUrl, mode, undefined, headers);
+      let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
+      // 适配器钩子：详情解析后二次加工（在 api 源 / 模型兜底之前，它们只补空不覆盖）
+      if (adapter?.postParseDetail) normalized = await adapter.postParseDetail(normalized, html, ctx);
       const detailUrl = normalized.detailUrl ?? it.detailUrl;
       // 形态 D：人工登记的异步接口数据源（config/sites/<domain>.yaml 的 parseDetail.api）
       if (section.parseDetail.api?.length) {
@@ -906,10 +941,17 @@ async function collectContentSection(args: {
   companyId: number;
   pending: PendingContent[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
+  /** 站点域名（供适配器钩子 ctx 使用） */
+  domain: string;
+  /** 代码适配器（docs/16 🔴-2）：null = 纯 YAML */
+  adapter: CodeAdapter | null;
+  /** preflight 产出的附加请求头（如 Cookie） */
+  headers: Record<string, string>;
 }): Promise<number> {
-  const { progress, mode, opts, section, companyId, pending, seenSet } = args;
+  const { progress, mode, opts, section, companyId, pending, seenSet, domain, adapter, headers } = args;
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
+  const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
 
   for (const listUrl of section.startUrls) {
     progress.update(`[crawl] [${section.key}] 内容列表翻页 ${listUrl}`);
@@ -919,9 +961,14 @@ async function collectContentSection(args: {
       mode,
       maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
       progress,
-      onPage: (html, _pageNo, pageUrl) => {
-        const pageItems = parseListWithConfig(html, section.parseList, section.key);
+      headers,
+      buildPageUrlFn: adapter?.buildPageUrl
+        ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
+        : undefined,
+      onPage: async (html, _pageNo, pageUrl) => {
+        let pageItems = parseListWithConfig(html, section.parseList, section.key);
         for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+        if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
         return pageItems.length;
       },
@@ -942,8 +989,10 @@ async function collectContentSection(args: {
   let detailFailed = 0;
   for (const it of targets) {
     try {
-      const html = await fetchPage(it.detailUrl, mode);
-      const np = parseDetailWithConfig(html, section.parseDetail.fields);
+      const html = await fetchPage(it.detailUrl, mode, undefined, headers);
+      let np = parseDetailWithConfig(html, section.parseDetail.fields);
+      // 适配器钩子：详情解析后二次加工（与产品管线同口径）
+      if (adapter?.postParseDetail) np = await adapter.postParseDetail(np, html, ctx);
       const c = toPendingContent(np, it, it.detailUrl, companyId, section.key, section.contentType);
       if (c) {
         pending.push(c);

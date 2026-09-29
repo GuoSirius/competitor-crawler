@@ -17,6 +17,16 @@ export interface TraverseOpts {
    * 返回 0 视为「本页无条目 → 终止翻页」。
    */
   onPage: (html: string, pageNo: number, pageUrl: string) => number | Promise<number>;
+  /**
+   * 附加到每页 ssr 请求的头（如代码适配器 preflight 拿到的 Cookie，docs/16 🔴-2）。
+   * spa（Playwright）模式由浏览器自管 Cookie，此参数忽略。
+   */
+  headers?: Record<string, string>;
+  /**
+   * 自定义翻页 URL 拼装（代码适配器 buildPageUrl 钩子）：返回 null/undefined/空串时
+   * 走默认 buildPageUrl 逻辑。仅 pagination-url 策略生效。
+   */
+  buildPageUrlFn?: (base: string, template: string, page: number) => string | null | undefined;
 }
 
 export interface TraverseResult {
@@ -85,11 +95,13 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     let pages = 0;
     let items = 0;
     for (let p = pageStart; p < pageStart + max; p++) {
-      const pageUrl = buildPageUrl(url, traversal.urlTemplate, p);
+      // 适配器钩子优先（返回空值走默认拼装逻辑，docs/16 🔴-2）
+      const pageUrl =
+        opts.buildPageUrlFn?.(url, traversal.urlTemplate, p) || buildPageUrl(url, traversal.urlTemplate, p);
       opts.progress?.update(`[traverse] URL 翻页 ${pageUrl}`);
       let html: string;
       try {
-        html = await fetchPage(pageUrl, mode, opts.progress);
+        html = await fetchPage(pageUrl, mode, opts.progress, opts.headers);
       } catch (e) {
         opts.progress?.update(`[traverse] 第 ${p} 页抓取失败，终止翻页：${(e as Error).message}`);
         break;
@@ -104,7 +116,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
 
   // ssr：无浏览器，单页
   if (mode === 'ssr') {
-    const html = await fetchPage(url, 'ssr', opts.progress);
+    const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n };
   }
@@ -116,7 +128,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   } catch (e) {
     // Playwright 不可用（未安装内核等）→ 回退单页，保证不整轮失败
     opts.progress?.update(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
-    const html = await fetchPage(url, 'ssr', opts.progress);
+    const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n };
   }
