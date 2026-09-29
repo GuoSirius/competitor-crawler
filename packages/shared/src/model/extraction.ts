@@ -78,7 +78,7 @@ function tryParse(raw: string): unknown {
 export function extractJsonBlock(text: string | null | undefined): unknown {
   if (!text) return null;
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = (fenced ? fenced[1] : text).trim();
+  const body = (fenced && fenced[1] ? fenced[1] : text).trim();
   if (!body) return null;
 
   const direct = tryParse(body);
