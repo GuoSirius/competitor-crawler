@@ -23,6 +23,7 @@
     "typecheck": "node scripts/typecheck.mjs",
     "typecheck:web": "pnpm --filter @competitor-crawler/web typecheck",
     "typecheck:all": "node scripts/typecheck.mjs",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "hooks:install": "node scripts/install-hooks.mjs",

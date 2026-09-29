@@ -41,6 +41,22 @@ jobs:
       - name: Typecheck (shared + crawler + web)
         run: pnpm typecheck
 
+      # ESLint（docs/16 M1）：typescript-eslint recommended 基线，规则口径见 eslint.config.mjs
+      - name: Lint
+        run: pnpm lint
+
+      # commitlint（docs/16 M2）：与本地 commit-msg 门禁（scripts/commitmsg.mjs）同口径。
+      # push 校验最新一条提交；PR 校验 base..head 区间内的全部提交主题。
+      - name: Commitlint
+        if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FROM="${{ github.event.pull_request.base.sha }}"
+          else
+            FROM="HEAD~1"
+          fi
+          git log --format=%s "$FROM..HEAD" | pnpm exec commitlint
+
       # 含「环境变量契约」测试：校验 process.env 读取点与 .env.example 声明双向一致。
       - name: Unit tests
         run: pnpm test
