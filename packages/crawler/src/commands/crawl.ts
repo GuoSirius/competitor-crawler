@@ -28,6 +28,7 @@ import { traverseList } from '../fetch/listTraversal.js';
 import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { Progress } from '../util/progress.js';
+import { mapLimit } from '../util/limit.js';
 import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
 
 type Db = ReturnType<typeof createDb>['db'];
@@ -646,8 +647,10 @@ async function collectSection(args: {
   progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
 
   // 详情失败可见化（docs/16 E1）：失败不再静默——逐条记日志，返回计数由调用方计入 summary.failed
+  // 并发限制（docs/16 P5）：CRAWL_DETAIL_CONCURRENCY（默认 4），避免同站瞬时高并发触发 WAF/被拉黑
+  const concurrency = Number(process.env.CRAWL_DETAIL_CONCURRENCY) || 4;
   let detailFailed = 0;
-  for (const it of targets) {
+  await mapLimit(targets, concurrency, async (it) => {
     try {
       const html = await fetchPage(it.detailUrl, mode, undefined, headers);
       let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
@@ -676,7 +679,7 @@ async function collectSection(args: {
       // 去重键随后由 pickDedupeKey 兜底到 canonical(detail_url)，见下方 dedupeKey。
       const sourceProductId = normalized.sourceProductId ?? null;
       const dedupeKey = pickDedupeKey(sourceProductId, detailUrl);
-      if (!dedupeKey) continue;
+      if (!dedupeKey) return;
       pending.push({
         companyId,
         categoryId,
@@ -705,7 +708,7 @@ async function collectSection(args: {
       detailFailed++;
       progress.update(`[crawl] [${section.key}] 详情失败 ${it.detailUrl}：${(e as Error).message}`);
     }
-  }
+  });
   return detailFailed;
 }
 
@@ -985,9 +988,10 @@ async function collectContentSection(args: {
   const targets = deduped.slice(0, limit);
   progress.update(`[crawl] [${section.key}] 内容详情解析 ${targets.length}/${deduped.length} 条`);
 
-  // 详情失败可见化（docs/16 E1，与产品管线同口径）
+  // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5
+  const concurrency = Number(process.env.CRAWL_DETAIL_CONCURRENCY) || 4;
   let detailFailed = 0;
-  for (const it of targets) {
+  await mapLimit(targets, concurrency, async (it) => {
     try {
       const html = await fetchPage(it.detailUrl, mode, undefined, headers);
       let np = parseDetailWithConfig(html, section.parseDetail.fields);
@@ -1003,7 +1007,7 @@ async function collectContentSection(args: {
       detailFailed++;
       progress.update(`[crawl] [${section.key}] 内容详情失败 ${it.detailUrl}：${(e as Error).message}`);
     }
-  }
+  });
   return detailFailed;
 }
 

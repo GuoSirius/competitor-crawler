@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir } from '@competitor-crawler/shared';
+import { cellText, cellUrl, detectColumns, type ColumnField } from '../util/excel.js';
 
 // 路径统一由 shared/src/paths.ts 提供（避免各处重复上溯算错层级）
 const seedsDir = path.join(dataDir, 'seeds');
@@ -19,74 +20,32 @@ export interface RawSeed {
   sourceRow: Record<string, unknown>;
 }
 
-function cellText(cell: ExcelJS.Cell): string | null {
-  const v = cell.value;
-  if (v == null) return null;
-  if (typeof v === 'string') return v.trim() || null;
-  if (typeof v === 'number') return String(v);
-  if (typeof v === 'object' && 'text' in (v as unknown as Record<string, unknown>)) {
-    const t = String((v as unknown as Record<string, unknown>).text);
-    return t.trim() || null;
-  }
-  const t = cell.text;
-  return typeof t === 'string' ? t.trim() || null : null;
-}
-
-function cellUrl(cell: ExcelJS.Cell): string | null {
-  // ExcelJS 超链接单元格：cell.value 是 HyperlinkValue { text, hyperlink }，
-  // 其中 URL 在 `.hyperlink`（不是 `.target`）。cell.hyperlink getter 在 4.x 也可能直接返回 URL 字符串。
-  // 旧代码误读 `hl.target` → 永远取不到，导致品类链接列的真实 URL 被整列丢弃、categoryUrl 全回退到首页。
-  const value = (cell as unknown as { value?: unknown }).value;
-  let hl: string | undefined;
-  if (value && typeof value === 'object') {
-    const v = value as Record<string, unknown>;
-    if (typeof v.hyperlink === 'string') hl = v.hyperlink;
-    else if (typeof v.target === 'string') hl = v.target;
-  }
-  if (!hl) {
-    const viaGetter = (cell as unknown as { hyperlink?: unknown }).hyperlink;
-    if (typeof viaGetter === 'string') hl = viaGetter;
-    else if (viaGetter && typeof viaGetter === 'object') {
-      const g = viaGetter as Record<string, unknown>;
-      if (typeof g.hyperlink === 'string') hl = g.hyperlink;
-      else if (typeof g.target === 'string') hl = g.target;
-    }
-  }
-  if (hl && /^https?:\/\//.test(hl)) return hl.trim();
-  const t = cellText(cell);
-  if (t && /^https?:\/\//.test(t)) return t;
-  return null;
-}
-
-function detectColumns(headers: (string | null)[]): Record<string, number> {
-  const idx = (...keys: string[]) =>
-    headers.findIndex((h) => h != null && keys.some((k) => h.includes(k)));
-  const map: Record<string, number> = {};
-  const company = idx('公司', '竞对');
-  if (company >= 0) map.company = company;
-  const line = idx('产品线');
-  if (line >= 0) map.productLine = line;
-  const cat = idx('品类');
-  if (cat >= 0) map.category = cat;
+/** 种子表列识别关键字（表头含任一关键字即认列，大小写不敏感） */
+const SEED_FIELDS: ColumnField[] = [
+  { field: 'company', keys: ['公司', '竞对'] },
+  { field: 'productLine', keys: ['产品线'] },
+  { field: 'category', keys: ['品类'] },
   // 品类链接列：明确优先「竞品品类链接 / 品类链接」（即真实品类/列表页），
   // 不能误命中「官网链接」——否则种子全变首页，爬不动。
-  const catLink = idx('竞品品类链接', '品类链接');
-  if (catLink >= 0) map.catLink = catLink;
+  { field: 'catLink', keys: ['竞品品类链接', '品类链接'] },
   // 官网/首页列：用于公司官网，也是品类链接缺失时的兜底。
-  const homepage = idx('官网链接', '官网', '域名');
-  if (homepage >= 0) map.homepage = homepage;
+  { field: 'homepage', keys: ['官网链接', '官网', '域名'] },
   // 通用 URL 列（无上述专用列时兜底）。
-  const generic = idx('链接', '网址', 'URL');
-  if (generic >= 0) map.genericUrl = generic;
-  const type = idx('类型');
-  if (type >= 0) map.type = type;
+  { field: 'genericUrl', keys: ['链接', '网址', 'URL'] },
+  { field: 'type', keys: ['类型'] },
   // 公司属性：own=我方品牌，competitor=竞品（如「是否我方/归属/品牌方」列）
-  const role = idx('是否我方', '归属', '品牌方', 'role');
-  if (role >= 0) map.role = role;
+  { field: 'role', keys: ['是否我方', '归属', '品牌方', 'role'] },
+];
+
+function detectSeedColumns(headers: (string | null)[]): Record<string, number> {
+  const map = detectColumns(headers, SEED_FIELDS);
+  const catLink = map.catLink;
+  const homepage = map.homepage;
+  const generic = map.genericUrl;
   // categoryUrl 来源优先级：品类链接 > 官网首页 > 通用 URL
-  map.url = catLink >= 0 ? catLink : homepage >= 0 ? homepage : generic;
+  map.url = catLink ?? homepage ?? generic;
   // website 来源优先级：官网首页 > 通用 URL
-  map.website = homepage >= 0 ? homepage : generic;
+  map.website = homepage ?? generic;
   return map;
 }
 
@@ -113,10 +72,11 @@ export async function xlsxToSeeds(): Promise<string> {
     for (const ws of wb.worksheets) {
       const headerRow = ws.getRow(1);
       const headers: (string | null)[] = [];
+      // 注意：此处 headers[col] 沿用 1-based 下标（col.x 直接可传 getCell），与 util 的 0-based 约定不同
       headerRow.eachCell((cell, col) => {
         headers[col] = cellText(cell);
       });
-      const col = detectColumns(headers);
+      const col = detectSeedColumns(headers);
       if (col.company == null || col.category == null || col.url == null) continue;
 
       for (let r = 2; r <= ws.rowCount; r++) {

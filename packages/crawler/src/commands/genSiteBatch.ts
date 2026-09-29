@@ -1,8 +1,8 @@
 import ExcelJS from 'exceljs';
 import fs from 'node:fs';
-import path from 'node:path';
 import { genSite, type GenSiteOpts } from './genSite.js';
 import { BATCH_DEFAULT_FILE } from './genSiteTemplate.js';
+import { cellText, detectColumns, headerRow, type ColumnField } from '../util/excel.js';
 
 export interface BatchRow extends GenSiteOpts {
   /** Excel 物理行号（含表头从 1 起），便于报错定位 */
@@ -16,8 +16,8 @@ export interface GenSiteBatchOpts {
   dryRun?: boolean;
 }
 
-/** 列名关键字 → 字段（0-based 列下标），大小写不敏感 */
-const FIELD_KEYWORDS: Array<{ field: keyof GenSiteOpts; keys: string[] }> = [
+/** 列名关键字 → 字段（0-based 列下标），大小写不敏感（识别逻辑统一在 util/excel.ts） */
+const FIELD_KEYWORDS: ColumnField[] = [
   { field: 'domain', keys: ['domain', '域名'] },
   { field: 'listUrl', keys: ['listurl', '列表页', 'list-url', 'list_url'] },
   { field: 'detailUrl', keys: ['detailurl', '详情页', 'detail-url', 'detail_url'] },
@@ -25,28 +25,6 @@ const FIELD_KEYWORDS: Array<{ field: keyof GenSiteOpts; keys: string[] }> = [
   { field: 'render', keys: ['render', '渲染'] },
   { field: 'notes', keys: ['notes', '备注', '说明'] },
 ];
-
-function detectColumns(headers: (string | null)[]): Record<string, number> {
-  const map: Record<string, number> = {};
-  for (const { field, keys } of FIELD_KEYWORDS) {
-    const i = headers.findIndex((h) => h != null && keys.some((k) => h.toLowerCase().includes(k.toLowerCase())));
-    if (i >= 0) map[field] = i;
-  }
-  return map;
-}
-
-function cellText(cell: ExcelJS.Cell): string | null {
-  const v = cell.value;
-  if (v == null) return null;
-  let t: string;
-  if (typeof v === 'object' && v !== null && 'text' in (v as unknown as Record<string, unknown>)) {
-    t = String((v as unknown as { text: unknown }).text);
-  } else {
-    t = String(v);
-  }
-  const trimmed = t.trim();
-  return trimmed || null;
-}
 
 /**
  * 解析批量表 → 待生成站点列表（纯解析，不调模型）。
@@ -61,15 +39,9 @@ export async function parseBatchRows(file: string): Promise<BatchRow[]> {
   const ws = wb.getWorksheet(1);
   if (!ws) throw new Error(`批量表 ${file} 没有可读取的工作表`);
 
-  // 表头（1-based 列 → headers[col-1]）
-  const headerRow = ws.getRow(1);
-  const headers: (string | null)[] = [];
-  headerRow.eachCell((cell, col) => {
-    const t = cellText(cell);
-    headers[col - 1] = t;
-  });
-
-  const col = detectColumns(headers);
+  // 表头（1-based 列 → headers[col-1]，util/excel.ts 统一 0-based）
+  const headers = headerRow(ws);
+  const col = detectColumns(headers, FIELD_KEYWORDS);
   if (col.domain == null || col.listUrl == null) {
     const present = Object.keys(col).join(', ') || '(无)';
     throw new Error(
