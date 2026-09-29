@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.0.0...v1.1.0) (2026-09-29)
+
+
+### Features
+
+* 代码适配器钩子接线落地并收敛共享层口径 ([3c3376e](https://github.com/GuoSirius/competitor-crawler/commit/3c3376ef149fe0d468ba261bc5bad492a2ec6eb7))
+* 泛型内容采集管线（contents 表），站点 YAML 支持 contentType 路由新闻/公告 ([c2b7957](https://github.com/GuoSirius/competitor-crawler/commit/c2b795730c800770750933dd6f626a9a769a05d8))
+* 详情并发数支持按 cpu 核心数动态兜底 ([66b2ce8](https://github.com/GuoSirius/competitor-crawler/commit/66b2ce870f4f97a994220bc5261cc70dc189de4d))
+* **crawler:** 接入模型告警摘要并集中管理提示词 ([29514de](https://github.com/GuoSirius/competitor-crawler/commit/29514de81f221c60af9f073125b9553dafa37ba3))
+* **scheduler:** 定时爬取调度与企微/钉钉 webhook 告警推送 ([0a9c8a6](https://github.com/GuoSirius/competitor-crawler/commit/0a9c8a6c348eb2f4e65c0c2289347e67612925e1))
+* **scripts:** 交互选择发布类型时实时预览目标版本号 ([9a1347b](https://github.com/GuoSirius/competitor-crawler/commit/9a1347bc4ce71304f81d5898d018236c503a6c6e))
+* **shared:** 支持 MySQL/PostgreSQL 方言 schema 与 createDb 分支 ([d72c693](https://github.com/GuoSirius/competitor-crawler/commit/d72c69347b9fce9ce821726d177b94f248d64138))
+* **web:** 后台管理风格布局重构，支持暗黑/亮色双主题默认暗黑 ([1333278](https://github.com/GuoSirius/competitor-crawler/commit/1333278817b1232f3645b60e9f80ab005c7608b7))
+* **web:** 内部对标平台 MVP（看板/详情/告警/站点管理 + DB API） ([b60598a](https://github.com/GuoSirius/competitor-crawler/commit/b60598aa77c1072a8424373dbfafc6421e1100ac))
+
+
+### Bug Fixes
+
+* **crawler:** 补 schedule 入口并落实体检报告爬虫侧修复 ([a6b60b6](https://github.com/GuoSirius/competitor-crawler/commit/a6b60b6cdb54b8832a489a685a9cb749b696c79a))
+* **shared:** mysql schema 全量 varchar 化并统一时间封装入口 ([240919c](https://github.com/GuoSirius/competitor-crawler/commit/240919c0d92c50fd9f03d98475496110234aa87c))
+* **web:** 监听所有网卡并修正打包后 repoRoot/.env 解析 ([355856c](https://github.com/GuoSirius/competitor-crawler/commit/355856cd765ea06adb60365719833b3a247d226c))
+* **web:** 启用 unocss preflight 重置 body 外边距消除页面白边 ([355564c](https://github.com/GuoSirius/competitor-crawler/commit/355564ce3f10067e248748ba8e1a543ed012cedb))
+* **web:** 时间展示走统一封装并补错误态与资源释放 ([d277b46](https://github.com/GuoSirius/competitor-crawler/commit/d277b4643a81bab8fc90a3e8c755bef88c9791e7))
+
 ## 1.0.0 (2026-09-28)
 
 
