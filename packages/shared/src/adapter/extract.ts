@@ -73,14 +73,29 @@ function readRaw(n: DomRead, spec: FieldSpec): string | null {
   return n.text();
 }
 
+/** 编译后的正则缓存（docs/16 M10）：热路径每条记录复用同一 RegExp 实例，避免重复 new */
+const regexCache = new Map<string, RegExp | null>();
+
+/** 编译并缓存正则；非法表达式返回 null（与旧「catch 后返回 null」行为一致） */
+function compileRegex(regex: string): RegExp | null {
+  let re = regexCache.get(regex);
+  if (re === undefined) {
+    try {
+      re = new RegExp(regex);
+    } catch {
+      re = null;
+    }
+    regexCache.set(regex, re);
+  }
+  return re;
+}
+
 function applyRegex(raw: string | null, regex?: string): string | null {
   if (raw == null) return null;
   if (!regex) return raw;
-  try {
-    const m = new RegExp(regex).exec(raw);
-    if (!m) return null;
-    return m[1] !== undefined ? m[1] : m[0];
-  } catch {
-    return null;
-  }
+  const re = compileRegex(regex);
+  if (!re) return null;
+  const m = re.exec(raw);
+  if (!m) return null;
+  return m[1] !== undefined ? m[1] : m[0];
 }
