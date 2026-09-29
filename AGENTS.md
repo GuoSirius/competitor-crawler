@@ -9,7 +9,7 @@
 |---|---|
 | 有哪些脚本、怎么用 | [`docs/11-脚本命令手册.md`](docs/11-脚本命令手册.md) |
 | 有哪些环境变量 | [`.env.example`](.env.example)（新增变量先写它再写代码） |
-| 爬哪些站点、怎么解析 | [`config/sites/*.yaml`](config/sites/) |
+| 爬哪些站点、怎么解析 | [`config/sites/*.yaml`](config/sites/)（**唯一范围真相源**；种子 Excel 仅作一次性初始化导入） |
 | 架构 / 数据库 / 站点接入 / 告警 / 工程规范 | [`docs/README.md`](docs/README.md)（含架构图与流程图 `docs/assets/*.svg`） |
 | 代码审查标准与流程（逻辑层质量防线） | [`docs/15-代码审查标准与流程.md`](docs/15-代码审查标准与流程.md) + PR 模板 `.github/PULL_REQUEST_TEMPLATE.md` |
 
