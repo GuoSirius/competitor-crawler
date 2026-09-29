@@ -195,6 +195,16 @@ export interface SiteConfig {
    */
   company?: string;
   /**
+   * 竞品类型（写入 companies.competitor_type）。可选；供筛选/分组。
+   * YAML 显式声明时以 YAML 为准：复用已有公司时若值不同则更新；未声明时不动库中现有值。
+   */
+  competitorType?: string;
+  /**
+   * 公司角色（写入 companies.role）：own=我方 / competitor=竞品。缺省 competitor。
+   * YAML 显式声明时以 YAML 为准（规则同 competitorType）。
+   */
+  role?: string;
+  /**
    * 站点级默认产品线（对应 categories.product_line）。缺省回退到各 section 自己的 productLine；
    * 用于 config 驱动模式（`crawl --source config`）按产品线 upsert / 过滤品类。
    */

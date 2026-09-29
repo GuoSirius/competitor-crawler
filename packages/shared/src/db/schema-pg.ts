@@ -9,8 +9,8 @@ export const companies = pgTable('companies', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
   website: text('website'),
-  competitorType: text('competitor_type'),
-  role: text('role').notNull().default('competitor'),
+  competitorType: text('competitor_type'), // 竞品类型（YAML 顶层 competitorType 可声明，YAML 声明为准）
+  role: text('role').notNull().default('competitor'), // own=我方 / competitor=竞品（YAML 顶层 role 可声明）
   sourceRow: jsonb('source_row'),
   removedAt: integer('removed_at'),
   createdAt: integer('created_at').notNull(),
@@ -29,7 +29,7 @@ export const categories = pgTable('categories', {
   path: text('path').notNull(), // 面包屑全路径（业务主键的一部分）
   name: text('name').notNull(),
   level: integer('level').notNull().default(0),
-  productLine: text('product_line'), // 产品线（根节点写入，向下冗余）
+  productLine: text('product_line'), // 产品线（根节点写入，向下冗余；= path 根节点的镜像，语义以 path 首段为准）
   url: text('url'), // 列表页 URL（可空）
   sourceRow: jsonb('source_row'),
   removedAt: integer('removed_at'),

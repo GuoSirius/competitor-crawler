@@ -5,8 +5,8 @@ export const companies = sqliteTable('companies', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
   website: text('website'),
-  competitorType: text('competitor_type'),
-  role: text('role').notNull().default('competitor'), // own=我方 / competitor=竞品
+  competitorType: text('competitor_type'), // 竞品类型（YAML 顶层 competitorType 可声明，YAML 声明为准）
+  role: text('role').notNull().default('competitor'), // own=我方 / competitor=竞品（YAML 顶层 role 可声明）
   sourceRow: text('source_row', { mode: 'json' }),
   removedAt: integer('removed_at'), // 软删时间（Unix 秒，NULL=未删除）
   createdAt: integer('created_at').notNull(),
@@ -31,7 +31,7 @@ export const categories = sqliteTable('categories', {
   path: text('path').notNull(), // 面包屑全路径（业务主键的一部分）
   name: text('name').notNull(), // 本节点名（= path 末段）
   level: integer('level').notNull().default(0), // 深度
-  productLine: text('product_line'), // 产品线（根节点写入，向下冗余）
+  productLine: text('product_line'), // 产品线（根节点写入，向下冗余；= path 根节点的镜像，语义以 path 首段为准）
   url: text('url'), // 分类列表页 URL（可空：中间/根节点可能无独立页）
   sourceRow: text('source_row', { mode: 'json' }),
   removedAt: integer('removed_at'),

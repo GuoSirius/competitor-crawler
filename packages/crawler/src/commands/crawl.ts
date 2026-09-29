@@ -516,13 +516,25 @@ function applyFilters(
  */
 async function resolveCompanyId(
   db: Db,
-  cfg: { domain: string; company?: string },
+  cfg: { domain: string; company?: string; competitorType?: string; role?: string },
   dryRun: boolean,
   progress: Progress,
 ): Promise<number> {
   const domain = cfg.domain;
   const wantName = cfg.company ?? domain;
   const all = await db.select().from(companies).where(isNull(companies.removedAt));
+  // YAML 显式声明的公司属性（competitorType/role）：与库中现有值不同则更新（YAML 为准），未声明/相同则不动
+  const applyAttrs = async (row: { id: number; competitorType: string | null; role: string }) => {
+    const set: { competitorType?: string; role?: string } = {};
+    if (cfg.competitorType && cfg.competitorType !== row.competitorType) set.competitorType = cfg.competitorType;
+    if (cfg.role && cfg.role !== row.role) set.role = cfg.role;
+    if (!Object.keys(set).length) return;
+    if (dryRun) {
+      progress.update(`[crawl] (dry-run) 将按 YAML 更新公司属性 id=${row.id}: ${JSON.stringify(set)}`);
+      return;
+    }
+    await db.update(companies).set({ ...set, updatedAt: nowSeconds() }).where(eq(companies.id, row.id));
+  };
   const byWeb = all.find((c) => domainOf(c.website) === domain);
   if (byWeb) {
     if (cfg.company && cfg.company !== byWeb.name) {
@@ -535,6 +547,7 @@ async function resolveCompanyId(
           .where(eq(companies.id, byWeb.id));
       }
     }
+    await applyAttrs(byWeb);
     return byWeb.id;
   }
   // name 命中（含人工手动插入的公司）：复用并补全 website
@@ -550,26 +563,47 @@ async function resolveCompanyId(
           .where(eq(companies.id, byName.id));
       }
     }
+    await applyAttrs(byName);
     return byName.id;
   }
   if (dryRun) {
     progress.update(`[crawl] (dry-run) 将新建公司 ${wantName}`);
     return 0;
   }
-  return upsertCompany(db, wantName, `https://${domain}`);
+  return upsertCompany(db, wantName, `https://${domain}`, cfg);
 }
 
 /** 按 name upsert 公司（config 模式新建 / 复用）；website 仅在为空时补全，不覆盖人工维护值 */
-async function upsertCompany(db: Db, name: string, website?: string): Promise<number> {
+async function upsertCompany(
+  db: Db,
+  name: string,
+  website?: string,
+  attrs?: { competitorType?: string; role?: string },
+): Promise<number> {
   const t = nowSeconds();
   const existing = await db.select().from(companies).where(eq(companies.name, name)).limit(1);
   if (existing.length) {
-    await db.update(companies).set({ removedAt: null, updatedAt: t }).where(eq(companies.id, existing[0].id));
-    return existing[0].id;
+    const row = existing[0];
+    const set: { competitorType?: string; role?: string; removedAt: null; updatedAt: number } = {
+      removedAt: null,
+      updatedAt: t,
+    };
+    if (attrs?.competitorType && attrs.competitorType !== row.competitorType) set.competitorType = attrs.competitorType;
+    if (attrs?.role && attrs.role !== row.role) set.role = attrs.role;
+    await db.update(companies).set(set).where(eq(companies.id, row.id));
+    return row.id;
   }
   const [ins] = await db
     .insert(companies)
-    .values({ name, website: website ?? null, removedAt: null, createdAt: t, updatedAt: t })
+    .values({
+      name,
+      website: website ?? null,
+      competitorType: attrs?.competitorType ?? null,
+      role: attrs?.role ?? 'competitor',
+      removedAt: null,
+      createdAt: t,
+      updatedAt: t,
+    })
     .returning();
   return ins.id;
 }

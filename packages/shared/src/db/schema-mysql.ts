@@ -15,8 +15,8 @@ export const companies = mysqlTable('companies', {
   id: int('id').autoincrement().primaryKey(),
   name: varchar('name', { length: 255 }).notNull().unique(),
   website: varchar('website', { length: 1024 }),
-  competitorType: varchar('competitor_type', { length: 64 }),
-  role: varchar('role', { length: 32 }).notNull().default('competitor'),
+  competitorType: varchar('competitor_type', { length: 64 }), // 竞品类型（YAML 顶层 competitorType 可声明，YAML 声明为准）
+  role: varchar('role', { length: 32 }).notNull().default('competitor'), // own=我方 / competitor=竞品（YAML 顶层 role 可声明）
   sourceRow: json('source_row'),
   removedAt: int('removed_at'),
   createdAt: int('created_at').notNull(),
@@ -35,7 +35,7 @@ export const categories = mysqlTable('categories', {
   path: varchar('path', { length: 700 }).notNull(), // 面包屑全路径（业务主键的一部分）
   name: varchar('name', { length: 255 }).notNull(),
   level: int('level').notNull().default(0),
-  productLine: varchar('product_line', { length: 255 }), // 产品线（根节点写入，向下冗余）
+  productLine: varchar('product_line', { length: 255 }), // 产品线（根节点写入，向下冗余；= path 根节点的镜像，语义以 path 首段为准）
   url: varchar('url', { length: 1024 }), // 列表页 URL（可空）
   sourceRow: json('source_row'),
   removedAt: int('removed_at'),
