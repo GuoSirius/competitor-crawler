@@ -61,6 +61,17 @@ export type ModelExtraction = z.infer<typeof ModelExtractionSchema>;
 export type ModelSpecItem = z.infer<typeof ModelSpecItemSchema>;
 export type ModelIntroMedia = z.infer<typeof ModelIntroMediaSchema>;
 
+/**
+ * ⑦ 告警摘要的输出契约（docs/04 §4.4.4）：模型只输出「人话摘要」文本。
+ * 放在 shared 的原因同 ModelExtractionSchema：zod 是本包依赖，且契约要跨 crawler/复用。
+ * 对模型宽容（数字/布尔/空串都归一成 string），输出侧只留一个 `digest` 字符串。
+ */
+export const AlertSummarySchema = z.object({
+  digest: looseString,
+});
+
+export type AlertSummary = z.infer<typeof AlertSummarySchema>;
+
 /** 尝试 JSON.parse，失败返回 undefined（区分「解析出 null」与「解析失败」） */
 function tryParse(raw: string): unknown {
   try {

@@ -2,6 +2,7 @@ import { and, count, desc, eq } from 'drizzle-orm';
 import { alerts, crawls, createDb, nowSeconds } from '@competitor-crawler/shared';
 import { crawl, type CrawlOpts } from './commands/crawl.js';
 import { notifyCrawlResult, type CrawlMeta, type CrawlSummaryLike } from './util/notify.js';
+import type { AlertDigestItem } from './llm/alertSummary.js';
 
 type Db = ReturnType<typeof createDb>['db'];
 
@@ -59,7 +60,20 @@ export async function runScheduledCrawl(opts: CrawlOpts = {}): Promise<void> {
     trigger: latest.trigger,
   };
 
-  const results = await notifyCrawlResult(summary, meta);
+  // 取本轮（latest.id）产生的告警，喂给 ⑦ 告警摘要做人话翻译（未启用则自动跳过）
+  const thisRound = await db
+    .select({ type: alerts.type, severity: alerts.severity, message: alerts.message })
+    .from(alerts)
+    .where(eq(alerts.crawlId, latest.id))
+    .orderBy(desc(alerts.createdAt))
+    .limit(50);
+  const alertItems: AlertDigestItem[] = thisRound.map((a) => ({
+    type: a.type,
+    severity: a.severity,
+    message: a.message,
+  }));
+
+  const results = await notifyCrawlResult(summary, meta, fetch, alertItems);
   for (const r of results) {
     console.log(`[schedule] 告警通道 ${r.channel}: ${r.ok ? '推送成功' : '推送失败 ' + r.error}`);
   }

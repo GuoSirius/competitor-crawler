@@ -1,4 +1,5 @@
 import { formatBj } from '@competitor-crawler/shared';
+import { summarizeAlerts, type AlertDigestItem } from '../llm/alertSummary.js';
 
 /** 与 crawler 内 CrawlSummary 结构对齐（packages/crawler/src/commands/crawl.ts） */
 export interface CrawlSummaryLike {
@@ -116,13 +117,22 @@ export async function notifyCrawlResult(
   summary: CrawlSummaryLike,
   meta: CrawlMeta,
   fetchImpl: typeof fetch = fetch,
+  alerts?: AlertDigestItem[],
 ): Promise<Array<{ channel: ChannelType; ok: boolean; error?: string }>> {
   const channels = loadAlertChannels();
   if (channels.length === 0) {
     console.log('[notify] 未配置告警通道（ALERT_*_WEBHOOK），跳过推送');
     return [];
   }
-  const text = formatCrawlSummary(summary, meta);
+  const base = formatCrawlSummary(summary, meta);
+  // ⑦ 告警摘要：模型把本轮告警翻成市场/产品部能读的人话；未启用/失败都回退到确定性摘要
+  let text = base;
+  if (alerts && alerts.length > 0) {
+    const digest = await summarizeAlerts(alerts);
+    if (digest) {
+      text = `${base}\n\n---\n\n### 本轮告警人话摘要（模型）\n${digest}`;
+    }
+  }
   const out: Array<{ channel: ChannelType; ok: boolean; error?: string }> = [];
   for (const ch of channels) {
     const r = await sendAlert(ch, text, fetchImpl);
