@@ -28,7 +28,7 @@ import { traverseList } from '../fetch/listTraversal.js';
 import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { Progress } from '../util/progress.js';
-import { mapLimit } from '../util/limit.js';
+import { mapLimit, detailConcurrency } from '../util/limit.js';
 import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
 
 type Db = ReturnType<typeof createDb>['db'];
@@ -647,8 +647,8 @@ async function collectSection(args: {
   progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
 
   // 详情失败可见化（docs/16 E1）：失败不再静默——逐条记日志，返回计数由调用方计入 summary.failed
-  // 并发限制（docs/16 P5）：CRAWL_DETAIL_CONCURRENCY（默认 4），避免同站瞬时高并发触发 WAF/被拉黑
-  const concurrency = Number(process.env.CRAWL_DETAIL_CONCURRENCY) || 4;
+  // 并发限制（docs/16 P5）：CRAWL_DETAIL_CONCURRENCY（0/未设/非法 → CPU 核心数），防同站瞬时高并发被拉黑
+  const concurrency = detailConcurrency();
   let detailFailed = 0;
   await mapLimit(targets, concurrency, async (it) => {
     try {
@@ -989,7 +989,7 @@ async function collectContentSection(args: {
   progress.update(`[crawl] [${section.key}] 内容详情解析 ${targets.length}/${deduped.length} 条`);
 
   // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5
-  const concurrency = Number(process.env.CRAWL_DETAIL_CONCURRENCY) || 4;
+  const concurrency = detailConcurrency();
   let detailFailed = 0;
   await mapLimit(targets, concurrency, async (it) => {
     try {
