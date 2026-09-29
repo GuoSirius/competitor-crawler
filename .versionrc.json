@@ -6,5 +6,18 @@
     { "filename": "packages/shared/package.json", "type": "json" },
     { "filename": "packages/crawler/package.json", "type": "json" },
     { "filename": "packages/web/package.json", "type": "json" }
+  ],
+  "types": [
+    { "type": "feat", "section": "🚀 新功能 (Features)" },
+    { "type": "fix", "section": "🐛 缺陷修复 (Bug Fixes)" },
+    { "type": "perf", "section": "⚡ 性能优化 (Performance)" },
+    { "type": "revert", "section": "◀️ 回退 (Reverts)" },
+    { "type": "docs", "section": "📚 文档 (Documentation)" },
+    { "type": "refactor", "section": "♻️ 代码重构 (Refactors)" },
+    { "type": "test", "section": "✅ 测试 (Tests)" },
+    { "type": "build", "section": "🔧 构建 (Build)" },
+    { "type": "ci", "section": "🔄 持续集成 (CI)" },
+    { "type": "style", "section": "🎨 样式 (Styles)" },
+    { "type": "chore", "section": "🏠 其他 (Miscellaneous)" }
   ]
 }
