@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { formatBj } from '@competitor-crawler/shared';
 
 interface Alert {
   id: number;
@@ -13,6 +14,7 @@ interface Alert {
 
 const alerts = ref<Alert[]>([]);
 const loading = ref(true);
+const error = ref('');
 
 const severityClass: Record<string, string> = {
   error: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
@@ -20,18 +22,30 @@ const severityClass: Record<string, string> = {
   info: 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
 };
 
-onMounted(async () => {
+async function load() {
+  loading.value = true;
+  error.value = '';
   try {
     alerts.value = await $fetch<Alert[]>('/api/alerts');
+  } catch (e) {
+    // 错误与「真无告警」区分展示（docs/16 E3）
+    error.value = (e as Error).message || '加载失败';
   } finally {
     loading.value = false;
   }
-});
+}
+
+onMounted(load);
 </script>
 
 <template>
   <div class="space-y-4">
     <div v-if="loading" class="card p-8 text-center text-gray-400 dark:text-slate-500 text-sm">加载中…</div>
+
+    <div v-else-if="error" class="card p-8 text-center text-red-500 dark:text-red-400 text-sm">
+      加载失败：{{ error }}
+      <button class="btn-ghost ml-2" @click="load()">重试</button>
+    </div>
 
     <div v-else class="card overflow-x-auto">
       <table class="w-full">
@@ -61,7 +75,7 @@ onMounted(async () => {
                 {{ a.status }}
               </span>
             </td>
-            <td class="td text-gray-400 dark:text-slate-500 text-xs">{{ new Date(a.createdAt * 1000).toLocaleString() }}</td>
+            <td class="td text-gray-400 dark:text-slate-500 text-xs">{{ formatBj(a.createdAt) }}</td>
           </tr>
           <tr v-if="alerts.length === 0">
             <td colspan="5" class="td text-center text-gray-400 dark:text-slate-500 py-8">暂无告警 🎉</td>

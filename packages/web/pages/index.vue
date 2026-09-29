@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { useTheme } from '~/composables/useTheme';
 
@@ -29,11 +29,13 @@ const items = ref<Product[]>([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = 20;
+const error = ref('');
 
 const filters = ref({ company: '', category: '', status: 'active', q: '', hasClone: false });
 
 const chartEl = ref<HTMLElement | null>(null);
 let chart: ReturnType<typeof echarts.init> | null = null;
+const onResize = () => chart?.resize();
 
 async function loadOptions() {
   companies.value = await $fetch<{ id: number; name: string }[]>('/api/companies');
@@ -71,21 +73,41 @@ async function loadStats() {
   });
 }
 
+/** 统一错误兜底（docs/16 E2）：任一请求失败给出错误条，不再整页空白 */
+async function guard(fn: () => Promise<void>) {
+  try {
+    error.value = '';
+    await fn();
+  } catch (e) {
+    error.value = (e as Error).message || '加载失败';
+  }
+}
+
 function resetPage() {
   page.value = 1;
-  loadProducts();
+  guard(loadProducts);
 }
 
 onMounted(async () => {
-  await loadOptions();
-  await loadProducts();
-  await nextTick();
-  await loadStats();
-  window.addEventListener('resize', () => chart?.resize());
+  await guard(loadOptions);
+  await guard(loadProducts);
+  await guard(loadStats);
+  window.addEventListener('resize', onResize);
 });
 
-watch(isDark, () => loadStats());
-watch(() => filters.value, resetPage, { deep: true });
+// 卸载时释放实例与监听（docs/16 P2：防内存泄漏）
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize);
+  chart?.dispose();
+  chart = null;
+});
+
+watch(isDark, () => guard(loadStats));
+// 搜索词 q 走回车触发（@keyup.enter），不进 deep watch（docs/16 P3：避免逐字符请求 + 响应乱序）
+watch(
+  () => [filters.value.company, filters.value.category, filters.value.status, filters.value.hasClone],
+  resetPage,
+);
 </script>
 
 <template>
@@ -108,6 +130,12 @@ watch(() => filters.value, resetPage, { deep: true });
       <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300 select-none cursor-pointer">
         <input v-model="filters.hasClone" type="checkbox" class="accent-brand" /> 仅看有克隆号
       </label>
+    </div>
+
+    <!-- 错误兜底（docs/16 E2）：请求失败给错误条 + 重试，不再整页空白 -->
+    <div v-if="error" class="card p-4 text-center text-red-500 dark:text-red-400 text-sm">
+      加载失败：{{ error }}
+      <button class="btn-ghost ml-2" @click="error = ''; resetPage()">重试</button>
     </div>
 
     <!-- 各公司产品数 -->
@@ -155,9 +183,9 @@ watch(() => filters.value, resetPage, { deep: true });
       <div class="px-4 py-2.5 text-sm text-gray-500 dark:text-slate-400 flex items-center gap-3 border-t border-gray-100 dark:border-slate-700/60">
         <span>共 {{ total }} 条</span>
         <div class="ml-auto flex items-center gap-2">
-          <button class="btn-ghost !h-7 !px-2.5 text-xs" :disabled="page <= 1" @click="page--; loadProducts()">上一页</button>
+          <button class="btn-ghost !h-7 !px-2.5 text-xs" :disabled="page <= 1" @click="page--; guard(loadProducts)">上一页</button>
           <span>第 {{ page }} 页</span>
-          <button class="btn-ghost !h-7 !px-2.5 text-xs" :disabled="page * pageSize >= total" @click="page++; loadProducts()">下一页</button>
+          <button class="btn-ghost !h-7 !px-2.5 text-xs" :disabled="page * pageSize >= total" @click="page++; guard(loadProducts)">下一页</button>
         </div>
       </div>
     </div>

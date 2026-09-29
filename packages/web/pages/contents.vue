@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
+import { formatBj } from '@competitor-crawler/shared';
 
 interface ContentItem {
   id: number;
@@ -19,10 +20,12 @@ const total = ref(0);
 const page = ref(1);
 const pageSize = 20;
 const loading = ref(true);
+const error = ref('');
 const filters = ref({ contentType: '', company: '', q: '' });
 
 async function load() {
   loading.value = true;
+  error.value = '';
   try {
     const params: Record<string, string> = {
       page: String(page.value),
@@ -34,6 +37,9 @@ async function load() {
     const res = await $fetch<{ items: ContentItem[]; total: number }>('/api/contents', { query: params });
     items.value = res.items;
     total.value = res.total;
+  } catch (e) {
+    // 错误与「真无数据」区分展示（docs/16 E3）
+    error.value = (e as Error).message || '加载失败';
   } finally {
     loading.value = false;
   }
@@ -41,7 +47,8 @@ async function load() {
 
 function fmt(ts: number | null): string {
   if (!ts) return '—';
-  return new Date(ts * 1000).toLocaleDateString('zh-CN');
+  // 统一走 shared 时间封装（北京时间口径），禁裸 new Date()（docs/16 🔴-4）
+  return formatBj(ts);
 }
 
 const typeClass: Record<string, string> = {
@@ -70,6 +77,11 @@ watch(() => filters.value.contentType, () => { page.value = 1; load(); });
     </div>
 
     <div v-if="loading" class="card p-8 text-center text-gray-400 dark:text-slate-500 text-sm">加载中…</div>
+
+    <div v-else-if="error" class="card p-8 text-center text-red-500 dark:text-red-400 text-sm">
+      加载失败：{{ error }}
+      <button class="btn-ghost ml-2" @click="load()">重试</button>
+    </div>
 
     <div v-else class="card overflow-x-auto">
       <table class="w-full">
