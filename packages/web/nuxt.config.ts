@@ -21,6 +21,10 @@ export default defineNuxtConfig({
     transpile: ['@competitor-crawler/shared'],
   },
   unocss: {
+    // 关键：unocss 66 的 @unocss/nuxt 默认 preflight:false，不会注入基础重置，
+    // 导致 <body> 保留浏览器默认 8px 外边距 → 页面四周出现一圈白边。
+    // 开启后自动 import '@unocss/reset/tailwind.css'（含 body{margin:0} 等重置）。
+    preflight: true,
     // 暗黑模式：unocss 66 默认即 class 策略（.dark 选择器），<html class="dark"> 由 useTheme 控制，默认暗黑
     // 主题色：贴合 Elabscience/Procell 品牌蓝
     theme: {
