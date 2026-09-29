@@ -28,7 +28,8 @@ import { traverseList } from '../fetch/listTraversal.js';
 import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { Progress } from '../util/progress.js';
-import { mapLimit, detailConcurrency } from '../util/limit.js';
+import pLimit from 'p-limit';
+import { detailConcurrency } from '../util/limit.js';
 import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
 
 type Db = ReturnType<typeof createDb>['db'];
@@ -647,10 +648,10 @@ async function collectSection(args: {
   progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
 
   // 详情失败可见化（docs/16 E1）：失败不再静默——逐条记日志，返回计数由调用方计入 summary.failed
-  // 并发限制（docs/16 P5）：CRAWL_DETAIL_CONCURRENCY（0/未设/非法 → CPU 核心数），防同站瞬时高并发被拉黑
-  const concurrency = detailConcurrency();
+  // 并发限制（docs/16 P5）：p-limit 限流，CRAWL_DETAIL_CONCURRENCY（0/未设/非法 → CPU 核心数），防同站瞬时高并发被拉黑
+  const limiter = pLimit(detailConcurrency());
   let detailFailed = 0;
-  await mapLimit(targets, concurrency, async (it) => {
+  await Promise.all(targets.map((it) => limiter(async () => {
     try {
       const html = await fetchPage(it.detailUrl, mode, undefined, headers);
       let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
@@ -708,7 +709,7 @@ async function collectSection(args: {
       detailFailed++;
       progress.update(`[crawl] [${section.key}] 详情失败 ${it.detailUrl}：${(e as Error).message}`);
     }
-  });
+  })));
   return detailFailed;
 }
 
@@ -988,10 +989,10 @@ async function collectContentSection(args: {
   const targets = deduped.slice(0, limit);
   progress.update(`[crawl] [${section.key}] 内容详情解析 ${targets.length}/${deduped.length} 条`);
 
-  // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5
-  const concurrency = detailConcurrency();
+  // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5（p-limit）
+  const limiter = pLimit(detailConcurrency());
   let detailFailed = 0;
-  await mapLimit(targets, concurrency, async (it) => {
+  await Promise.all(targets.map((it) => limiter(async () => {
     try {
       const html = await fetchPage(it.detailUrl, mode, undefined, headers);
       let np = parseDetailWithConfig(html, section.parseDetail.fields);
@@ -1007,7 +1008,7 @@ async function collectContentSection(args: {
       detailFailed++;
       progress.update(`[crawl] [${section.key}] 内容详情失败 ${it.detailUrl}：${(e as Error).message}`);
     }
-  });
+  })));
   return detailFailed;
 }
 
