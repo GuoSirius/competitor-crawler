@@ -60,7 +60,10 @@ export interface NormalizedProduct {
    * 因为同货号可能对应多个规格的多张页面（详见 schema.ts 注释）。
    */
   sourceProductId?: string | null;
-  /** 货号（catalog number）。有则必写，无则空。用于跨公司对齐 / 比价。 */
+  /**
+   * 货号（catalog number）= **默认规格**的货号；有则必写，无则空。
+   * 一品多货号（形态 C：每个规格各一个货号）时存默认/首个规格的货号，全量货号在 specs[].sku。
+   */
   sku?: string | null;
   detailUrl?: string | null;
   name?: string | null;
@@ -68,13 +71,13 @@ export interface NormalizedProduct {
   englishName?: string | null;
   /** 品牌 */
   brand?: string | null;
-  /** 价格数值（默认规格价），用于排序 / 涨跌计算 */
+  /** 价格数值 = 默认规格现价（specs 首项 priceNow；无规格时为唯一价）。排序/涨跌/价格历史统一用这个口径 */
   price?: number | null;
   /** 币种（站点级） */
   currency?: string | null;
   /** 价格原文保真 */
   priceText?: string | null;
-  /** 规格原文（如 100μL），比价须同规格 */
+  /** 规格原文（如 100μL）——与 price 成对的「默认规格」文本；比价须同规格 */
   specText?: string | null;
   /** 纯文本描述（与 introMedia 图文互补） */
   description?: string | null;

@@ -52,7 +52,7 @@ export const products = sqliteTable('products', {
   categoryId: integer('category_id').references(() => categories.id),
   contentType: text('content_type').notNull().default('products'), // 统一语义：恒 'products'
   sourceProductId: text('source_product_id'), // 站点自身产品 id（有则写，无则空）
-  sku: text('sku'), // 货号 / catalog number（跨公司比价首选键）
+  sku: text('sku'), // 主货号 = 默认规格的货号；一品多货号（形态C）全量在 specs[].sku
   identityKey: text('identity_key').notNull(), // 身份键 = 站点产品id，无则规范化详情URL（COALESCE）
   sectionKey: text('section_key').notNull().default('default'), // 同 SKU 跨栏目分开；默认 default
   name: text('name'),
@@ -60,12 +60,12 @@ export const products = sqliteTable('products', {
   brand: text('brand'),
   detailUrl: text('detail_url'), // 详情页地址
   listUrl: text('list_url'), // 列表页地址（溯源）
-  price: real('price'), // 默认规格价（数值，排序/涨跌）
+  price: real('price'), // 默认规格现价（=specs[0].priceNow；无规格=唯一价），排序/涨跌/历史统一口径
   currency: text('currency'), // 币种（CNY / USD）
   priceText: text('price_text'), // 价格原文保真
-  specText: text('spec_text'), // 规格原文（比价须同规格）
+  specText: text('spec_text'), // 默认规格文本（与 price 成对：¥price / specText）；比价须同规格
   description: text('description'),
-  specs: text('specs', { mode: 'json' }), // 多规格价明细（JSON）
+  specs: text('specs', { mode: 'json' }), // 多规格明细 [{spec, sku?, priceNow, priceOriginal?, priceActivity?, pricePromo?}]（全量真相；形态C各规格自带 sku）
   introMedia: text('intro_media', { mode: 'json' }), // 图文富文本（JSON）
   cloneNumber: text('clone_number'),
   applications: text('applications', { mode: 'json' }),
