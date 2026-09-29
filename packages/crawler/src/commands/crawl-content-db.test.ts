@@ -1,28 +1,11 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
 
-// ── contents 表集成冒烟：真实 SQLite 文件库（.tmp 下副本，不入库）────────────
+// ── contents 表集成冒烟（docs/16 Q5 un-skip）────────────
+// 不再依赖「仓库真实库副本」：用 testing/testDb 按共享 schema 全量建表，CI/新机器同样可跑。
 // 必须在首次 import shared 前改写 DATABASE_URL（db/index.ts 在模块加载时求值 dbUrl），
-// 故这里全部走动态 import。用仓库真实库的副本启动（空文件没有表结构）。
-const tmpDir = path.join(process.cwd(), '.tmp', 'smoke-contents');
-fs.rmSync(tmpDir, { recursive: true, force: true });
-fs.mkdirSync(tmpDir, { recursive: true });
-const srcDb = path.join(process.cwd(), 'data', 'crawler.sqlite');
-const smokeDb = path.join(tmpDir, 'smoke.sqlite');
-if (fs.existsSync(srcDb)) {
-  // 真实库是 WAL 模式：先 checkpoint 把 -wal 合并进主文件，否则复制的副本缺最新表。
-  // better-sqlite3 不在 crawler 直接依赖里，从 shared 的依赖上下文解析（pnpm 严格模式）。
-  const { createRequire } = await import('node:module');
-  const req = createRequire(path.join(process.cwd(), 'packages', 'shared', 'src', 'index.ts'));
-  const Database = req('better-sqlite3');
-  const src = new Database(srcDb);
-  src.pragma('wal_checkpoint(TRUNCATE)');
-  src.close();
-  fs.copyFileSync(srcDb, smokeDb);
-}
-process.env.DATABASE_URL = smokeDb;
-delete process.env.DB_DIALECT;
+// 故这里全部走动态 import。
+const { createTestDb } = await import('../testing/testDb.js');
+await createTestDb('smoke-contents');
 
 const { createDb, companies, contents, eq, nowSeconds } = await import('@competitor-crawler/shared');
 const { upsertContent, softDeleteMissingContents } = await import('./crawl.js');
@@ -61,7 +44,7 @@ afterAll(async () => {
   await db.delete(companies).where(eq(companies.id, company.id));
 });
 
-describe.skipIf(!fs.existsSync(srcDb))('contents 表集成冒烟（真实 SQLite）', () => {
+describe('contents 表集成冒烟（真实 SQLite）', () => {
   it('upsert：同 dedupeKey 二次写入 = 更新同一行', async () => {
     const now = nowSeconds();
     await upsertContent(db, content(), now);

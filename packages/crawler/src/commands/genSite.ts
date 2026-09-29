@@ -62,12 +62,14 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
   console.log(`\n下一步验证：pnpm probe --domain ${opts.domain} --list-url ${opts.listUrl}`);
 }
 
-function extractYaml(text: string): string {
+/** 从模型输出中提取 YAML：优先 ```yaml 围栏，其次任意 ``` 围栏，最后整段 */
+export function extractYaml(text: string): string {
   const fenced = text.match(/```yaml\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/i);
   return (fenced ? fenced[1] : text).trim();
 }
 
-function parseYamlConfig(text: string, opts: GenSiteOpts): SiteConfig {
+/** 解析模型产出的 YAML 并补全关键字段（导出供测试；非法产出抛明确错误） */
+export function parseYamlConfig(text: string, opts: GenSiteOpts): SiteConfig {
   const cfg = yaml.parse(extractYaml(text)) as SiteConfig;
   if (!cfg?.parseList?.itemSelector || !cfg?.parseList?.fields?.detailUrl) {
     throw new Error('模型产出缺少必要的 parseList（itemSelector / fields.detailUrl），请检查页面 HTML 或重试');
