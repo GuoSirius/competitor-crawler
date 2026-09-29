@@ -1,11 +1,9 @@
-import { pgTable, serial, integer, doublePrecision, text, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, serial, integer, doublePrecision, text, jsonb, index, uniqueIndex, type AnyPgColumn } from 'drizzle-orm/pg-core';
 
 // PostgreSQL 方言 schema —— 结构与 SQLite/MySQL 完全一致，仅列类型换成语方言等价物：
-//   integer PK autoincrement → serial PK
-//   real(price)             → doublePrecision
-//   text(mode:'json')       → jsonb（可 GIN 索引）
-//   integer(时间/外键)        → integer
-// 表名、列名、唯一/普通索引、默认值 三方言保持同名同语义，保证切换无歧义、查询零改动。
+//   integer PK autoincrement → serial PK；real(price) → doublePrecision；
+//   text(mode:'json') → jsonb；integer(时间/外键) → integer。
+// 表名、列名、索引名、默认值三方言保持同名同语义，切换无歧义、查询零改动。
 
 export const companies = pgTable('companies', {
   id: serial('id').primaryKey(),
@@ -21,24 +19,33 @@ export const companies = pgTable('companies', {
   index('idx_company_role').on(t.role),
 ]);
 
+// 通用分类表：结构同 schema-sqlite.ts，仅列类型换 PG 等价物。
 export const categories = pgTable('categories', {
   id: serial('id').primaryKey(),
   companyId: integer('company_id').notNull().references(() => companies.id),
-  productLine: text('product_line'),
+  contentType: text('content_type').notNull().default('products'),
+  // 自引用外键必须显式标注 AnyPgColumn，否则 TS 循环推断报 TS7022
+  parentId: integer('parent_id').references((): AnyPgColumn => categories.id), // 父节点；NULL=根
+  path: text('path').notNull(), // 面包屑全路径（业务主键的一部分）
   name: text('name').notNull(),
-  url: text('url').notNull(),
+  level: integer('level').notNull().default(0),
+  productLine: text('product_line'), // 产品线（根节点写入，向下冗余）
+  url: text('url'), // 列表页 URL（可空）
   sourceRow: jsonb('source_row'),
   removedAt: integer('removed_at'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => [
-  uniqueIndex('uniq_cat').on(t.companyId, t.productLine, t.name),
+  uniqueIndex('uniq_cat').on(t.companyId, t.contentType, t.path),
+  index('idx_cat_parent').on(t.companyId, t.contentType, t.parentId),
+  index('idx_cat_pline').on(t.companyId, t.contentType, t.productLine),
 ]);
 
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
   companyId: integer('company_id').notNull().references(() => companies.id),
   categoryId: integer('category_id').references(() => categories.id),
+  contentType: text('content_type').notNull().default('products'),
   sourceProductId: text('source_product_id'),
   sku: text('sku'),
   dedupeKey: text('dedupe_key').notNull(),
@@ -47,6 +54,7 @@ export const products = pgTable('products', {
   englishName: text('english_name'),
   brand: text('brand'),
   detailUrl: text('detail_url'),
+  listUrl: text('list_url'),
   price: doublePrecision('price'),
   currency: text('currency'),
   priceText: text('price_text'),
@@ -65,7 +73,8 @@ export const products = pgTable('products', {
   updatedAt: integer('updated_at').notNull(),
 }, (t) => [
   uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey, t.sectionKey),
-  index('idx_company_cat_status').on(t.companyId, t.categoryId, t.status),
+  index('idx_product_section').on(t.companyId, t.sectionKey, t.status),
+  index('idx_product_cat').on(t.companyId, t.categoryId, t.status),
   index('idx_company_sku').on(t.companyId, t.sku),
 ]);
 
@@ -104,31 +113,34 @@ export const alerts = pgTable('alerts', {
   createdAt: integer('created_at').notNull(),
 });
 
-// 泛型内容（非产品采集：新闻 / 公告 / 活动等）。结构与 schema-sqlite.ts 完全一致，仅列类型换 PG 等价物。
+// 泛型内容（非产品采集）。结构与 schema-sqlite.ts 一致，仅列类型换 PG 等价物。
 export const contents = pgTable('contents', {
-  id: serial('id').primaryKey(), // 自增主键
-  companyId: integer('company_id').notNull().references(() => companies.id), // 所属公司
-  contentType: text('content_type').notNull().default('news'), // 内容类型：news / announcement / event…（= section.contentType）
-  sectionKey: text('section_key').notNull().default('default'), // 栏目维度（参与去重键）
-  dedupeKey: text('dedupe_key').notNull(), // 去重键 = COALESCE(source_id, canonical(detail_url))
-  sourceId: text('source_id'), // 站点自身的内容 id
-  title: text('title').notNull(), // 标题
-  summary: text('summary'), // 摘要
-  body: text('body'), // 正文纯文本
-  author: text('author'), // 作者 / 来源
-  publishedAt: integer('published_at'), // 发布时间（Unix 秒，可空）
-  detailUrl: text('detail_url'), // 原文链接
-  row: jsonb('row'), // 兜底原始抽取快照（JSON）
-  status: text('status').notNull().default('active'), // 状态：active / removed
-  firstSeenAt: integer('first_seen_at').notNull(), // 首次发现时间（Unix 秒）
-  lastSeenAt: integer('last_seen_at').notNull(), // 最近出现时间（Unix 秒）
-  missingSince: integer('missing_since'), // 首次缺失时间（Unix 秒）
-  createdAt: integer('created_at').notNull(), // 创建时间（Unix 秒）
-  updatedAt: integer('updated_at').notNull(), // 更新时间（Unix 秒）
+  id: serial('id').primaryKey(),
+  companyId: integer('company_id').notNull().references(() => companies.id),
+  categoryId: integer('category_id').references(() => categories.id),
+  contentType: text('content_type').notNull().default('news'),
+  sectionKey: text('section_key').notNull().default('default'),
+  dedupeKey: text('dedupe_key').notNull(),
+  sourceId: text('source_id'),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  body: text('body'),
+  author: text('author'),
+  publishedAt: integer('published_at'),
+  detailUrl: text('detail_url'),
+  listUrl: text('list_url'),
+  row: jsonb('row'),
+  status: text('status').notNull().default('active'),
+  firstSeenAt: integer('first_seen_at').notNull(),
+  lastSeenAt: integer('last_seen_at').notNull(),
+  missingSince: integer('missing_since'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
 }, (t) => [
-  uniqueIndex('uniq_content').on(t.companyId, t.dedupeKey, t.sectionKey), // 组合唯一（同 products 口径）
-  index('idx_content_company_type').on(t.companyId, t.contentType, t.status), // 按公司/类型筛选
-  index('idx_content_published').on(t.publishedAt), // 按发布时间排序
+  uniqueIndex('uniq_content').on(t.companyId, t.dedupeKey, t.sectionKey),
+  index('idx_content_section').on(t.companyId, t.sectionKey, t.status),
+  index('idx_content_type').on(t.companyId, t.contentType, t.categoryId, t.status),
+  index('idx_content_published').on(t.publishedAt),
 ]);
 
 export const pgSchema = { companies, categories, products, crawls, priceHistory, alerts, contents };

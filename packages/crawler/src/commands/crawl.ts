@@ -72,6 +72,7 @@ interface PendingProduct {
   englishName: string | null;
   brand: string | null;
   detailUrl: string | null;
+  listUrl: string | null;
   price: number | null;
   currency: string | null;
   priceText: string | null;
@@ -344,14 +345,19 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   }
 }
 
-/** 把栏目绑定到种子品类：优先 section.category 精确匹配，否则按域名兜底 */
+/** 把栏目绑定到种子品类：优先 name + 产品线精确匹配，否则按域名兜底 */
 function resolveCategoryId(
   section: ResolvedSection,
-  list: Array<{ cat: { id: number; name: string } }>,
+  list: Array<{ cat: { id: number; name: string; productLine: string | null } }>,
 ): number | null {
   if (section.category) {
-  const hit = list.find((r) => r.cat.name === section.category);
-  if (hit) return hit.cat.id;
+    const hits = list.filter((r) => r.cat.name === section.category);
+    if (hits.length === 1) return hits[0].cat.id;
+    if (hits.length > 1) {
+      const f = hits.find((r) => r.cat.productLine === (section.productLine ?? null));
+      if (f) return f.cat.id;
+      return null; // 同名多节点且无法靠产品线消歧，不瞎猜
+    }
   }
   return list.length === 1 ? list[0].cat.id : null;
 }
@@ -403,14 +409,15 @@ async function buildTargets(
         // --product-line 过滤（config 模式）：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
         if (opts.productLine && section.productLine !== opts.productLine) continue;
         const categoryName = section.category ?? `${domain}::${section.key}`;
+        const breadcrumb = section.categoryPath ?? [categoryName];
         // 内容栏目（contentType !== 'products'）不绑品类：categories 是产品维度
         const categoryId =
           section.contentType !== 'products'
             ? null
-            : await upsertCategory(
+            : await upsertCategoryPath(
               db,
               companyId,
-              categoryName,
+              breadcrumb,
               section.startUrls[0] ?? cfg.startUrl ?? '',
               section.productLine ?? null,
               dryRun,
@@ -534,28 +541,29 @@ async function upsertCompany(db: Db, name: string): Promise<number> {
   return ins.id;
 }
 
-/**
- * 按 (companyId, productLine, name) 业务主键 upsert 品类（config 模式新建 / 复用）。
- * dryRun：改为仅预览——命中返回其 id（不更新），未命中只记「将新建」并返回哨兵 0，不做任何写入。
- */
-async function upsertCategory(
+/** 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点；返回其 id */
+async function upsertCategoryNode(
   db: Db,
   companyId: number,
   name: string,
-  url: string,
+  path: string,
   productLine: string | null,
+  url: string | null,
+  parentId: number | null,
+  level: number,
   dryRun: boolean,
   progress: Progress,
+  contentType = 'products',
 ): Promise<number> {
   const t = nowSeconds();
   const existing = await db
-    .select()
+    .select({ id: categories.id })
     .from(categories)
     .where(
       and(
         eq(categories.companyId, companyId),
-        productLine === null ? isNull(categories.productLine) : eq(categories.productLine, productLine),
-        eq(categories.name, name),
+        eq(categories.contentType, contentType),
+        eq(categories.path, path),
       ),
     )
     .limit(1);
@@ -563,20 +571,48 @@ async function upsertCategory(
     if (!dryRun) {
       await db
         .update(categories)
-        .set({ url, productLine, removedAt: null, updatedAt: t })
+        .set({ name, url, productLine, parentId, level, removedAt: null, updatedAt: t })
         .where(eq(categories.id, existing[0].id));
     }
     return existing[0].id;
   }
   if (dryRun) {
-    progress.update(`[crawl] (dry-run) 将新建品类 ${name} (productLine=${productLine ?? 'null'}, company=${companyId})`);
+    progress.update(`[crawl] (dry-run) 将新建分类 ${path} (contentType=${contentType}, company=${companyId})`);
     return 0;
   }
   const [ins] = await db
     .insert(categories)
-    .values({ companyId, productLine, name, url, removedAt: null, createdAt: t, updatedAt: t })
+    .values({ companyId, contentType, parentId, path, name, level, productLine, url, removedAt: null, createdAt: t, updatedAt: t })
     .returning();
   return ins.id;
+}
+
+/**
+ * 自顶向下建树并 upsert 栏目绑定的分类：breadcrumb（从根到栏目）逐层建节点，
+ * 计算 parent_id / path / level；productLine 作为最顶层根（兼容 --product-line）。返回叶子（本栏目所属分类）id。
+ */
+async function upsertCategoryPath(
+  db: Db,
+  companyId: number,
+  breadcrumb: string[],
+  url: string,
+  productLine: string | null,
+  dryRun: boolean,
+  progress: Progress,
+  contentType = 'products',
+): Promise<number> {
+  const full = productLine ? [productLine, ...breadcrumb] : breadcrumb.slice();
+  let parentId: number | null = null;
+  let leafId = 0;
+  for (let i = 0; i < full.length; i++) {
+    const isLeaf = i === full.length - 1;
+    parentId = await upsertCategoryNode(
+      db, companyId, full[i], full.slice(0, i + 1).join('/'), productLine,
+      isLeaf ? url : null, parentId, i, dryRun, progress, contentType,
+    );
+    leafId = parentId;
+  }
+  return leafId;
 }
 
 /** 模型兜底（形态 E）的栏目级统计 */
@@ -627,7 +663,10 @@ async function collectSection(args: {
         : undefined,
       onPage: async (html, _pageNo, pageUrl) => {
         let pageItems = parseListWithConfig(html, section.parseList, section.key);
-        for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+        for (const it of pageItems) {
+          it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+          it.listUrl = pageUrl ?? listUrl; // 溯源：本条出自哪个列表页
+        }
         // 适配器钩子：列表解析后二次加工（过滤/补字段）；同步异步均可，统一 await
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
@@ -692,6 +731,7 @@ async function collectSection(args: {
         englishName: normalized.englishName ?? null,
         brand: normalized.brand ?? null,
         detailUrl,
+        listUrl: it.listUrl ?? null,
         price: normalized.price ?? null,
         currency: section.currency,
         priceText: normalized.priceText ?? null,
@@ -803,6 +843,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
     .values({
       companyId: p.companyId,
       categoryId: p.categoryId,
+      contentType: 'products',
       sourceProductId: p.sourceProductId,
       sku: p.sku,
       dedupeKey: p.dedupeKey,
@@ -811,6 +852,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       englishName: p.englishName,
       brand: p.brand,
       detailUrl: p.detailUrl,
+      listUrl: p.listUrl,
       price: p.price,
       currency: p.currency,
       priceText: p.priceText,
@@ -832,12 +874,14 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       target: [products.companyId, products.dedupeKey, products.sectionKey],
       set: {
         categoryId: p.categoryId,
+        contentType: 'products',
         sourceProductId: p.sourceProductId,
         sku: p.sku,
         name: p.name,
         englishName: p.englishName,
         brand: p.brand,
         detailUrl: p.detailUrl,
+        listUrl: p.listUrl,
         price: p.price,
         currency: p.currency,
         priceText: p.priceText,
@@ -930,6 +974,7 @@ interface PendingContent {
   author: string | null;
   publishedAt: number | null;
   detailUrl: string | null;
+  listUrl: string | null;
   row: Record<string, unknown>;
 }
 
@@ -971,7 +1016,10 @@ async function collectContentSection(args: {
         : undefined,
       onPage: async (html, _pageNo, pageUrl) => {
         let pageItems = parseListWithConfig(html, section.parseList, section.key);
-        for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+        for (const it of pageItems) {
+          it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+          it.listUrl = pageUrl ?? listUrl; // 溯源：本条出自哪个列表页
+        }
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
         return pageItems.length;
@@ -1051,6 +1099,7 @@ export function toPendingContent(
     author: pick(row.author, row.source),
     publishedAt: parseDateStr(row.date ?? row.publishedAt ?? row.publishTime ?? row.publishDate ?? row.time),
     detailUrl: detailUrl || null,
+    listUrl: it.listUrl ?? null,
     row: { ...row, listTitle: it.name ?? undefined },
   };
 }
@@ -1115,6 +1164,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       author: c.author,
       publishedAt: c.publishedAt,
       detailUrl: c.detailUrl,
+      listUrl: c.listUrl,
       row: c.row,
       status: 'active',
       firstSeenAt: now,
@@ -1134,6 +1184,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
         author: c.author,
         publishedAt: c.publishedAt,
         detailUrl: c.detailUrl,
+        listUrl: c.listUrl,
         row: c.row,
         status: 'active',
         lastSeenAt: now,

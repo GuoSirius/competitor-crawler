@@ -133,6 +133,11 @@ export interface SectionConfig {
    */
   category?: string;
   /**
+   * 品类面包屑路径（从根到本栏目的各层级名，如 `['试剂', '抗体']`）。
+   * 用于构建通用分类表的无限层级树（parent_id + path）；省略时回退为单层级 `[category]`。
+   */
+  categoryPath?: string[];
+  /**
    * 产品线（对应 categories.product_line）。可选；用于 `crawl --product-line` 过滤。
    * 缺省该栏目不绑定产品线；指定 --product-line 时仅跑 productLine 命中的栏目。
    */
@@ -191,6 +196,12 @@ export interface SiteConfig {
   collects?: string;
   /** 列表页入口 URL（单规则写法用；多规则时作为各 section 的默认起点） */
   startUrl?: string;
+  /**
+   * 站点级默认品类面包屑路径（section 未指定 categoryPath 时继承；见 SectionConfig.categoryPath）。
+   */
+  categoryPath?: string[];
+  /** 站点级默认品类名（section 未指定 category 时继承；见 SectionConfig.category） */
+  category?: string;
   /** 顶层默认翻页策略（section 未单独指定时继承） */
   listTraversal?: ListTraversalConfig;
   /** 顶层默认列表规则（单规则站点直接写这里；section 未指定时继承） */
@@ -211,6 +222,8 @@ export interface ResolvedSection {
   contentType: string;
   /** 绑定的种子品类名（透传自 SectionConfig.category） */
   category?: string;
+  /** 品类面包屑路径（透传自 SectionConfig.categoryPath，缺省由 category 推断为单层级） */
+  categoryPath?: string[];
   /** 产品线（透传自 SectionConfig.productLine，缺省回退 SiteConfig.productLine） */
   productLine?: string;
   /** 站点币种（透传自 SiteConfig.currency，缺省 CNY） */

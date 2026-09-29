@@ -116,6 +116,11 @@ export interface ListItem {
    * 详情页常常缺价格/规格/货号，而列表页有 → 落库时以「详情优先、列表兜底」合并，提升字段覆盖率。
    */
   raw?: Record<string, unknown>;
+  /**
+   * 本条出自哪个列表页（翻页后的实际页 URL 优先，回退到 startUrl）。
+   * 落库写入 products.list_url / contents.list_url，用于溯源。
+   */
+  listUrl?: string;
 }
 
 // 说明：代码适配器契约不在 shared 定义——全量解析器形态（SiteAdapter）与现有

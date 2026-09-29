@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   companies,
   categories,
@@ -78,54 +78,69 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
     companyIdByName.set(s.companyName, companyId);
   }
 
-  // 2) 品类 upsert（按 公司 + 产品线 + 品类名）
+  // 2) 品类 upsert（按 公司 + 内容类型 + 路径 业务主键；产品线作根，品类挂其下）
   for (const s of seeds) {
     const companyId = companyIdByName.get(s.companyName)!;
     const productLine = s.productLine ?? null;
-    const key = `${companyId}|${productLine ?? ''}|${s.categoryName}`;
-    seenCatKeys.add(key);
-
-    const existing = await db
-      .select()
-      .from(categories)
-      .where(
-        and(
-          eq(categories.companyId, companyId),
-          productLine === null
-            ? isNull(categories.productLine)
-            : eq(categories.productLine, productLine),
-          eq(categories.name, s.categoryName),
-        ),
-      )
-      .limit(1);
-
-    if (existing.length) {
-      await db
-        .update(categories)
-        .set({ url: s.categoryUrl, sourceRow: s.sourceRow, removedAt: null, updatedAt: t })
-        .where(eq(categories.id, existing[0].id));
-    } else {
-      await db.insert(categories).values({
-        companyId,
-        productLine,
-        name: s.categoryName,
-        url: s.categoryUrl,
-        sourceRow: s.sourceRow,
-        removedAt: null,
-        createdAt: t,
-        updatedAt: t,
-      });
+    const catPath = productLine ? `${productLine}/${s.categoryName}` : s.categoryName;
+    let parentId: number | null = null;
+    if (productLine) {
+      // 产品线根节点
+      parentId = await upsertSeedCategory(db, companyId, productLine, productLine, productLine, null, null, 0, s.sourceRow, t);
+      seenCatKeys.add(`${companyId}|products|${productLine}`);
     }
+    await upsertSeedCategory(db, companyId, s.categoryName, catPath, productLine, s.categoryUrl, parentId, parentId === null ? 0 : 1, s.sourceRow, t);
+    seenCatKeys.add(`${companyId}|products|${catPath}`);
   }
 
-  // 3) 软标记本轮消失的品类（种子源删除）
+  // 3) 软标记本轮消失的品类（种子源删除）：按新业务主键 (companyId, contentType, path) 对账
   const allCats = await db.select().from(categories);
   for (const c of allCats) {
-    const key = `${c.companyId}|${c.productLine ?? ''}|${c.name}`;
+    const key = `${c.companyId}|products|${c.path}`;
     if (!seenCatKeys.has(key) && c.removedAt == null) {
       await db.update(categories).set({ removedAt: t, updatedAt: t }).where(eq(categories.id, c.id));
     }
   }
 
   return { companies: companyIdByName.size, categories: seeds.length };
+}
+
+type SeedDb = ReturnType<typeof createDb>['db'];
+
+/** 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点（seeds 数据源）。 */
+async function upsertSeedCategory(
+  db: SeedDb,
+  companyId: number,
+  name: string,
+  path: string,
+  productLine: string | null,
+  url: string | null,
+  parentId: number | null,
+  level: number,
+  sourceRow: Record<string, unknown>,
+  t: number,
+): Promise<number> {
+  const existing = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.companyId, companyId),
+        eq(categories.contentType, 'products'),
+        eq(categories.path, path),
+      ),
+    )
+    .limit(1);
+  if (existing.length) {
+    await db
+      .update(categories)
+      .set({ name, url, productLine, parentId, level, sourceRow, removedAt: null, updatedAt: t })
+      .where(eq(categories.id, existing[0].id));
+    return existing[0].id;
+  }
+  const [ins] = await db
+    .insert(categories)
+    .values({ companyId, contentType: 'products', parentId, path, name, level, productLine, url, sourceRow, removedAt: null, createdAt: t, updatedAt: t })
+    .returning();
+  return ins.id;
 }

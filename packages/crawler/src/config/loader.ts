@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
 import { repoRoot } from '@competitor-crawler/shared';
-import type { ListTraversalConfig, ResolvedSection, SiteConfig } from './types.js';
+import type { ListTraversalConfig, ResolvedSection, SectionConfig, SiteConfig } from './types.js';
 
 // 仓库根统一由 shared/src/paths.ts 提供（避免各处重复上溯算错层级）
 const sitesDir = path.join(repoRoot, 'config', 'sites');
@@ -79,6 +79,18 @@ const DEFAULT_TRAVERSAL: ListTraversalConfig = { strategy: 'pagination-html', ma
 const DEFAULT_CURRENCY = 'CNY';
 
 /**
+ * 推断栏目的品类面包屑：section.categoryPath > 顶层 categoryPath > section.category 单层级 > 顶层 category 单层级。
+ * 返回从根到本栏目的各层级名数组（产品线由 buildTargets/probe 单独负责挂到最顶层）。
+ */
+function inferCategoryPath(s: SectionConfig, cfg: SiteConfig): string[] | undefined {
+  if (s.categoryPath && s.categoryPath.length) return s.categoryPath;
+  if (cfg.categoryPath && cfg.categoryPath.length) return cfg.categoryPath;
+  if (s.category) return [s.category];
+  if (cfg.category) return [cfg.category];
+  return undefined;
+}
+
+/**
  * 把站点配置归一化为「栏目规则数组」，屏蔽单规则 / 多规则两种写法的差异。
  *
  * - 多规则（cfg.sections 非空）：逐 section 合并顶层默认值；key 缺省补 'default'。
@@ -104,6 +116,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         key: s.key || 'default',
         contentType: s.contentType ?? s.collects ?? topContentType,
         category: s.category,
+        categoryPath: inferCategoryPath(s, cfg),
         productLine: s.productLine ?? cfg.productLine,
         currency,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
@@ -123,6 +136,8 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
     {
       key: 'default',
       contentType: topContentType,
+      category: cfg.category,
+      categoryPath: inferCategoryPath({ category: cfg.category, categoryPath: cfg.categoryPath } as SectionConfig, cfg),
       productLine: cfg.productLine,
       currency,
       startUrls: topStartUrls,
