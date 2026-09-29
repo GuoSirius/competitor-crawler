@@ -51,6 +51,8 @@ export interface CrawlOpts {
   category?: string;
   /** 仅跑指定产品线（仅 --source seeds 生效，对应 categories.product_line）；config 模式忽略并提示 */
   productLine?: string;
+  /** 触发来源：manual（手动/cli）/ schedule（调度器）；写入 crawls.trigger 便于追溯 */
+  trigger?: 'manual' | 'schedule';
 }
 
 interface PendingProduct {
@@ -126,7 +128,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     [crawlRow] = await db
       .insert(crawls)
       .values({
-        trigger: 'manual',
+        trigger: opts.trigger ?? 'manual',
         status: 'running',
         modelMode: process.env.MODEL_MODE ?? null,
         startedAt: now,

@@ -9,6 +9,7 @@ import { genSiteTemplate } from './commands/genSiteTemplate.js';
 import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
 import { report } from './commands/report.js';
+import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags } from './util/args.js';
 
 // 路径统一由 shared/src/paths.ts 提供（不再本地上溯算层级）
@@ -85,6 +86,22 @@ async function main() {
       category: typeof flags.category === 'string' ? flags.category : undefined,
       out: typeof flags.out === 'string' ? flags.out : undefined,
     });
+  } else if (cmd === 'schedule') {
+    const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
+    if (flags.daemon === true || flags.daemon === 'true') {
+      // 默认季度首月 1 日 03:00 触发（与 docs/06.4 一致）
+      const stop = startDaemon(
+        { months: [1, 4, 7, 10], daysOfMonth: [1], hours: [3], minutes: [0] },
+        { source },
+      );
+      console.log('[schedule] 守护进程已启动，按季度首月 1 日 03:00 触发（Ctrl+C 退出）');
+      process.on('SIGINT', () => {
+        stop();
+        process.exit(0);
+      });
+    } else {
+      await runScheduledCrawl({ source });
+    }
   } else {
     console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|report> [--flags]');
     console.log('  crawl 额外参数: --source config|seeds (默认 seeds) --site <d> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');

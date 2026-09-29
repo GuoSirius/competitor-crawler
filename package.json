@@ -16,6 +16,7 @@
     "gen-site:batch": "pnpm --filter @competitor-crawler/crawler gen-site:batch",
     "gen-site:template": "pnpm --filter @competitor-crawler/crawler gen-site:template",
     "backfill": "pnpm --filter @competitor-crawler/crawler backfill",
+    "schedule": "pnpm --filter @competitor-crawler/crawler schedule",
     "playwright:install": "pnpm --filter @competitor-crawler/crawler exec playwright install chromium",
     "dev:web": "pnpm --filter @competitor-crawler/web dev",
     "build:web": "pnpm --filter @competitor-crawler/web build",
