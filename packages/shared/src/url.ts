@@ -1,13 +1,13 @@
-// URL 规范化与去重键（单一事实源，见 docs/03 §3.4）
+// URL 规范化与身份键（单一事实源，见 docs/03 §3.4）
 //
 // 统一规则（站点间共用，保证「有站点产品 id 用 id、无 id 用 canonical(detail_url)」都不重复）：
 //   1) 相对链接 → 绝对链接（基于列表页 URL 解析）
 //   2) canonical：去 # 锚点 → 去 utm_* / gclid / fbclid 等追踪参数 → 去末尾 / →
 //      主机与路径转小写（query 保留原大小写）→ 剥 www. 前缀
-//   3) dedupe_key = COALESCE(source_product_id, canonical(detail_url))
+//   3) identity_key（身份键）= COALESCE(source_product_id, canonical(detail_url))
 //
-// ⚠️ 货号（sku）**不参与**去重：货号是产品级唯一，同货号可对应多张规格页，
-//    拿它当去重键会误合并。去重键须表达「页面级」唯一。
+// ⚠️ 货号（sku）**不参与**身份键：货号是产品级唯一，同货号可对应多张规格页，
+//    拿它当身份键会误合并。身份键须表达「页面级」唯一。
 
 /** 追踪参数（小写匹配）：不参与去重，canonical 时剔除 */
 const TRACKING_PARAM = /^(utm_|gclid$|fbclid$|spm$|scm$|from$|ref$)/i;
@@ -62,8 +62,8 @@ export function domainOf(url: string | null | undefined): string {
   }
 }
 
-/** 去重键：优先站点自身产品 id（**非货号 sku**，id 与货号语义不同），否则用规范化详情链接（COALESCE，见 docs/03 §3.4） */
-export function pickDedupeKey(sourceProductId: string | null | undefined, detailUrl: string | null | undefined): string {
+/** 身份键：优先站点自身产品 id（**非货号 sku**，id 与货号语义不同），否则用规范化详情链接（COALESCE，见 docs/03 §3.4） */
+export function pickIdentityKey(sourceProductId: string | null | undefined, detailUrl: string | null | undefined): string {
   const pid = (sourceProductId ?? '').trim();
   if (pid) return pid;
   return canonicalizeUrl(detailUrl);

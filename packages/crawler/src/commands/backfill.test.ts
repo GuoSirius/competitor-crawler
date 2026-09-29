@@ -32,7 +32,7 @@ function product(overrides: Record<string, unknown> = {}) {
     companyId,
     categoryId: null,
     sectionKey: 'default',
-    dedupeKey: `k-${Math.random().toString(36).slice(2)}`,
+    identityKey: `k-${Math.random().toString(36).slice(2)}`,
     row: {},
     status: 'active',
     firstSeenAt: now,
@@ -46,29 +46,29 @@ function product(overrides: Record<string, unknown> = {}) {
 describe('backfill 字段晋升回填（真实 SQLite）', () => {
   it('dry=true 只统计不写库；正式跑回填 row 值到列，且幂等', async () => {
     await db.insert(products).values([
-      product({ dedupeKey: 'b1', row: { 'Clone Number': 'K-01' } }),
-      product({ dedupeKey: 'b2', row: { 'Clone Number': '' } }), // row 值为空 → 不命中
-      product({ dedupeKey: 'b3', row: {}, cloneNumber: '已填' }), // 列已有值 → 跳过
+      product({ identityKey: 'b1', row: { 'Clone Number': 'K-01' } }),
+      product({ identityKey: 'b2', row: { 'Clone Number': '' } }), // row 值为空 → 不命中
+      product({ identityKey: 'b3', row: {}, cloneNumber: '已填' }), // 列已有值 → 跳过
     ] as never);
 
     // dry：只统计（b1 命中；b2/b3 跳过）
     await backfill({ column: 'cloneNumber', rowKey: 'Clone Number', dry: true });
-    const [b1dry] = await db.select().from(products).where(eq(products.dedupeKey, 'b1'));
+    const [b1dry] = await db.select().from(products).where(eq(products.identityKey, 'b1'));
     expect(b1dry.cloneNumber).toBeNull();
 
     // 正式回填
     await backfill({ column: 'cloneNumber', rowKey: 'Clone Number' });
-    const [b1] = await db.select().from(products).where(eq(products.dedupeKey, 'b1'));
+    const [b1] = await db.select().from(products).where(eq(products.identityKey, 'b1'));
     expect(b1.cloneNumber).toBe('K-01');
 
     // 幂等：再跑一次不会改写
     await backfill({ column: 'cloneNumber', rowKey: 'Clone Number' });
-    const [b1again] = await db.select().from(products).where(eq(products.dedupeKey, 'b1'));
+    const [b1again] = await db.select().from(products).where(eq(products.identityKey, 'b1'));
     expect(b1again.cloneNumber).toBe('K-01');
 
     // 清理本用例行，避免影响后续用例统计
-    await db.delete(products).where(eq(products.dedupeKey, 'b1'));
-    await db.delete(products).where(eq(products.dedupeKey, 'b2'));
-    await db.delete(products).where(eq(products.dedupeKey, 'b3'));
+    await db.delete(products).where(eq(products.identityKey, 'b1'));
+    await db.delete(products).where(eq(products.identityKey, 'b2'));
+    await db.delete(products).where(eq(products.identityKey, 'b3'));
   });
 });

@@ -56,7 +56,7 @@ export interface IntroMedia {
 export interface NormalizedProduct {
   /**
    * 站点自身的产品 id。有就写，没有留空（**不用货号兜底**）。
-   * 去重键 dedupe_key = COALESCE(source_product_id, canonical(detail_url)) —— 货号不参与去重，
+   * 身份键 identity_key = COALESCE(source_product_id, canonical(detail_url)) —— 货号不参与，
    * 因为同货号可能对应多个规格的多张页面（详见 schema.ts 注释）。
    */
   sourceProductId?: string | null;
@@ -107,7 +107,7 @@ export interface ListItem {
   name?: string;
   /**
    * 栏目标识（多规则站点用）。列表阶段写入，详情阶段据此选对应 section 的抽取规则；
-   * 同时参与 products 去重键（company_id, dedupe_key, section_key，见去重口径 B）。
+   * 同时参与 products 唯一键（company_id, identity_key, section_key，见去重口径 B）。
    * 单规则站点为空/省略，落库时统一为 'default'。
    */
   sectionKey?: string;

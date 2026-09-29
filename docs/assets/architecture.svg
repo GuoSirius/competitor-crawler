@@ -91,7 +91,7 @@
   <rect x="36" y="752" width="820" height="98" rx="12" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
   <circle cx="66" cy="784" r="15" fill="#22c55e"/><text x="66" y="789" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">7</text>
   <text x="92" y="782" class="bt">增量落库 · 去重 / 软删 / 价格时序</text>
-  <text x="92" y="802" class="bs">dedupe_key = COALESCE(source_product_id, canonical(detail_url))　·　UNIQUE <tspan font-weight="700">(company_id, dedupe_key, section_key)</tspan> → 冲突即 upsert</text>
+  <text x="92" y="802" class="bs">identity_key = COALESCE(source_product_id, canonical(detail_url))　·　UNIQUE <tspan font-weight="700">(company_id, identity_key, section_key)</tspan> → 冲突即 upsert</text>
   <text x="92" y="822" class="bs">⚠️ 货号 sku 绝不参与去重（去重=页面级，货号=产品级，同货号可多张规格页）　·　口径 B：同 SKU 不同栏目分列两条</text>
   <text x="92" y="840" class="bd">连续 2 轮未再见 → status=delisted（物理不删）　·　price_history 仅「首次入库 / 价格变化」追加，当前只写不读</text>
 
@@ -170,8 +170,8 @@
   <rect x="884" y="530" width="480" height="252" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
   <text x="904" y="558" class="bt" fill="#b45309">关键不变量（改动前必读）</text>
 
-  <text x="904" y="584" class="bs" fill="#92400e">① 去重键 = (company_id, dedupe_key, section_key)</text>
-  <text x="920" y="601" class="bd">dedupe_key = COALESCE(source_product_id, canonical(detail_url))</text>
+  <text x="904" y="584" class="bs" fill="#92400e">① 去重键 = (company_id, identity_key, section_key)</text>
+  <text x="920" y="601" class="bd">identity_key = COALESCE(source_product_id, canonical(detail_url))</text>
 
   <text x="904" y="625" class="bs" fill="#92400e">② 货号 sku 绝不参与去重</text>
   <text x="920" y="642" class="bd">去重键表达「页面级」唯一；货号是「产品级」唯一，同货号常有多张规格页</text>

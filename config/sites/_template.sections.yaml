@@ -11,7 +11,7 @@
 #   2) 顶层字段（listTraversal / parseList / parseDetail）是「公共默认值」，section 未写的项自动继承；
 #   3) 列表阶段给每条 ListItem 打上 sectionKey → 详情阶段「按 sectionKey 选规则」，零歧义；
 #   4) 去重口径 B：同一 SKU 出现在两个 section 时，「分开为两条」
-#      —— products 唯一键为 (company_id, dedupe_key, section_key)，
+#      —— products 唯一键为 (company_id, identity_key, section_key)，
 #         适合「同 SKU 在不同栏目详情内容确实不同」的场景。
 #
 # ★ 归一化规则（resolveSections）：
@@ -235,7 +235,7 @@ sections:
 #      · 起点 startUrls：section.startUrls（非空）?? [顶层 startUrl]
 #
 # 3) 去重口径 B（同 SKU 多栏目 = 两条）：
-#      products 唯一键 = (company_id, dedupe_key, section_key)
+#      products 唯一键 = (company_id, identity_key, section_key)
 #      同一 SKU 落在「all-products」与「promo」两个栏目时，各自占用一行；
 #      单规则站点所有产品 section_key 统一为 'default'，行为与旧版完全一致。
 #

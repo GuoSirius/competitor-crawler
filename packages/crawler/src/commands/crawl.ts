@@ -11,7 +11,7 @@ import {
   nowSeconds,
   absoluteUrl,
   domainOf,
-  pickDedupeKey,
+  pickIdentityKey,
   toNumber,
   unixFromBjParts,
   type ListItem,
@@ -65,7 +65,7 @@ interface PendingProduct {
   companyId: number;
   categoryId: number | null;
   sectionKey: string;
-  dedupeKey: string;
+  identityKey: string;
   sourceProductId: string | null;
   sku: string | null;
   name: string | null;
@@ -111,7 +111,7 @@ interface CrawlSummary {
  * 绑定到种子品类（categories.name），未绑定则按域名兜底（唯一品类则用它，否则 category_id 记空）。
  *
  * - 单站/单条失败隔离：某栏目或某详情失败只计 failed 并继续，不整轮失败。
- * - 去重口径 B：写入冲突目标为 (company_id, dedupe_key, section_key)，见 docs/03 §3.4。
+ * - 去重口径 B：写入冲突目标为 (company_id, identity_key, section_key)，见 docs/03 §3.4。
  */
 export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   const progress = new Progress();
@@ -150,7 +150,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   }
 
   const companyIds = new Set<number>();
-  // 每个 (companyId|sectionKey) 见到的 dedupeKey，用于软删判断
+  // 每个 (companyId|sectionKey) 见到的 identityKey，用于软删判断
   const seenKeys = new Map<string, Set<string>>();
   const seenSet = (cid: number, sectionKey: string): Set<string> => {
     const k = `${cid}|${sectionKey}`;
@@ -232,15 +232,15 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
             continue;
           }
           const existedC = await loadExistingContents(db, companyId, section.key);
-          // 同一栏目内 dedupeKey 唯一化（与产品管线同口径）
-          const uniqueC = uniqueBy(pendingC, (c) => c.dedupeKey);
+          // 同一栏目内 identityKey 唯一化（与产品管线同口径）
+          const uniqueC = uniqueBy(pendingC, (c) => c.identityKey);
           if (uniqueC.length !== pendingC.length) {
             progress.update(
               `[crawl] ${domain} [${section.key}] 内容去重键唯一化：${pendingC.length} → ${uniqueC.length} 条`,
             );
           }
           for (const c of uniqueC) {
-            const prev = existedC.get(c.dedupeKey);
+            const prev = existedC.get(c.identityKey);
             await upsertContent(db, c, now);
             if (prev) summary.contentUpdated++;
             else summary.contentNew++;
@@ -311,15 +311,15 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         }
 
         const existed = await loadExisting(db, companyId, section.key);
-        // 同一栏目内 dedupeKey 唯一化：同一去重键只应写一条，否则计数虚高且重复 upsert。
-        const unique = uniqueBy(pending, (p) => p.dedupeKey);
+        // 同一栏目内 identityKey 唯一化：同一身份键只应写一条，否则计数虚高且重复 upsert。
+        const unique = uniqueBy(pending, (p) => p.identityKey);
         if (unique.length !== pending.length) {
           progress.update(
             `[crawl] ${domain} [${section.key}] 去重键唯一化：${pending.length} → ${unique.length} 条`,
           );
         }
         for (const p of unique) {
-          const prev = existed.get(p.dedupeKey);
+          const prev = existed.get(p.identityKey);
           const productId = await upsertProduct(db, p, now);
           if (prev) summary.updated++;
           else summary.new++;
@@ -716,15 +716,15 @@ async function collectSection(args: {
         }
       }
       // source_product_id 语义纯净：只装「站点自身的产品 id」，没有就留空（**不用货号兜底**）。
-      // 去重键随后由 pickDedupeKey 兜底到 canonical(detail_url)，见下方 dedupeKey。
+      // 身份键随后由 pickIdentityKey 兜底到规范化详情链接（canonical）。
       const sourceProductId = normalized.sourceProductId ?? null;
-      const dedupeKey = pickDedupeKey(sourceProductId, detailUrl);
-      if (!dedupeKey) return;
+      const identityKey = pickIdentityKey(sourceProductId, detailUrl);
+      if (!identityKey) return;
       pending.push({
         companyId,
         categoryId,
         sectionKey: section.key,
-        dedupeKey,
+        identityKey,
         sourceProductId,
         sku: normalized.sku ?? null,
         name: normalized.name ?? it.name ?? null,
@@ -743,7 +743,7 @@ async function collectSection(args: {
         applications: normalized.applications ?? null,
         row: { ...normalized.row, listName: it.name ?? undefined },
       });
-      seenSet(companyId, section.key).add(dedupeKey);
+      seenSet(companyId, section.key).add(identityKey);
     } catch (e) {
       // 详情失败隔离：跳过该条继续，但**必须可见**（记日志 + 计数，不再静默丢数据）
       detailFailed++;
@@ -805,17 +805,17 @@ async function applyApiSourcesLogged(
   }
 }
 
-/** 读取某公司某栏目下现有产品：dedupeKey → { id, price }（用于判断 new/updated 与价格变化） */
+/** 读取某公司某栏目下现有产品：identityKey → { id, price }（用于判断 new/updated 与价格变化） */
 async function loadExisting(
   db: Db,
   companyId: number,
   sectionKey: string,
 ): Promise<Map<string, { id: number; price: number | null }>> {
   const rows = await db
-    .select({ id: products.id, dedupeKey: products.dedupeKey, price: products.price })
+    .select({ id: products.id, identityKey: products.identityKey, price: products.price })
     .from(products)
     .where(and(eq(products.companyId, companyId), eq(products.sectionKey, sectionKey)));
-  return new Map(rows.map((r) => [r.dedupeKey, { id: r.id, price: r.price }]));
+  return new Map(rows.map((r) => [r.identityKey, { id: r.id, price: r.price }]));
 }
 
 /** 追加一条价格历史（仅写入，消费端待后续接入） */
@@ -846,7 +846,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       contentType: 'products',
       sourceProductId: p.sourceProductId,
       sku: p.sku,
-      dedupeKey: p.dedupeKey,
+      identityKey: p.identityKey,
       sectionKey: p.sectionKey,
       name: p.name,
       englishName: p.englishName,
@@ -871,7 +871,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: [products.companyId, products.dedupeKey, products.sectionKey],
+      target: [products.companyId, products.identityKey, products.sectionKey],
       set: {
         categoryId: p.categoryId,
         contentType: 'products',
@@ -914,7 +914,7 @@ async function softDeleteMissing(
   now: number,
 ): Promise<number> {
   const rows = await db
-    .select({ id: products.id, dedupeKey: products.dedupeKey, missingSince: products.missingSince })
+    .select({ id: products.id, identityKey: products.identityKey, missingSince: products.missingSince })
     .from(products)
     .where(
       and(
@@ -925,7 +925,7 @@ async function softDeleteMissing(
     );
   let delisted = 0;
   for (const r of rows) {
-    if (seenKeys.has(r.dedupeKey)) continue;
+    if (seenKeys.has(r.identityKey)) continue;
     if (r.missingSince == null) {
       await db.update(products).set({ missingSince: now, updatedAt: now }).where(eq(products.id, r.id));
     } else {
@@ -966,7 +966,7 @@ interface PendingContent {
   /** 内容类型（= section.contentType，原样写入 contents.content_type） */
   contentType: string;
   sectionKey: string;
-  dedupeKey: string;
+  identityKey: string;
   sourceId: string | null;
   title: string;
   summary: string | null;
@@ -1049,7 +1049,7 @@ async function collectContentSection(args: {
       const c = toPendingContent(np, it, it.detailUrl, companyId, section.key, section.contentType);
       if (c) {
         pending.push(c);
-        seenSet(companyId, section.key).add(c.dedupeKey);
+        seenSet(companyId, section.key).add(c.identityKey);
       }
     } catch (e) {
       // 单条失败隔离：跳过该条继续，但记日志 + 计数（不再静默）
@@ -1065,7 +1065,7 @@ async function collectContentSection(args: {
  * - title：详情 name → row.title → 列表名
  * - summary：row.summary → description；body：row.body / row.content / row.text
  * - publishedAt：row.date / publishedAt / publishTime / publishDate / time → Unix 秒
- * - dedupeKey：COALESCE(source_id, canonical(detail_url))，同产品口径
+ * - identityKey：COALESCE(source_id, canonical(detail_url))，同产品口径
  */
 export function toPendingContent(
   np: NormalizedProduct,
@@ -1085,13 +1085,13 @@ export function toPendingContent(
   const title = pick(np.name, row.title, it.name);
   if (!title) return null; // 无标题丢弃
   const sourceId = pick(np.sourceProductId, row.sourceId, row.articleId, row.newsId);
-  const dedupeKey = pickDedupeKey(sourceId, detailUrl);
-  if (!dedupeKey) return null;
+  const identityKey = pickIdentityKey(sourceId, detailUrl);
+  if (!identityKey) return null;
   return {
     companyId,
     contentType,
     sectionKey,
-    dedupeKey,
+    identityKey,
     sourceId,
     title,
     summary: pick(row.summary, np.description),
@@ -1135,17 +1135,17 @@ export function parseDateStr(v: unknown): number | null {
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
 }
 
-/** 读取某公司某栏目下现有内容：dedupeKey → id（用于 new/updated 判定） */
+/** 读取某公司某栏目下现有内容：identityKey → id（用于 new/updated 判定） */
 async function loadExistingContents(
   db: Db,
   companyId: number,
   sectionKey: string,
 ): Promise<Map<string, number>> {
   const rows = await db
-    .select({ id: contents.id, dedupeKey: contents.dedupeKey })
+    .select({ id: contents.id, identityKey: contents.identityKey })
     .from(contents)
     .where(and(eq(contents.companyId, companyId), eq(contents.sectionKey, sectionKey)));
-  return new Map(rows.map((r) => [r.dedupeKey, r.id]));
+  return new Map(rows.map((r) => [r.identityKey, r.id]));
 }
 
 /** 内容 upsert（导出供集成冒烟测试使用） */
@@ -1156,7 +1156,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       companyId: c.companyId,
       contentType: c.contentType,
       sectionKey: c.sectionKey,
-      dedupeKey: c.dedupeKey,
+      identityKey: c.identityKey,
       sourceId: c.sourceId,
       title: c.title,
       summary: c.summary,
@@ -1174,7 +1174,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: [contents.companyId, contents.dedupeKey, contents.sectionKey],
+      target: [contents.companyId, contents.identityKey, contents.sectionKey],
       set: {
         contentType: c.contentType,
         sourceId: c.sourceId,
@@ -1206,7 +1206,7 @@ export async function softDeleteMissingContents(
   now: number,
 ): Promise<number> {
   const rows = await db
-    .select({ id: contents.id, dedupeKey: contents.dedupeKey, missingSince: contents.missingSince })
+    .select({ id: contents.id, identityKey: contents.identityKey, missingSince: contents.missingSince })
     .from(contents)
     .where(
       and(
@@ -1217,7 +1217,7 @@ export async function softDeleteMissingContents(
     );
   let removed = 0;
   for (const r of rows) {
-    if (seenKeys.has(r.dedupeKey)) continue;
+    if (seenKeys.has(r.identityKey)) continue;
     if (r.missingSince == null) {
       await db.update(contents).set({ missingSince: now, updatedAt: now }).where(eq(contents.id, r.id));
     } else {

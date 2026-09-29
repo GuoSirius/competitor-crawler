@@ -128,11 +128,11 @@
   <!-- 落库 -->
   <text x="36" y="1210" class="bs" font-weight="700" fill="#15803d">④ 增量落库</text>
   <rect x="48" y="1220" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
-  <text x="64" y="1240" class="bt">pickDedupeKey() : COALESCE(source_product_id, canonical(detail_url))</text>
+  <text x="64" y="1240" class="bt">pickIdentityKey() : COALESCE(source_product_id, canonical(detail_url))</text>
   <text x="64" y="1258" class="bd">⚠️ 货号 sku 不参与 —— 去重键表达「页面级」唯一，货号是「产品级」唯一</text>
 
   <rect x="48" y="1284" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
-  <text x="64" y="1304" class="bt">upsert ON CONFLICT (company_id, dedupe_key, section_key)</text>
+  <text x="64" y="1304" class="bt">upsert ON CONFLICT (company_id, identity_key, section_key)</text>
   <text x="64" y="1322" class="bd">口径 B：同 SKU 出现在不同栏目 → 分列两条；单规则站点统一 section_key='default'</text>
 
   <rect x="48" y="1348" width="680" height="52" rx="10" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
@@ -270,9 +270,9 @@
   <text x="784" y="1198" class="rh" fill="#15803d">落库口径（★核心）</text>
 
   <text x="784" y="1222" class="rt">组合唯一索引</text>
-  <text x="884" y="1222" class="rb">UNIQUE(company_id, dedupe_key, section_key)　冲突即 upsert</text>
+  <text x="884" y="1222" class="rb">UNIQUE(company_id, identity_key, section_key)　冲突即 upsert</text>
 
-  <text x="784" y="1246" class="rt">dedupe_key 生成</text>
+  <text x="784" y="1246" class="rt">identity_key 生成</text>
   <text x="800" y="1263" class="rb">COALESCE(source_product_id, canonical(detail_url))</text>
   <text x="800" y="1279" class="rb">canonical = 转小写 → 去 utm_* 追踪参数 → 去锚点 → 去末尾斜杠</text>
 
@@ -281,7 +281,7 @@
   <text x="800" y="1336" class="rb">拿它当去重键会误合并 → 数据丢失；货号只用于跨公司对齐 / 比价</text>
 
   <text x="784" y="1360" class="rt">四层字段</text>
-  <text x="800" y="1377" class="rb">① 身份（company/category/section/dedupe/sourceProductId/sku/name/detailUrl）</text>
+  <text x="800" y="1377" class="rb">① 身份（company/category/section/identityKey/sourceProductId/sku/name/detailUrl）</text>
   <text x="800" y="1393" class="rb">② 可比（price/currency/priceText/specText/brand/englishName）</text>
   <text x="800" y="1409" class="rb">③ 描述（description/introMedia）　④ 扩展（row/specs/applications/cloneNumber）</text>
   <text x="784" y="1432" class="rb" fill="#15803d">字段晋升：row 中重要字段 → 加列 → pnpm db:push → pnpm backfill 回填（幂等）</text>

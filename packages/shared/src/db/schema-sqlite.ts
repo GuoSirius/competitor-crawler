@@ -53,7 +53,7 @@ export const products = sqliteTable('products', {
   contentType: text('content_type').notNull().default('products'), // 统一语义：恒 'products'
   sourceProductId: text('source_product_id'), // 站点自身产品 id（有则写，无则空）
   sku: text('sku'), // 货号 / catalog number（跨公司比价首选键）
-  dedupeKey: text('dedupe_key').notNull(), // 去重键 = COALESCE(source_product_id, canonical(detail_url))
+  identityKey: text('identity_key').notNull(), // 身份键 = 站点产品id，无则规范化详情URL（COALESCE）
   sectionKey: text('section_key').notNull().default('default'), // 同 SKU 跨栏目分开；默认 default
   name: text('name'),
   englishName: text('english_name'),
@@ -78,7 +78,7 @@ export const products = sqliteTable('products', {
   updatedAt: integer('updated_at').notNull(),
 }, (t) => [
   // upsert 键：公司内按 (去重键, 栏目) 唯一（去重口径 B）
-  uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey, t.sectionKey),
+  uniqueIndex('uniq_product').on(t.companyId, t.identityKey, t.sectionKey),
   index('idx_product_section').on(t.companyId, t.sectionKey, t.status), // 软删 / 按栏目加载
   index('idx_product_cat').on(t.companyId, t.categoryId, t.status), // 按品类 / 状态筛选
   index('idx_company_sku').on(t.companyId, t.sku), // 跨公司按货号对齐
@@ -130,7 +130,7 @@ export const contents = sqliteTable('contents', {
   categoryId: integer('category_id').references(() => categories.id), // 通用分类表外键（content_type 同本行）
   contentType: text('content_type').notNull().default('news'), // = section.contentType
   sectionKey: text('section_key').notNull().default('default'),
-  dedupeKey: text('dedupe_key').notNull(), // = COALESCE(source_id, canonical(detail_url))
+  identityKey: text('identity_key').notNull(), // 身份键 = 站点内容id，无则规范化详情URL（COALESCE）
   sourceId: text('source_id'), // 站点自身内容 id（如文章 id）
   title: text('title').notNull(),
   summary: text('summary'),
@@ -147,7 +147,7 @@ export const contents = sqliteTable('contents', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => [
-  uniqueIndex('uniq_content').on(t.companyId, t.dedupeKey, t.sectionKey),
+  uniqueIndex('uniq_content').on(t.companyId, t.identityKey, t.sectionKey),
   index('idx_content_section').on(t.companyId, t.sectionKey, t.status), // 软删 / 按栏目加载
   index('idx_content_type').on(t.companyId, t.contentType, t.categoryId, t.status), // 按类型 / 分类筛选
   index('idx_content_published').on(t.publishedAt), // 按发布时间排序

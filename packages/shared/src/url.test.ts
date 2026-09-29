@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { absoluteUrl, canonicalizeUrl, domainOf, pickDedupeKey } from './url.js';
+import { absoluteUrl, canonicalizeUrl, domainOf, pickIdentityKey } from './url.js';
 
 describe('canonicalizeUrl', () => {
   it('去掉 hash、末尾斜杠并转小写', () => {
@@ -41,22 +41,22 @@ describe('domainOf', () => {
   });
 });
 
-describe('pickDedupeKey（去重口径：站点id → canonical(url)，货号不参与）', () => {
+describe('pickIdentityKey（身份键：站点id → canonical(url)，货号不参与）', () => {
   it('有站点产品 id 时直接用 id（原样，不做规范化）', () => {
-    expect(pickDedupeKey('SKU-1', 'https://x.com/p/1')).toBe('SKU-1');
+    expect(pickIdentityKey('SKU-1', 'https://x.com/p/1')).toBe('SKU-1');
   });
 
   it('无站点 id 时用 canonical(detail_url)', () => {
-    expect(pickDedupeKey(null, 'https://X.com/p/1/?utm_source=a')).toBe('https://x.com/p/1');
+    expect(pickIdentityKey(null, 'https://X.com/p/1/?utm_source=a')).toBe('https://x.com/p/1');
   });
 
   it('两者都空返回空串（调用方据此跳过该条）', () => {
-    expect(pickDedupeKey(null, null)).toBe('');
+    expect(pickIdentityKey(null, null)).toBe('');
   });
 
   it('同货号不同规格页会产生**不同**去重键（证明货号未参与去重）', () => {
-    const a = pickDedupeKey(null, 'https://x.com/p_more/pid/9731.html');
-    const b = pickDedupeKey(null, 'https://x.com/p_more/pid/9732.html');
+    const a = pickIdentityKey(null, 'https://x.com/p_more/pid/9731.html');
+    const b = pickIdentityKey(null, 'https://x.com/p_more/pid/9732.html');
     expect(a).not.toBe(b);
   });
 });

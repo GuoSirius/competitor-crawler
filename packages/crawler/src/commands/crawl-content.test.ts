@@ -97,13 +97,13 @@ describe('toPendingContent · NormalizedProduct → PendingContent 映射', () =
     expect(c3?.body).toBe('text 正文');
   });
 
-  it('dedupeKey：sourceId 优先，缺省退 canonical(detailUrl)', () => {
+  it('identityKey：sourceId 优先，缺省退 canonical(detailUrl)', () => {
     const withId = toPendingContent(np({ sourceProductId: 'a-001', row: {} }), baseItem, baseItem.detailUrl, 1, 'news', 'news');
-    expect(withId?.dedupeKey).toBe('a-001');
+    expect(withId?.identityKey).toBe('a-001');
 
     const noId = toPendingContent(np({ row: {} }), baseItem, baseItem.detailUrl, 1, 'news', 'news');
-    expect(noId?.dedupeKey).toBeTruthy();
-    expect(noId?.dedupeKey).not.toBe(''); // canonical(url) 非空
+    expect(noId?.identityKey).toBeTruthy();
+    expect(noId?.identityKey).not.toBe(''); // canonical(url) 非空
   });
 
   it('row 快照保留原始字段 + listTitle', () => {

@@ -7,7 +7,7 @@ import { mysqlTable, int, double, text, varchar, json, index, uniqueIndex, type 
 //
 // ⚠️ MySQL 索引字节预算（InnoDB ≤3072 字节，utf8mb4 每字符 4 字节）：
 //   凡参与索引的字符串列必须 varchar 定长。本文件唯一键字节核算——
-//     uniq_product / uniq_content = int(4) + dedupe_key 700×4=2800 + section_key 64×4=256 = 3060 ≤ 3072
+//     uniq_product / uniq_content = int(4) + identity_key 700×4=2800 + section_key 64×4=256 = 3060 ≤ 3072
 //     uniq_cat = int(4) + content_type 32×4=128 + path 700×4=2800 = 2932 ≤ 3072
 //   非索引字符串列（name/title/url/brand…）同样 varchar 定长、充分预留，杜绝「Data too long」。
 
@@ -54,7 +54,7 @@ export const products = mysqlTable('products', {
   contentType: varchar('content_type', { length: 32 }).notNull().default('products'),
   sourceProductId: varchar('source_product_id', { length: 255 }),
   sku: varchar('sku', { length: 255 }),
-  dedupeKey: varchar('dedupe_key', { length: 700 }).notNull(),
+  identityKey: varchar('identity_key', { length: 700 }).notNull(),
   sectionKey: varchar('section_key', { length: 64 }).notNull().default('default'),
   name: varchar('name', { length: 512 }),
   englishName: varchar('english_name', { length: 255 }),
@@ -78,7 +78,7 @@ export const products = mysqlTable('products', {
   createdAt: int('created_at').notNull(),
   updatedAt: int('updated_at').notNull(),
 }, (t) => [
-  uniqueIndex('uniq_product').on(t.companyId, t.dedupeKey, t.sectionKey),
+  uniqueIndex('uniq_product').on(t.companyId, t.identityKey, t.sectionKey),
   index('idx_product_section').on(t.companyId, t.sectionKey, t.status),
   index('idx_product_cat').on(t.companyId, t.categoryId, t.status),
   index('idx_company_sku').on(t.companyId, t.sku),
@@ -126,7 +126,7 @@ export const contents = mysqlTable('contents', {
   categoryId: int('category_id').references(() => categories.id),
   contentType: varchar('content_type', { length: 32 }).notNull().default('news'),
   sectionKey: varchar('section_key', { length: 64 }).notNull().default('default'),
-  dedupeKey: varchar('dedupe_key', { length: 700 }).notNull(),
+  identityKey: varchar('identity_key', { length: 700 }).notNull(),
   sourceId: varchar('source_id', { length: 255 }),
   title: varchar('title', { length: 512 }).notNull(),
   summary: text('summary'),
@@ -143,7 +143,7 @@ export const contents = mysqlTable('contents', {
   createdAt: int('created_at').notNull(),
   updatedAt: int('updated_at').notNull(),
 }, (t) => [
-  uniqueIndex('uniq_content').on(t.companyId, t.dedupeKey, t.sectionKey),
+  uniqueIndex('uniq_content').on(t.companyId, t.identityKey, t.sectionKey),
   index('idx_content_section').on(t.companyId, t.sectionKey, t.status),
   index('idx_content_type').on(t.companyId, t.contentType, t.categoryId, t.status),
   index('idx_content_published').on(t.publishedAt),
