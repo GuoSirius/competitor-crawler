@@ -31,11 +31,27 @@
 #   + number 数值化 / sel:'$self' 读元素自身 / json+jsonPath+pick 解析内联 JSON），
 #   此处不再重复列举，详见 _template.yaml 与 docs/05。
 # ★ 每个 section 的 parseDetail 均可单独配 `api:`（异步接口数据源，形态 D，见模板 A「六」）。
+#
+# ★★ config/sites/ 目录是爬取范围的唯一真相源（crawl 默认 --source config）★★
+#   放一个 <domain>.yaml 就爬一个站，删掉就不爬；seed Excel 仅作一次性初始化导入。
 # ============================================================================
 
 domain: example.com
+# 公司归属（写入 companies；同名=同一家公司，多域名共用同一 company）
+company: 示例生物科技有限公司        # 站点归属公司名；省略时回退为 domain
+# competitorType: 多肽合成试剂       # 竞品类型（可选；写入 companies.competitor_type）
+# role: competitor                  # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
+# ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）
 # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
 currency: CNY
+
+# 顶层默认「分类归属」（各 section 未指定时继承；三种来源优先级 categoryFromPage > categoryPath > category，
+# 写法详见模板 A「1.5 分类归属」）
+# categoryPath: ["试剂"]             # 静态面包屑路径示例
+# categoryFromPage:                  # 动态面包屑示例（推荐，实例见 www.boxbio.cn.yaml）
+#   itemSelector: ".breadcrumb li"
+#   strip: ["首页", "产品分类"]
+#   keepLast: true
 
 # ---------- 顶层公共默认值（各 section 未指定时继承；可整段省略）----------
 listTraversal:
@@ -233,6 +249,7 @@ sections:
 #      · 详情规则 parseDetail：section.parseDetail ?? 顶层 parseDetail
 #      · 翻页策略 listTraversal：section.listTraversal ?? 顶层 listTraversal ?? {pagination-html,50,true}
 #      · 起点 startUrls：section.startUrls（非空）?? [顶层 startUrl]
+#      · 分类归属：section.categoryFromPage/categoryPath/category ?? 顶层同名 ?? 不绑分类
 #
 # 3) 去重口径 B（同 SKU 多栏目 = 两条）：
 #      products 唯一键 = (company_id, identity_key, section_key)

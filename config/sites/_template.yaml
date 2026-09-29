@@ -5,6 +5,10 @@
 # 用法：复制本文件 → 改名为 <domain>.yaml → 改选择器 → `pnpm probe` 验证。
 #      全程无需写代码；模型通用适配器（见 docs/04、docs/05）作为最后兜底。
 #
+# ★★ config/sites/ 目录是爬取范围的唯一真相源（crawl 默认 --source config）★★
+#   放一个 <domain>.yaml 就爬一个站，删掉就不爬；seed Excel 仅作一次性初始化导入，
+#   不再参与日常范围管理（公司/品类随爬取自动 upsert 进库）。
+#
 # ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
 #   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
 #
@@ -27,8 +31,32 @@
 
 # ---------- 1) 站点标识 ----------
 domain: example.com              # 必填；同时是 YAML 文件名与适配器路由键
+company: 示例生物科技有限公司      # 站点归属公司名（写入 companies.name）；省略时回退为 domain
+                                 # ★ 公司按名字聚合：同名=同一家公司（同一公司多个域名/子域名 →
+                                 #   配多个 YAML 共用同一 company 即可，website 只补空不覆盖，零维护）
+# competitorType: 多肽合成试剂     # 竞品类型（可选；写入 companies.competitor_type，供筛选/分组）
+# role: competitor                # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
+# ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）
 currency: CNY                    # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
 startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
+
+# ---------- 1.5) 分类归属（产品挂到 categories 通用分类树；三种来源按优先级取一）----------
+# 优先级：categoryFromPage（动态，最准）> categoryPath（静态数组）> category（单名兜底）
+# 三种都省略 → 产品不绑分类（category_id 记空）。
+#
+# a) categoryFromPage —— 面包屑动态分类（推荐）：从详情页 HTML 抽「根→叶」路径，爬取时自动建树，
+#    同一列表页的产品可自动分进不同子树；实例见 www.boxbio.cn.yaml（已真站实测）
+# categoryFromPage:
+#   itemSelector: ".breadcrumb li"   # 面包屑条目选择器（按文档顺序依次取文本）
+#   strip: ["首页", "产品分类"]       # 可选：剔除「首页/产品分类」等无意义段
+#   keepLast: true                   # 可选：保留末段（默认丢弃——末段通常是产品名本身）
+#   maxDepth: 4                      # 可选：路径最大深度（默认 4）
+#
+# b) categoryPath —— 静态面包屑路径（整站分类固定时直接写死，根→叶）
+# categoryPath: ["试剂", "抗体", "一抗"]
+#
+# c) category —— 单名兜底（等价单层 categoryPath）
+# category: 抗体
 
 # ---------- 2) 列表遍历（翻页策略）----------
 # strategy 五选一：
@@ -91,11 +119,15 @@ parseDetail:
     # 3a) list + map：每行规格 → 一个对象，组成「对象数组」（最常见：规格表）
     #     ★ 规格 × 多种价格：spec=规格；priceNow=现价；priceOriginal=原价/划线价；
     #       priceActivity=活动价；pricePromo=优惠价/券后价。缺哪个不写即可。
+    #     ★ 形态 C（一品多货号）：同一产品每个规格自带货号 → map 里加 sku 键；
+    #       落库时 products.sku 存「默认规格」的货号、全量在 specs[].sku
+    #       （price/specText 同理 = 默认规格快照；比价/涨跌/历史统一用默认规格口径）。
     specs:
       sel: ".spec-row"
       list: true
       map:
         spec:          { sel: ".spec", text: true }
+        sku:           { sel: ".sku", text: true }        # 形态C 才需要；单货号产品省略此行
         priceNow:      { sel: ".price-now", text: true, regex: '[\d\.]+' }
         priceOriginal: { sel: ".price-origin", text: true, regex: '[\d\.]+' }   # 原价/划线价
         priceActivity: { sel: ".price-act", text: true }
@@ -214,6 +246,8 @@ parseDetail:
 #   描述：description
 #   其他：cloneNumber / applications / specs / introMedia
 #   ⚠️ sourceProductId 只装「站点自身产品 id」，没有就留空（绝不用货号兜底，见 docs/03 §3.4）
+#   ⚠️ sku = 默认规格的货号（形态 C 每规格一个货号时全量在 specs[].sku，sku 列存默认规格）；
+#      price / specText 同理 = 默认规格的现价/规格文本快照（比价、涨跌、历史的统一口径）
 #   ⚠️ 示例里的 specsAlt / specsInline / meta / variants / groups 不是内置名 → 会进 row
 #      （示例用；要用作规格列表请改名为 specs）
 #
@@ -223,5 +257,7 @@ parseDetail:
 #   pnpm probe --domain example.com --detail 0      # 关闭详情页形态探测
 #   pnpm probe --domain example.com --render spa    # 需要 JS 渲染时指定 Playwright
 #   pnpm probe --domain example.com --section <key> # 多规则站点只验某个栏目
-#   pnpm crawl --site example.com --dry-run --limit 3
+#   pnpm crawl --site example.com --dry-run --limit 3        # crawl 默认 --source config（YAML 即爬取范围）
+#   pnpm crawl --site example.com,other.com --dry-run --limit 3   # 手动测试多个站：逗号分隔
+#   pnpm crawl --dry-run --limit 3                           # 不带 --site = 全量（config 目录所有 YAML）
 # ============================================================================
