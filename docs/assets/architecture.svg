@@ -1,9 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1010" width="1400" height="1010"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1140" width="1400" height="1140"
      font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
   <!--
-    竞品爬虫 · 端到端架构总览
+    竞品爬虫 · 端到端架构总览（v2，2026-09-30 刷新）
+    相对 v1 的更新：
+      · 新增「提示词中心 config/prompts/*.md」作为贯穿所有模型环节的单一事实源（docs/04 §4.4 已落地）
+      · 模型辅助层四阶段标注真实状态：extraction(已接) / normalization(确定性·非模型) / attribution(待接) / summary(已接·默认关)
+      · ⑤ 适配器明确为 SiteAdapter 契约（shared/types.ts），当前设计就绪但尚未接线（docs/16 🔴-2）
+      · ⑦ 告警链路补上「模型人话摘要」前置步骤
     配套：pipeline-flow.svg（数据流转与处理细节）
-    维护约定：本图与 docs/02、docs/03、docs/05 保持一致；改架构请同步改图。
   -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
@@ -15,6 +19,9 @@
     <marker id="ap" markerWidth="9" markerHeight="9" refX="7" refY="2.6" orient="auto">
       <path d="M0,0 L7,2.6 L0,5.2 Z" fill="#7c3aed"/>
     </marker>
+    <marker id="ag" markerWidth="9" markerHeight="9" refX="7" refY="2.6" orient="auto">
+      <path d="M0,0 L7,2.6 L0,5.2 Z" fill="#059669"/>
+    </marker>
     <style>
       .t1{font-size:24px;font-weight:700;fill:#0f172a}
       .t2{font-size:13px;fill:#475569}
@@ -24,13 +31,14 @@
       .pn{font-size:13px;font-weight:700;fill:#6d28d9}
       .box{fill:#fff;stroke:#cbd5e1;stroke-width:1.5}
       .rail{font-size:12px;font-weight:700;fill:#334155}
+      .pill{font-size:10px;font-weight:700}
     </style>
   </defs>
 
-  <rect width="1400" height="1010" fill="url(#bg)"/>
+  <rect width="1400" height="1140" fill="url(#bg)"/>
 
-  <text x="36" y="46" class="t1">竞品爬虫 · 端到端架构总览</text>
-  <text x="36" y="72" class="t2">Excel 种子清单 → 站点适配器解析 → 统一产品库 → 交付 / 告警　·　模型辅助层贯穿解析与兜底　·　细节流转见图 docs/assets/pipeline-flow.svg</text>
+  <text x="36" y="46" class="t1">竞品爬虫 · 端到端架构总览（v2）</text>
+  <text x="36" y="72" class="t2">Excel 种子清单 → 站点适配器解析 → 统一产品库 → 交付 / 告警　·　提示词中心贯穿模型辅助层　·　细节流转见图 docs/assets/pipeline-flow.svg</text>
 
   <!-- ================= 左侧主流水线 ================= -->
   <text x="36" y="100" class="rail" fill="#94a3b8">主流水线（左）　/　支撑与不变量（右）</text>
@@ -64,117 +72,135 @@
   <text x="92" y="492" class="bd">列表段先去重：canonical(detailUrl)，修掉「双模板 / 图文双链接」导致的重复抓取与计数虚高</text>
 
   <!-- ⑤ 适配器与形态 -->
-  <rect x="36" y="526" width="820" height="98" rx="12" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>
+  <rect x="36" y="526" width="820" height="104" rx="12" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>
   <circle cx="66" cy="558" r="15" fill="#818cf8"/><text x="66" y="563" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">5</text>
   <text x="92" y="556" class="bt">站点适配器 · 异构页面归一</text>
   <text x="92" y="576" class="bs">YAML 配置适配器（FieldSpec = 取值 × 结构 × 附加）　→　代码 Adapter（YAML 表达不了时的加性钩子）　→　模型兜底（最后防线）</text>
-  <text x="92" y="596" class="bs">规格 × 多价格五形态：A 表格行 · B 下拉项 $self · C 内联 JSON · D 异步接口 · E 前端计算（模型兜底）；多 Tab（T1 预渲染 / T2 懒加载 / T3 拼装）为与五形态正交的维度</text>
-  <text x="92" y="614" class="bd">输出 NormalizedProduct；未声明字段全量进 row 兜底，零数据丢失</text>
+  <text x="92" y="596" class="bs">规格 × 多价格五形态：A 表格行 · B 下拉项 $self · C 内联 JSON · D 异步接口 · E 前端计算（模型兜底）；多 Tab（T1/T2/T3）为与五形态正交的维度</text>
+  <text x="92" y="616" class="bd">代码适配器契约 = SiteAdapter（shared/types.ts：match/listTraversal/parseList/parseDetail）　·　示例见 src/adapters/_example.ts（当前尚未接线，docs/16 🔴-2）</text>
+  <text x="92" y="632" class="bd">输出 NormalizedProduct；未声明字段全量进 row 兜底，零数据丢失</text>
 
   <!-- ⑥ 归一化 -->
-  <rect x="36" y="642" width="820" height="86" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
-  <circle cx="66" cy="674" r="15" fill="#64748b"/><text x="66" y="679" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">6</text>
-  <text x="92" y="672" class="bt">归一化 · 详情优先 / 列表兜底</text>
-  <text x="92" y="692" class="bs">内置字段名（name / sku / price / specText / brand / cloneNumber / applications / specs / introMedia …）提升为列，其余留 row</text>
-  <text x="92" y="712" class="bd">列表阶段抽到的货号 / 规格 / 价格随 ListItem.raw 带下来，补详情页空缺（mergeListFallback）</text>
+  <rect x="36" y="646" width="820" height="86" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <circle cx="66" cy="678" r="15" fill="#64748b"/><text x="66" y="683" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">6</text>
+  <text x="92" y="676" class="bt">归一化 · 详情优先 / 列表兜底</text>
+  <text x="92" y="696" class="bs">内置字段名（name / sku / price / specText / brand / cloneNumber / applications / specs / introMedia …）提升为列，其余留 row</text>
+  <text x="92" y="716" class="bd">列表阶段抽到的货号 / 规格 / 价格随 ListItem.raw 带下来，补详情页空缺（mergeListFallback）　·　<tspan font-weight="700" fill="#475569">注：归一化为确定性映射（同义字段表），非模型调用</tspan></text>
 
   <!-- ⑦ 落库 -->
-  <rect x="36" y="746" width="820" height="98" rx="12" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
-  <circle cx="66" cy="778" r="15" fill="#22c55e"/><text x="66" y="783" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">7</text>
-  <text x="92" y="776" class="bt">增量落库 · 去重 / 软删 / 价格时序</text>
-  <text x="92" y="796" class="bs">dedupe_key = COALESCE(source_product_id, canonical(detail_url))　·　UNIQUE <tspan font-weight="700">(company_id, dedupe_key, section_key)</tspan> → 冲突即 upsert</text>
-  <text x="92" y="816" class="bs">⚠️ 货号 sku 绝不参与去重（去重=页面级，货号=产品级，同货号可多张规格页）　·　口径 B：同 SKU 不同栏目分列两条</text>
-  <text x="92" y="834" class="bd">连续 2 轮未再见 → status=delisted（物理不删）　·　price_history 仅「首次入库 / 价格变化」追加，当前只写不读</text>
+  <rect x="36" y="752" width="820" height="98" rx="12" fill="#f0fdf4" stroke="#4ade80" stroke-width="2"/>
+  <circle cx="66" cy="784" r="15" fill="#22c55e"/><text x="66" y="789" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">7</text>
+  <text x="92" y="782" class="bt">增量落库 · 去重 / 软删 / 价格时序</text>
+  <text x="92" y="802" class="bs">dedupe_key = COALESCE(source_product_id, canonical(detail_url))　·　UNIQUE <tspan font-weight="700">(company_id, dedupe_key, section_key)</tspan> → 冲突即 upsert</text>
+  <text x="92" y="822" class="bs">⚠️ 货号 sku 绝不参与去重（去重=页面级，货号=产品级，同货号可多张规格页）　·　口径 B：同 SKU 不同栏目分列两条</text>
+  <text x="92" y="840" class="bd">连续 2 轮未再见 → status=delisted（物理不删）　·　price_history 仅「首次入库 / 价格变化」追加，当前只写不读</text>
 
   <!-- ⑧ 交付 + 告警 -->
-  <rect x="36" y="862" width="400" height="86" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
-  <circle cx="66" cy="894" r="15" fill="#16a34a"/><text x="66" y="899" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">8</text>
-  <text x="92" y="892" class="bt">下游交付</text>
-  <text x="92" y="912" class="bs">pnpm report → Excel 三表（总览 / 价格清单 / 字段覆盖）</text>
-  <text x="92" y="930" class="bd">--charts → 自包含 ECharts HTML 六图；web 应用页（Nuxt 4）</text>
+  <rect x="36" y="866" width="400" height="92" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+  <circle cx="66" cy="898" r="15" fill="#16a34a"/><text x="66" y="903" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">8</text>
+  <text x="92" y="896" class="bt">下游交付</text>
+  <text x="92" y="916" class="bs">pnpm report → Excel 三表（总览 / 价格清单 / 字段覆盖）</text>
+  <text x="92" y="934" class="bd">--charts → 自包含 ECharts HTML 六图；web 应用页（Nuxt 4，展示走 formatBj=dayjs+Asia/Shanghai）</text>
 
-  <rect x="456" y="862" width="400" height="86" rx="12" fill="#fef2f2" stroke="#f87171" stroke-width="2"/>
-  <circle cx="486" cy="894" r="15" fill="#dc2626"/><text x="486" y="899" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">!</text>
-  <text x="512" y="892" class="bt">告警 · alerts</text>
-  <text x="512" y="912" class="bs">MISSING_FIELD / FIELD_CHANGED / BULK_DRIFT</text>
-  <text x="512" y="930" class="bd">SITE_UNREACHABLE / NEEDS_API_HINT / MODEL_FAILURE</text>
+  <rect x="456" y="866" width="400" height="92" rx="12" fill="#fef2f2" stroke="#f87171" stroke-width="2"/>
+  <circle cx="486" cy="898" r="15" fill="#dc2626"/><text x="486" y="903" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">!</text>
+  <text x="512" y="896" class="bt">告警 · alerts（含模型人话摘要）</text>
+  <text x="512" y="916" class="bs">MISSING_FIELD / FIELD_CHANGED / BULK_DRIFT</text>
+  <text x="512" y="934" class="bd">SITE_UNREACHABLE / NEEDS_API_HINT / MODEL_FAILURE</text>
+  <text x="512" y="952" class="bd">summary 阶段：alerts → 模型人话摘要（默认关）→ 前置到推送文本</text>
 
   <!-- 主流程箭头 -->
   <line x1="446" y1="196" x2="446" y2="210" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
   <line x1="446" y1="300" x2="446" y2="314" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
   <line x1="446" y1="404" x2="446" y2="418" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
   <line x1="446" y1="508" x2="446" y2="522" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
-  <line x1="446" y1="624" x2="446" y2="638" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
-  <line x1="446" y1="728" x2="446" y2="742" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="446" y1="630" x2="446" y2="644" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="446" y1="734" x2="446" y2="748" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
   <path d="M446,844 L446,853 L236,853 L236,858" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
   <path d="M446,844 L446,853 L656,853 L656,858" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
 
+  <!-- ================= 右侧：提示词中心 ================= -->
+  <rect x="884" y="110" width="480" height="70" rx="14" fill="#1e1b4b" stroke="#7c3aed" stroke-width="2"/>
+  <text x="904" y="138" class="bt" fill="#ffffff">提示词中心 · config/prompts/*.md</text>
+  <text x="904" y="158" class="bd" fill="#c4b5fd">单一事实源：_common.md（全局护栏）+ extraction/summary/gen-site… 各阶段一文件；llm/prompts.ts 的 loadPrompt 做 {{VAR}} 注入</text>
+  <text x="904" y="174" class="bd" fill="#c4b5fd">新增 MODEL_* 变量须同步 .env.example（envContract 双向校验）</text>
+
   <!-- ================= 右侧：模型辅助层 ================= -->
-  <rect x="884" y="110" width="480" height="312" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
-  <text x="904" y="138" class="bt" fill="#6d28d9">模型辅助层</text>
-  <text x="904" y="157" class="bd" fill="#7c3aed">OpenAI 兼容客户端 · 模式与厂商纯配置，不改代码</text>
+  <rect x="884" y="196" width="480" height="318" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="904" y="224" class="bt" fill="#6d28d9">模型辅助层（四阶段 · 状态已标注）</text>
+  <text x="904" y="242" class="bd" fill="#7c3aed">OpenAI 兼容客户端 · 模式与厂商纯配置，不改代码</text>
 
-  <rect x="904" y="170" width="440" height="46" rx="8" fill="#fff" stroke="#c4b5fd"/>
-  <text x="920" y="190" class="bs" fill="#5b21b6">extraction　提取</text>
-  <text x="920" y="207" class="bd">形态 E：页面可见文本（可选截图）→ 结构化 specs / introMedia / 标量，只补空不覆盖</text>
+  <rect x="904" y="252" width="440" height="50" rx="8" fill="#fff" stroke="#c4b5fd"/>
+  <text x="920" y="272" class="bs" fill="#5b21b6">extraction　提取（形态 E 兜底）</text>
+  <text x="920" y="289" class="bd">页面可见文本（+可选截图）→ 结构化 specs/introMedia/标量，只补空</text>
+  <rect x="1276" y="258" width="56" height="20" rx="10" fill="#16a34a"/><text x="1304" y="272" text-anchor="middle" class="pill" fill="#fff">已接</text>
 
-  <rect x="904" y="224" width="440" height="46" rx="8" fill="#fff" stroke="#c4b5fd"/>
-  <text x="920" y="244" class="bs" fill="#5b21b6">normalization　归一化</text>
-  <text x="920" y="261" class="bd">同义字段统一映射（克隆号 / Clone / mAb → cloneNumber）</text>
+  <rect x="904" y="308" width="440" height="50" rx="8" fill="#fff" stroke="#c4b5fd"/>
+  <text x="920" y="328" class="bs" fill="#5b21b6">normalization　归一化</text>
+  <text x="920" y="345" class="bd">同义字段映射（克隆号/Clone/mAb→cloneNumber）</text>
+  <rect x="1276" y="314" width="56" height="20" rx="10" fill="#0891b2"/><text x="1304" y="328" text-anchor="middle" class="pill" fill="#fff">确定性</text>
 
-  <rect x="904" y="278" width="440" height="46" rx="8" fill="#fff" stroke="#c4b5fd"/>
-  <text x="920" y="298" class="bs" fill="#5b21b6">attribution　变化归因</text>
-  <text x="920" y="315" class="bd">区分「站点真的改了」与「我们的规则该改」</text>
+  <rect x="904" y="364" width="440" height="50" rx="8" fill="#fff" stroke="#c4b5fd"/>
+  <text x="920" y="384" class="bs" fill="#5b21b6">attribution　变化归因</text>
+  <text x="920" y="401" class="bd">区分「站点真改了」与「规则该改」</text>
+  <rect x="1276" y="370" width="56" height="20" rx="10" fill="#eab308"/><text x="1304" y="384" text-anchor="middle" class="pill" fill="#fff">待接</text>
 
-  <rect x="904" y="332" width="440" height="46" rx="8" fill="#fff" stroke="#c4b5fd"/>
-  <text x="920" y="352" class="bs" fill="#5b21b6">summary　告警摘要</text>
-  <text x="920" y="369" class="bd">技术告警 → 人话摘要，便于推送与决策</text>
+  <rect x="904" y="420" width="440" height="50" rx="8" fill="#fff" stroke="#c4b5fd"/>
+  <text x="920" y="440" class="bs" fill="#5b21b6">summary　告警人话摘要（⑦）</text>
+  <text x="920" y="457" class="bd">技术告警→人话摘要，前置到推送文本</text>
+  <rect x="1276" y="426" width="56" height="20" rx="10" fill="#16a34a"/><text x="1304" y="440" text-anchor="middle" class="pill" fill="#fff">已接</text>
+  <text x="1276" y="460" class="bd" fill="#64748b">(默认关)</text>
 
-  <text x="904" y="400" class="bd" fill="#6d28d9">防幻觉四件套：强提示词（禁编造） + Zod 校验 + temperature=0 + 失败重试</text>
-  <text x="904" y="416" class="bd" fill="#6d28d9">模式：local（Ollama / vLLM）· cloud（通义 / DeepSeek）· hybrid（本地优先 + 云端兜底，默认）</text>
+  <text x="904" y="492" class="bd" fill="#6d28d9">防幻觉四件套：强提示词（禁编造） + Zod 校验 + temperature=0 + 失败重试</text>
+  <text x="904" y="508" class="bd" fill="#6d28d9">模式：local（Ollama/vLLM）· cloud（通义/DeepSeek）· hybrid（本地优先+云端兜底，默认）</text>
+
+  <!-- 提示词中心 → 各阶段 虚线 -->
+  <line x1="884" y1="160" x2="884" y2="277" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#ap)"/>
+  <line x1="884" y1="160" x2="884" y2="333" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#ap)"/>
+  <line x1="884" y1="160" x2="884" y2="389" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#ap)"/>
+  <line x1="884" y1="160" x2="884" y2="445" stroke="#7c3aed" stroke-width="1.4" stroke-dasharray="6 4" marker-end="url(#ap)"/>
 
   <!-- 模型层 → 主流程 虚线 -->
-  <line x1="884" y1="193" x2="862" y2="575" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" opacity="0.65"/>
-  <line x1="862" y1="575" x2="858" y2="575" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ap)"/>
-  <line x1="884" y1="247" x2="872" y2="685" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" opacity="0.65"/>
-  <line x1="872" y1="685" x2="858" y2="685" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ap)"/>
-  <line x1="884" y1="355" x2="880" y2="905" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" opacity="0.65"/>
+  <line x1="884" y1="277" x2="862" y2="578" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" opacity="0.65"/>
+  <line x1="862" y1="578" x2="858" y2="578" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ap)"/>
+  <line x1="884" y1="445" x2="880" y2="905" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" opacity="0.65"/>
   <line x1="880" y1="905" x2="858" y2="905" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#ap)"/>
 
   <!-- ================= 右侧：关键不变量 ================= -->
-  <rect x="884" y="438" width="480" height="252" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
-  <text x="904" y="466" class="bt" fill="#b45309">关键不变量（改动前必读）</text>
+  <rect x="884" y="530" width="480" height="252" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
+  <text x="904" y="558" class="bt" fill="#b45309">关键不变量（改动前必读）</text>
 
-  <text x="904" y="492" class="bs" fill="#92400e">① 去重键 = (company_id, dedupe_key, section_key)</text>
-  <text x="920" y="509" class="bd">dedupe_key = COALESCE(source_product_id, canonical(detail_url))</text>
+  <text x="904" y="584" class="bs" fill="#92400e">① 去重键 = (company_id, dedupe_key, section_key)</text>
+  <text x="920" y="601" class="bd">dedupe_key = COALESCE(source_product_id, canonical(detail_url))</text>
 
-  <text x="904" y="533" class="bs" fill="#92400e">② 货号 sku 绝不参与去重</text>
-  <text x="920" y="550" class="bd">去重键表达「页面级」唯一；货号是「产品级」唯一，同货号常有多张规格页</text>
-  <text x="920" y="566" class="bd">sku 只用于跨公司对齐 / 比价（报告层）</text>
+  <text x="904" y="625" class="bs" fill="#92400e">② 货号 sku 绝不参与去重</text>
+  <text x="920" y="642" class="bd">去重键表达「页面级」唯一；货号是「产品级」唯一，同货号常有多张规格页</text>
+  <text x="920" y="658" class="bd">sku 只用于跨公司对齐 / 比价（报告层）</text>
 
-  <text x="904" y="590" class="bs" fill="#92400e">③ category ≠ section，互不替代</text>
-  <text x="920" y="607" class="bd">category = 种子品类（Excel 一行）；section = 抓取栏目（站点栏目 + 规则）</text>
+  <text x="904" y="682" class="bs" fill="#92400e">③ category ≠ section，互不替代</text>
+  <text x="920" y="699" class="bd">category = 种子品类（Excel 一行）；section = 抓取栏目（站点栏目 + 规则）</text>
 
-  <text x="904" y="631" class="bs" fill="#92400e">④ 栏目 key 稳定后勿改名</text>
-  <text x="920" y="648" class="bd">改名 = 换去重键 = 同批产品会重复入库</text>
+  <text x="904" y="723" class="bs" fill="#92400e">④ 栏目 key 稳定后勿改名</text>
+  <text x="920" y="740" class="bd">改名 = 换去重键 = 同批产品会重复入库</text>
 
-  <text x="904" y="672" class="bd" fill="#92400e">⑤ price_history 只写入不消费（消费端待接入，勿擅自接）</text>
+  <text x="904" y="764" class="bd" fill="#92400e">⑤ price_history 只写入不消费（消费端待接入，勿擅自接）</text>
 
   <!-- ================= 右侧：质量门禁 ================= -->
-  <rect x="884" y="704" width="480" height="244" rx="14" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
-  <text x="904" y="732" class="bt">质量门禁与运行约定</text>
+  <rect x="884" y="796" width="480" height="300" rx="14" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="904" y="824" class="bt">质量门禁与运行约定</text>
 
-  <text x="904" y="758" class="bs">提交门禁（husky / .git/cph，两级等价、无法绕过）</text>
-  <text x="920" y="775" class="bd">node scripts/precommit.mjs → typecheck（shared + crawler + web） + vitest run</text>
-  <text x="920" y="791" class="bd">node scripts/commitmsg.mjs → commitlint（type 白名单 / 主题不得大写开头）</text>
+  <text x="904" y="850" class="bs">提交门禁（husky / .git/cph，两级等价、无法绕过）</text>
+  <text x="920" y="867" class="bd">node scripts/precommit.mjs → typecheck（shared + crawler + web） + vitest run</text>
+  <text x="920" y="883" class="bd">node scripts/commitmsg.mjs → commitlint（type 白名单 / 主题不得大写开头）</text>
 
-  <text x="904" y="815" class="bs">CI（.github/workflows/ci.yml）</text>
-  <text x="920" y="832" class="bd">pnpm install --frozen-lockfile → typecheck → test（node 24 + pnpm 12）</text>
+  <text x="904" y="907" class="bs">CI（.github/workflows/ci.yml）</text>
+  <text x="920" y="924" class="bd">pnpm install --frozen-lockfile → typecheck → test（node 24 + pnpm 12）</text>
 
-  <text x="904" y="856" class="bs">其它约定</text>
-  <text x="920" y="873" class="bd">envContract.test.ts 双向校验「process.env 读取点 ↔ .env.example 声明」</text>
-  <text x="920" y="889" class="bd">pnpm release = typecheck → test → 未提交检查 → 方向键选 bump → tag + push</text>
+  <text x="904" y="948" class="bs">其它约定</text>
+  <text x="920" y="965" class="bd">envContract.test.ts 双向校验「process.env 读取点 ↔ .env.example 声明」</text>
+  <text x="920" y="981" class="bd">pnpm release = typecheck → test → 未提交检查 → 方向键选 bump → tag + push</text>
+  <text x="920" y="997" class="bd">pnpm schedule --daemon 启定时（季度首月1日03:00，spec 可改）</text>
 
-  <text x="904" y="918" class="bd">图例：橙 种子 / 蓝 配置 / 青 采集 / 靛 适配器 / 灰 归一化 / 绿 存储与交付 / 红 告警 / 紫 模型辅助</text>
-  <text x="904" y="936" class="bd">本图与 docs/02 架构设计、docs/03 数据库设计、docs/05 站点接入指南一一对应</text>
+  <text x="904" y="1024" class="bd">图例：橙 种子 / 蓝 配置 / 青 采集 / 靛 适配器 / 灰 归一化 / 绿 存储与交付 / 红 告警 / 紫 模型辅助 / 深紫 提示词中心</text>
+  <text x="904" y="1048" class="bd">本图与 docs/02 架构设计、docs/03 数据库设计、docs/04 模型方案、docs/05 站点接入指南一一对应</text>
 </svg>
