@@ -19,6 +19,14 @@
 #   · 不写 sections → 把顶层 startUrl + parseList + parseDetail 包成单个 key='default' 的栏目（模板 A 写法）。
 #   两种写法可共存：顶层既做默认值、又兼容「部分栏目想复用公共规则」。
 #
+# ★ 采集类型路由（section.contentType，产品 + 资讯混排就靠它）：
+#   · contentType: products（缺省，特殊值）→ 走产品管线落 products 表（价格/规格/去重/软删全能力）；
+#   · contentType: news / announcement / …其他值 → 走内容管线落 contents 表（content_type=该值）；
+#   · 同一 YAML 的 sections 可混排：几个产品栏目 + 一个新闻栏目，各管各的表、互不干扰；
+#   · 内容栏目字段映射：name/title→title；summary/description→summary；
+#     body/content/text→body；author/source→author；date/publishedAt/publishTime/publishDate/time→publishedAt(自动转Unix秒)；
+#     其余字段进 row JSON。去重键 = COALESCE(source_id, canonical(detail_url))，软删口径与产品一致。
+#
 # ★ FieldSpec 字段抽取规范与模板 A 完全一致（三种取值方式 + list/map 两种修饰
 #   + number 数值化 / sel:'$self' 读元素自身 / json+jsonPath+pick 解析内联 JSON），
 #   此处不再重复列举，详见 _template.yaml 与 docs/05。
@@ -156,6 +164,61 @@ sections:
         name:      { sel: "h2", text: true }
     # parseDetail 省略 → 继承顶层
 
+  # ==========================================================================
+  # 栏目 5：资讯栏目（contentType: news）—— 产品 + 资讯混排的示例
+  # --------------------------------------------------------------------------
+  # · contentType: news → 抓取结果落 contents 表（不进 products，不参与比价）；
+  # · type 就写你想要的内容类型：news=新闻 / announcement=公告 / event=活动…
+  #   网页「资讯动态」页按该 type 分组展示；
+  # · 内容栏目不绑品类（category / productLine 不生效）；
+  # · 字段映射见文件头「采集类型路由」注释：列表阶段抽 title + detailUrl 最省事，
+  #   详情阶段可选抽 summary / body / date / author。
+  # ==========================================================================
+  - key: news
+    contentType: news                           # ★ 关键：声明本栏目是资讯采集（缺省 products）
+    startUrls:
+      - "https://example.com/news"
+    match:
+      listUrlIncludes: ["/news"]
+      detailUrlIncludes: ["/news/"]
+    listTraversal:
+      strategy: pagination-url               # 资讯列表多是 SSR 翻页，URL 模板最快最稳
+      urlTemplate: "?page={page}"
+      maxPages: 10
+    parseList:
+      itemSelector: ".news-list li"
+      fields:
+        detailUrl: { sel: "a", attr: href }  # 必填：原文链接（去重键兜底）
+        name:      { sel: "a", text: true }   # 标题（映射到 contents.title）
+        date:      { sel: ".news-date", text: true }   # 可选：列表页顺手抽日期（自动转 Unix 秒）
+    parseDetail:
+      fields:
+        name:     { sel: "h1.article-title", text: true }   # 标题（详情优先，列表兜底）
+        summary:  { sel: ".article-summary", text: true }   # 摘要
+        body:     { sel: ".article-body", text: true }      # 正文
+        author:   { sel: ".article-source", text: true }    # 作者/来源
+        date:     { sel: ".article-date", text: true }      # 发布时间（YYYY-MM-DD 等常见写法均可）
+      captureRest: true
+
+  # ==========================================================================
+  # 栏目 6：公告栏目（contentType: announcement）—— 第二种内容类型，同表不同 type
+  # ==========================================================================
+  - key: announcements
+    contentType: announcement
+    startUrls:
+      - "https://example.com/about/notice"
+    parseList:
+      itemSelector: ".notice-list li"
+      fields:
+        detailUrl: { sel: "a", attr: href }
+        name:      { sel: "a", text: true }
+        date:      { sel: ".notice-date", text: true }
+    parseDetail:
+      fields:
+        name:    { sel: "h1", text: true }
+        body:    { sel: ".notice-body", text: true }
+      captureRest: true
+
 # ============================================================================
 # 附：多规则站点使用说明
 # ----------------------------------------------------------------------------
@@ -180,7 +243,14 @@ sections:
 #      · key 用小写短横线（all-products / new-arrivals / promo），稳定后勿随意改名（改名等于换去重键）；
 #      · key 唯一，不要与 'default' 冲突（'default' 保留给单规则写法）。
 #
-# 5) 模型兜底（形态 E，默认关）：
+# 5) 采集类型路由（contentType）：
+#      · 优先级：section.contentType > 顶层 contentType > 'products'；
+#      · 'products'（或缺省）→ products 表；其他值（news / announcement…）→ contents 表（type=该值）；
+#      · 内容栏目不绑品类、不走模型兜底 / api 源；网页「资讯动态」页按 type 展示；
+#      · 整站只做资讯的站点：顶层写 contentType: news 即可，sections 无需逐个声明；
+#      · 兼容：旧名 collects 仍可识别（等价 contentType），新配置统一写 contentType。
+#
+# 6) 模型兜底（形态 E，默认关）：
 #      在 section.parseDetail 下写 modelFallback: true 才启用，只补空、不覆盖静态结果；
 #      模型走 MODEL_MODE / config/model.yaml 配置，失败落 MODEL_FAILURE 告警、不阻塞整轮。
 #      多 Tab 详情页请先判断内容是否已在 HTML 里（在 → 直接写选择器，不需要点击），见 docs/05 §5.3.5。

@@ -143,5 +143,36 @@ export const alerts = sqliteTable('alerts', {
   createdAt: integer('created_at').notNull(), // 创建时间（Unix 秒）
 });
 
-export const schema = { companies, categories, products, crawls, priceHistory, alerts };
+// 泛型内容（非产品采集：新闻 / 公告 / 活动等）
+//
+// 路由规则：站点 YAML 的 section.collects（'products' 缺省走 products 表；'news' 等其他值走本表）。
+// 字段分层同 products：通用字段拍列（title/summary/body/publishedAt…），站点特有字段进 row JSON。
+export const contents = sqliteTable('contents', {
+  id: integer('id').primaryKey({ autoIncrement: true }), // 自增主键
+  companyId: integer('company_id').notNull().references(() => companies.id), // 所属公司（外键 → companies.id）
+  contentType: text('content_type').notNull().default('news'), // 内容类型：news / announcement / event…（= section.contentType）
+  sectionKey: text('section_key').notNull().default('default'), // 栏目维度（参与去重键）
+  dedupeKey: text('dedupe_key').notNull(), // 去重键 = COALESCE(source_id, canonical(detail_url))
+  sourceId: text('source_id'), // 站点自身的内容 id（如文章 id）
+  title: text('title').notNull(), // 标题
+  summary: text('summary'), // 摘要（列表页常见）
+  body: text('body'), // 正文纯文本
+  author: text('author'), // 作者 / 来源
+  publishedAt: integer('published_at'), // 发布时间（Unix 秒，可空）
+  detailUrl: text('detail_url'), // 原文链接
+  row: text('row', { mode: 'json' }), // 兜底原始抽取快照（JSON）
+  status: text('status').notNull().default('active'), // 状态：active / removed（连续 2 轮缺失软删）
+  firstSeenAt: integer('first_seen_at').notNull(), // 首次发现时间（Unix 秒）
+  lastSeenAt: integer('last_seen_at').notNull(), // 最近出现时间（Unix 秒）
+  missingSince: integer('missing_since'), // 首次缺失时间（Unix 秒，NULL=在线）
+  createdAt: integer('created_at').notNull(), // 创建时间（Unix 秒）
+  updatedAt: integer('updated_at').notNull(), // 更新时间（Unix 秒）
+}, (t) => [
+  // 组合唯一：公司内按栏目唯一（与 products 去重口径一致）
+  uniqueIndex('uniq_content').on(t.companyId, t.dedupeKey, t.sectionKey),
+  index('idx_content_company_type').on(t.companyId, t.contentType, t.status), // 按公司/类型筛选
+  index('idx_content_published').on(t.publishedAt), // 按发布时间排序
+]);
+
+export const schema = { companies, categories, products, crawls, priceHistory, alerts, contents };
 export type Schema = typeof schema;

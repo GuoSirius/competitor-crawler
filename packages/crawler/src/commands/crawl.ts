@@ -3,6 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import {
   categories,
   companies,
+  contents,
   crawls,
   products,
   priceHistory,
@@ -90,6 +91,10 @@ interface CrawlSummary {
   failed: number;
   /** 启用了代码适配器钩子（加性补充）的站点数；0 表示全仓走纯 YAML，行为与旧版一致 */
   adapterSites: number;
+  /** 内容采集（contents 表）：本轮新增条数 */
+  contentNew: number;
+  /** 内容采集（contents 表）：本轮更新条数 */
+  contentUpdated: number;
 }
 
 /**
@@ -118,6 +123,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     pricePoints: 0,
     failed: 0,
     adapterSites: 0,
+    contentNew: 0,
+    contentUpdated: 0,
   };
 
   let crawlRow: { id: number };
@@ -174,7 +181,6 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     }
 
     for (const [domain, target] of targets) {
-      summary.categories += target.sections.length;
       summary.sections += target.sections.length;
       const companyId = target.companyId;
       companyIds.add(companyId);
@@ -186,6 +192,46 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           summary.failed++;
           continue;
         }
+
+        // ── 非产品内容采集（section.contentType !== 'products'）→ contents 表管线 ──
+        if (section.contentType !== 'products') {
+          const pendingC: PendingContent[] = [];
+          try {
+            await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet });
+          } catch (e) {
+            summary.failed++;
+            progress.update(`[crawl] ${domain} [${section.key}] 内容采集失败：${(e as Error).message}`);
+            continue;
+          }
+          if (dryRun) {
+            progress.update(`[crawl] (dry-run) ${domain} [${section.key}] 解析内容 ${pendingC.length} 条`);
+            continue;
+          }
+          const existedC = await loadExistingContents(db, companyId, section.key);
+          // 同一栏目内 dedupeKey 唯一化（与产品管线同口径）
+          const uniqueC = uniqueBy(pendingC, (c) => c.dedupeKey);
+          if (uniqueC.length !== pendingC.length) {
+            progress.update(
+              `[crawl] ${domain} [${section.key}] 内容去重键唯一化：${pendingC.length} → ${uniqueC.length} 条`,
+            );
+          }
+          for (const c of uniqueC) {
+            const prev = existedC.get(c.dedupeKey);
+            await upsertContent(db, c, now);
+            if (prev) summary.contentUpdated++;
+            else summary.contentNew++;
+          }
+          summary.delisted += await softDeleteMissingContents(
+            db,
+            companyId,
+            section.key,
+            seenSet(companyId, section.key),
+            now,
+          );
+          continue;
+        }
+
+        summary.categories++;
         const categoryId = ts.categoryId;
 
         const pending: PendingProduct[] = [];
@@ -260,7 +306,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
 
     summary.companies = companyIds.size;
     progress.done(
-      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints} / 失败 ${summary.failed}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}`,
+      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
   } catch (e) {
@@ -328,15 +374,19 @@ async function buildTargets(
         // --product-line 过滤（config 模式）：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
         if (opts.productLine && section.productLine !== opts.productLine) continue;
         const categoryName = section.category ?? `${domain}::${section.key}`;
-        const categoryId = await upsertCategory(
-          db,
-          companyId,
-          categoryName,
-          section.startUrls[0] ?? cfg.startUrl ?? '',
-          section.productLine ?? null,
-          dryRun,
-          progress,
-        );
+        // 内容栏目（contentType !== 'products'）不绑品类：categories 是产品维度
+        const categoryId =
+          section.contentType !== 'products'
+            ? null
+            : await upsertCategory(
+              db,
+              companyId,
+              categoryName,
+              section.startUrls[0] ?? cfg.startUrl ?? '',
+              section.productLine ?? null,
+              dryRun,
+              progress,
+            );
         targetSections.push({ section, categoryId, categoryName });
       }
       targets.set(domain, { domain, companyId, sections: targetSections });
@@ -374,7 +424,8 @@ async function buildTargets(
     const sections = resolveSections(cfg);
     const companyId = list[0].company.id;
     const targetSections: TargetSection[] = sections.map((section) => {
-      const categoryId = resolveCategoryId(section, list);
+      // 内容栏目（collects !== 'products'）不绑品类
+      const categoryId = section.contentType !== 'products' ? null : resolveCategoryId(section, list);
       const categoryName = section.category ?? domain;
       return { section, categoryId, categoryName };
     });
@@ -804,4 +855,259 @@ async function finalize(
     .update(crawls)
     .set({ status, summary, finishedAt: nowSeconds() })
     .where(eq(crawls.id, crawlId));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 泛型内容采集（section.collects !== 'products'）→ contents 表
+//
+// 复用同一套抓取引擎（traverseList → parseList → 详情 fetch → parseDetail），
+// 只在「归一化落库」处分叉：字段映射 title/summary/body/publishedAt，价格/规格等不适用。
+// YAML 写法见 docs/05 §5.6；去重/软删口径与 products 完全一致。
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface PendingContent {
+  companyId: number;
+  /** 内容类型（= section.contentType，原样写入 contents.content_type） */
+  contentType: string;
+  sectionKey: string;
+  dedupeKey: string;
+  sourceId: string | null;
+  title: string;
+  summary: string | null;
+  body: string | null;
+  author: string | null;
+  publishedAt: number | null;
+  detailUrl: string | null;
+  row: Record<string, unknown>;
+}
+
+/**
+ * 抓取一个内容栏目的全部 startUrls：翻页 → 详情 → 归一化入 pending。
+ * 与产品版 collectSection 同构；模型兜底 / api 源暂不参与内容管线。
+ */
+async function collectContentSection(args: {
+  progress: Progress;
+  mode: RenderMode;
+  opts: CrawlOpts;
+  section: ResolvedSection;
+  companyId: number;
+  pending: PendingContent[];
+  seenSet: (cid: number, sectionKey: string) => Set<string>;
+}): Promise<void> {
+  const { progress, mode, opts, section, companyId, pending, seenSet } = args;
+  const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
+  const items: ListItem[] = [];
+
+  for (const listUrl of section.startUrls) {
+    progress.update(`[crawl] [${section.key}] 内容列表翻页 ${listUrl}`);
+    await traverseList({
+      url: listUrl,
+      traversal: section.listTraversal,
+      mode,
+      maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
+      progress,
+      onPage: (html, _pageNo, pageUrl) => {
+        const pageItems = parseListWithConfig(html, section.parseList, section.key);
+        for (const it of pageItems) it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
+        items.push(...pageItems);
+        return pageItems.length;
+      },
+    });
+  }
+
+  // 列表去重：同 canonical(detailUrl) 只留一条（与产品管线一致）
+  const { items: deduped, duplicates } = dedupeListItems(items);
+  if (duplicates > 0) {
+    progress.update(
+      `[crawl] [${section.key}] 内容列表去重：${items.length} → ${deduped.length} 条（丢弃 ${duplicates} 条重复链接）`,
+    );
+  }
+  const targets = deduped.slice(0, limit);
+  progress.update(`[crawl] [${section.key}] 内容详情解析 ${targets.length}/${deduped.length} 条`);
+
+  for (const it of targets) {
+    try {
+      const html = await fetchPage(it.detailUrl, mode);
+      const np = parseDetailWithConfig(html, section.parseDetail.fields);
+      const c = toPendingContent(np, it, it.detailUrl, companyId, section.key, section.contentType);
+      if (c) {
+        pending.push(c);
+        seenSet(companyId, section.key).add(c.dedupeKey);
+      }
+    } catch {
+      // 单条失败隔离：跳过该条，继续
+    }
+  }
+}
+
+/**
+ * 归一化内容条目：
+ * - title：详情 name → row.title → 列表名
+ * - summary：row.summary → description；body：row.body / row.content / row.text
+ * - publishedAt：row.date / publishedAt / publishTime / publishDate / time → Unix 秒
+ * - dedupeKey：COALESCE(source_id, canonical(detail_url))，同产品口径
+ */
+export function toPendingContent(
+  np: NormalizedProduct,
+  it: ListItem,
+  detailUrl: string,
+  companyId: number,
+  sectionKey: string,
+  contentType: string,
+): PendingContent | null {
+  const row = (np.row ?? {}) as Record<string, unknown>;
+  const pick = (...vs: unknown[]): string | null => {
+    for (const v of vs) {
+      if (typeof v === 'string' && v.trim() !== '') return v.trim();
+    }
+    return null;
+  };
+  const title = pick(np.name, row.title, it.name);
+  if (!title) return null; // 无标题丢弃
+  const sourceId = pick(np.sourceProductId, row.sourceId, row.articleId, row.newsId);
+  const dedupeKey = pickDedupeKey(sourceId, detailUrl);
+  if (!dedupeKey) return null;
+  return {
+    companyId,
+    contentType,
+    sectionKey,
+    dedupeKey,
+    sourceId,
+    title,
+    summary: pick(row.summary, np.description),
+    body: pick(row.body, row.content, row.text),
+    author: pick(row.author, row.source),
+    publishedAt: parseDateStr(row.date ?? row.publishedAt ?? row.publishTime ?? row.publishDate ?? row.time),
+    detailUrl: detailUrl || null,
+    row: { ...row, listTitle: it.name ?? undefined },
+  };
+}
+
+/**
+ * 常见日期写法 → Unix 秒（时区按本地，即采集机器为北京时间口径）：
+ * - 数字：>=1e12 视为毫秒、>=1e9 视为秒，其他不猜
+ * - 字符串：`YYYY-MM-DD[ HH:mm[:ss]]`（支持 / . 分隔）优先，其次 Date.parse 可解析的 ISO 等格式
+ */
+export function parseDateStr(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    if (v >= 1e12) return Math.floor(v / 1000);
+    if (v >= 1e9) return Math.floor(v);
+    return null;
+  }
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s) return null;
+  // 带时区标记（Z / ±hh[:mm]）的 ISO 字符串：优先 Date.parse（保时区语义），避免被本地时间正则误截
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(s)) {
+    const t = Date.parse(s);
+    if (Number.isFinite(t)) return Math.floor(t / 1000);
+  }
+  const m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) {
+    const d = new Date(
+      Number(m[1]),
+      Number(m[2]) - 1,
+      Number(m[3]),
+      Number(m[4] ?? 0),
+      Number(m[5] ?? 0),
+      Number(m[6] ?? 0),
+    );
+    return Number.isFinite(d.getTime()) ? Math.floor(d.getTime() / 1000) : null;
+  }
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? Math.floor(t / 1000) : null;
+}
+
+/** 读取某公司某栏目下现有内容：dedupeKey → id（用于 new/updated 判定） */
+async function loadExistingContents(
+  db: Db,
+  companyId: number,
+  sectionKey: string,
+): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ id: contents.id, dedupeKey: contents.dedupeKey })
+    .from(contents)
+    .where(and(eq(contents.companyId, companyId), eq(contents.sectionKey, sectionKey)));
+  return new Map(rows.map((r) => [r.dedupeKey, r.id]));
+}
+
+/** 内容 upsert（导出供集成冒烟测试使用） */
+export async function upsertContent(db: Db, c: PendingContent, now: number): Promise<void> {
+  await db
+    .insert(contents)
+    .values({
+      companyId: c.companyId,
+      contentType: c.contentType,
+      sectionKey: c.sectionKey,
+      dedupeKey: c.dedupeKey,
+      sourceId: c.sourceId,
+      title: c.title,
+      summary: c.summary,
+      body: c.body,
+      author: c.author,
+      publishedAt: c.publishedAt,
+      detailUrl: c.detailUrl,
+      row: c.row,
+      status: 'active',
+      firstSeenAt: now,
+      lastSeenAt: now,
+      missingSince: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [contents.companyId, contents.dedupeKey, contents.sectionKey],
+      set: {
+        contentType: c.contentType,
+        sourceId: c.sourceId,
+        title: c.title,
+        summary: c.summary,
+        body: c.body,
+        author: c.author,
+        publishedAt: c.publishedAt,
+        detailUrl: c.detailUrl,
+        row: c.row,
+        status: 'active',
+        lastSeenAt: now,
+        missingSince: null,
+        updatedAt: now,
+      },
+    });
+}
+
+/**
+ * 内容软删除（与产品同口径）：连续 2 轮缺失才下架——
+ * 本轮未见到的在线内容：首次 → missingSince=now 仍 active；再次 → removed。
+ */
+export async function softDeleteMissingContents(
+  db: Db,
+  companyId: number,
+  sectionKey: string,
+  seenKeys: Set<string>,
+  now: number,
+): Promise<number> {
+  const rows = await db
+    .select({ id: contents.id, dedupeKey: contents.dedupeKey, missingSince: contents.missingSince })
+    .from(contents)
+    .where(
+      and(
+        eq(contents.companyId, companyId),
+        eq(contents.sectionKey, sectionKey),
+        eq(contents.status, 'active'),
+      ),
+    );
+  let removed = 0;
+  for (const r of rows) {
+    if (seenKeys.has(r.dedupeKey)) continue;
+    if (r.missingSince == null) {
+      await db.update(contents).set({ missingSince: now, updatedAt: now }).where(eq(contents.id, r.id));
+    } else {
+      await db
+        .update(contents)
+        .set({ status: 'removed', missingSince: null, updatedAt: now })
+        .where(eq(contents.id, r.id));
+      removed++;
+    }
+  }
+  return removed;
 }

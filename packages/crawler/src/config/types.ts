@@ -114,8 +114,18 @@ export interface ListTraversalConfig {
  * 同 SKU 出现在不同 section 时按去重口径 B 分开为两条（section_key 并入去重键）。
  */
 export interface SectionConfig {
-  /** 栏目标识：写入 products.section_key，参与去重键。单规则站点固定为 'default' */
+  /** 栏目标识：写入 products.section_key / contents.section_key，参与去重键。单规则站点固定为 'default' */
   key: string;
+  /**
+   * 采集内容类型（路由落库表，与 contents.content_type 同名对应）：
+   * - 'products'（缺省，特殊值）：产品采集 → products 表（价格/规格等完整管线）
+   * - 其他值（如 'news' / 'announcement'）：泛型内容采集 → contents 表（content_type=该值）
+   * 同一站点 YAML 的多规则 sections 可混排产品与资讯栏目。
+   * 兼容：曾短暂用名 collects，读取时回落。
+   */
+  contentType?: string;
+  /** @deprecated 旧名，等价 contentType */
+  collects?: string;
   /**
    * 绑定的种子品类名（对应 categories.name）。
    * 种子里的「品类链接」多为站点首页，无法直接当列表页用，故用本字段把栏目挂到对应品类下。
@@ -171,6 +181,14 @@ export interface SiteConfig {
    * 写入 products.currency，供跨站点比价时做币种区分。
    */
   currency?: string;
+  /**
+   * 站点级默认采集类型（section 未指定 contentType 时继承）。缺省 'products'。
+   * 整站只做资讯采集的站点可直接在顶层写 contentType: news，sections 无需逐个声明。
+   * 兼容：曾短暂用名 collects，读取时回落。
+   */
+  contentType?: string;
+  /** @deprecated 旧名，等价 contentType */
+  collects?: string;
   /** 列表页入口 URL（单规则写法用；多规则时作为各 section 的默认起点） */
   startUrl?: string;
   /** 顶层默认翻页策略（section 未单独指定时继承） */
@@ -189,6 +207,8 @@ export interface SiteConfig {
  */
 export interface ResolvedSection {
   key: string;
+  /** 采集内容类型（透传自 SectionConfig.contentType，缺省回退顶层/ 'products'） */
+  contentType: string;
   /** 绑定的种子品类名（透传自 SectionConfig.category） */
   category?: string;
   /** 产品线（透传自 SectionConfig.productLine，缺省回退 SiteConfig.productLine） */

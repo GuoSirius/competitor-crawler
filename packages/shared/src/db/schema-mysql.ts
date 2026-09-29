@@ -104,5 +104,32 @@ export const alerts = mysqlTable('alerts', {
   createdAt: int('created_at').notNull(),
 });
 
-export const mysqlSchema = { companies, categories, products, crawls, priceHistory, alerts };
+// 泛型内容（非产品采集：新闻 / 公告 / 活动等）。结构与 schema-sqlite.ts 完全一致，仅列类型换 MySQL 等价物。
+export const contents = mysqlTable('contents', {
+  id: int('id').autoincrement().primaryKey(), // 自增主键
+  companyId: int('company_id').notNull().references(() => companies.id), // 所属公司
+  contentType: text('content_type').notNull().default('news'), // 内容类型：news / announcement / event…（= section.contentType）
+  sectionKey: text('section_key').notNull().default('default'), // 栏目维度（参与去重键）
+  dedupeKey: text('dedupe_key').notNull(), // 去重键 = COALESCE(source_id, canonical(detail_url))
+  sourceId: text('source_id'), // 站点自身的内容 id
+  title: text('title').notNull(), // 标题
+  summary: text('summary'), // 摘要
+  body: text('body'), // 正文纯文本
+  author: text('author'), // 作者 / 来源
+  publishedAt: int('published_at'), // 发布时间（Unix 秒，可空）
+  detailUrl: text('detail_url'), // 原文链接
+  row: json('row'), // 兜底原始抽取快照（JSON）
+  status: text('status').notNull().default('active'), // 状态：active / removed
+  firstSeenAt: int('first_seen_at').notNull(), // 首次发现时间（Unix 秒）
+  lastSeenAt: int('last_seen_at').notNull(), // 最近出现时间（Unix 秒）
+  missingSince: int('missing_since'), // 首次缺失时间（Unix 秒）
+  createdAt: int('created_at').notNull(), // 创建时间（Unix 秒）
+  updatedAt: int('updated_at').notNull(), // 更新时间（Unix 秒）
+}, (t) => [
+  uniqueIndex('uniq_content').on(t.companyId, t.dedupeKey, t.sectionKey), // 组合唯一（同 products 口径）
+  index('idx_content_company_type').on(t.companyId, t.contentType, t.status), // 按公司/类型筛选
+  index('idx_content_published').on(t.publishedAt), // 按发布时间排序
+]);
+
+export const mysqlSchema = { companies, categories, products, crawls, priceHistory, alerts, contents };
 export type MysqlSchema = typeof mysqlSchema;

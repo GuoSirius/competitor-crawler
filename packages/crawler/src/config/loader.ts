@@ -80,6 +80,8 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   const topDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };
   const topStartUrls = cfg.startUrl ? [cfg.startUrl] : [];
   const currency = cfg.currency ?? DEFAULT_CURRENCY;
+  // 采集内容类型路由：section.contentType → 顶层默认 → 'products'（产品管线）
+  const topContentType = cfg.contentType ?? cfg.collects ?? 'products';
 
   if (cfg.sections && cfg.sections.length > 0) {
     return cfg.sections.map((s, i) => {
@@ -88,6 +90,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       }
       return {
         key: s.key || 'default',
+        contentType: s.contentType ?? s.collects ?? topContentType,
         category: s.category,
         productLine: s.productLine ?? cfg.productLine,
         currency,
@@ -107,6 +110,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   return [
     {
       key: 'default',
+      contentType: topContentType,
       productLine: cfg.productLine,
       currency,
       startUrls: topStartUrls,

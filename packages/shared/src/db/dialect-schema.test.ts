@@ -15,6 +15,7 @@ const EXPECTED_TABLES = [
   'crawls',
   'priceHistory',
   'alerts',
+  'contents',
 ] as const;
 
 // JS 对象键为驼峰，SQL 表名为 snake_case（drizzle 表定义的首参），两者分别校验
@@ -25,6 +26,7 @@ const EXPECTED_SQL_NAMES: Record<(typeof EXPECTED_TABLES)[number], string> = {
   crawls: 'crawls',
   priceHistory: 'price_history',
   alerts: 'alerts',
+  contents: 'contents',
 };
 
 const SCHEMAS: Record<DbDialect, Record<string, unknown>> = {

@@ -16,7 +16,7 @@ export const MENU: MenuGroup[] = [
     title: '数据',
     items: [
       { to: '/', label: '对标看板', icon: 'dashboard' },
-      { to: '/contents', label: '资讯动态', icon: 'news', badge: '规划中', disabled: true },
+      { to: '/contents', label: '资讯动态', icon: 'news' },
     ],
   },
   {
