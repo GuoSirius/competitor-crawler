@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick } from 'vue';
 import * as echarts from 'echarts';
+import { useTheme } from '~/composables/useTheme';
 
 interface Product {
   id: number;
@@ -19,6 +20,8 @@ interface Product {
   company: string | null;
   category: string | null;
 }
+
+const { isDark } = useTheme();
 
 const companies = ref<{ id: number; name: string }[]>([]);
 const categories = ref<{ id: number; name: string }[]>([]);
@@ -55,9 +58,12 @@ async function loadProducts() {
 async function loadStats() {
   const stats = await $fetch<{ company: string; count: number }[]>('/api/stats');
   if (!chartEl.value) return;
-  chart ??= echarts.init(chartEl.value);
+  // 主题切换时重建实例（echarts 主题在 init 时固定）
+  chart?.dispose();
+  chart = echarts.init(chartEl.value, isDark.value ? 'dark' : undefined);
   chart.setOption({
-    tooltip: {},
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 80, right: 20, top: 20, bottom: 60 },
     xAxis: { type: 'category', data: stats.map((s) => s.company), axisLabel: { rotate: 30 } },
     yAxis: { type: 'value' },
@@ -73,73 +79,86 @@ function resetPage() {
 onMounted(async () => {
   await loadOptions();
   await loadProducts();
-  await loadStats();
   await nextTick();
+  await loadStats();
   window.addEventListener('resize', () => chart?.resize());
 });
 
+watch(isDark, () => loadStats());
 watch(() => filters.value, resetPage, { deep: true });
 </script>
 
 <template>
   <div class="space-y-4">
-    <h1 class="text-xl font-bold">对标看板</h1>
-
-    <div class="bg-white rounded shadow p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
-      <select v-model="filters.company" class="border rounded px-2 py-1">
+    <!-- 筛选区 -->
+    <div class="card p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+      <select v-model="filters.company" class="input">
         <option value="">全部公司</option>
         <option v-for="c in companies" :key="c.id" :value="c.name">{{ c.name }}</option>
       </select>
-      <select v-model="filters.category" class="border rounded px-2 py-1">
+      <select v-model="filters.category" class="input">
         <option value="">全部品类</option>
         <option v-for="c in categories" :key="c.id" :value="c.name">{{ c.name }}</option>
       </select>
-      <select v-model="filters.status" class="border rounded px-2 py-1">
+      <select v-model="filters.status" class="input">
         <option value="active">活跃</option>
         <option value="delisted">已下架</option>
       </select>
-      <input v-model="filters.q" placeholder="搜索名称" class="border rounded px-2 py-1" @keyup.enter="resetPage" />
-      <label class="flex items-center gap-1 text-sm">
-        <input v-model="filters.hasClone" type="checkbox" /> 仅看有克隆号
+      <input v-model="filters.q" placeholder="搜索名称…" class="input" @keyup.enter="resetPage" />
+      <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300 select-none cursor-pointer">
+        <input v-model="filters.hasClone" type="checkbox" class="accent-brand" /> 仅看有克隆号
       </label>
     </div>
 
-    <div class="bg-white rounded shadow p-4">
+    <!-- 各公司产品数 -->
+    <div class="card p-4">
+      <h2 class="text-sm font-semibold text-gray-600 dark:text-slate-300 mb-2">各公司产品数</h2>
       <div ref="chartEl" style="height: 280px"></div>
     </div>
 
-    <div class="bg-white rounded shadow overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-100 text-left">
+    <!-- 产品表 -->
+    <div class="card overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-gray-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-700">
           <tr>
-            <th class="px-3 py-2">产品</th>
-            <th class="px-3 py-2">公司</th>
-            <th class="px-3 py-2">品类</th>
-            <th class="px-3 py-2">克隆号</th>
-            <th class="px-3 py-2">价格</th>
-            <th class="px-3 py-2">规格</th>
+            <th class="th">产品</th>
+            <th class="th">公司</th>
+            <th class="th">品类</th>
+            <th class="th">克隆号</th>
+            <th class="th">价格</th>
+            <th class="th">规格</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-for="p in items" :key="p.id" class="border-t hover:bg-gray-50">
-            <td class="px-3 py-2">
-              <NuxtLink :to="`/product/${p.id}`" class="text-brand hover:underline">
+        <tbody class="divide-y divide-gray-100 dark:divide-slate-700/60">
+          <tr v-for="p in items" :key="p.id" class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+            <td class="td">
+              <NuxtLink :to="`/product/${p.id}`" class="link font-medium">
                 {{ p.name || p.englishName || '(未命名)' }}
               </NuxtLink>
             </td>
-            <td class="px-3 py-2">{{ p.company }}</td>
-            <td class="px-3 py-2">{{ p.category }}</td>
-            <td class="px-3 py-2">{{ p.cloneNumber ?? '—' }}</td>
-            <td class="px-3 py-2">{{ p.priceText || (p.price != null ? p.price + ' ' + (p.currency ?? '') : '—') }}</td>
-            <td class="px-3 py-2">{{ p.specText || '—' }}</td>
+            <td class="td">{{ p.company }}</td>
+            <td class="td">
+              <span v-if="p.category" class="px-1.5 py-0.5 rounded bg-brand/10 text-brand dark:bg-brand/20 dark:text-blue-400 text-xs">
+                {{ p.category }}
+              </span>
+              <span v-else class="text-gray-400 dark:text-slate-500">—</span>
+            </td>
+            <td class="td font-mono text-xs">{{ p.cloneNumber ?? '—' }}</td>
+            <td class="td">{{ p.priceText || (p.price != null ? p.price + ' ' + (p.currency ?? '') : '—') }}</td>
+            <td class="td">{{ p.specText || '—' }}</td>
+          </tr>
+          <tr v-if="items.length === 0">
+            <td colspan="6" class="td text-center text-gray-400 dark:text-slate-500 py-8">暂无数据</td>
           </tr>
         </tbody>
       </table>
-      <div class="px-3 py-2 text-sm text-gray-500 flex items-center gap-3">
+      <div class="px-4 py-2.5 text-sm text-gray-500 dark:text-slate-400 flex items-center gap-3 border-t border-gray-100 dark:border-slate-700/60">
         <span>共 {{ total }} 条</span>
-        <button class="px-2 py-1 border rounded disabled:opacity-40" :disabled="page <= 1" @click="page--; loadProducts()">上一页</button>
-        <span>第 {{ page }} 页</span>
-        <button class="px-2 py-1 border rounded disabled:opacity-40" :disabled="page * pageSize >= total" @click="page++; loadProducts()">下一页</button>
+        <div class="ml-auto flex items-center gap-2">
+          <button class="btn-ghost !h-7 !px-2.5 text-xs" :disabled="page <= 1" @click="page--; loadProducts()">上一页</button>
+          <span>第 {{ page }} 页</span>
+          <button class="btn-ghost !h-7 !px-2.5 text-xs" :disabled="page * pageSize >= total" @click="page++; loadProducts()">下一页</button>
+        </div>
       </div>
     </div>
   </div>
