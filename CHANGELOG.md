@@ -1,5 +1,30 @@
 # Changelog
 
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+
+## [1.2.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.1.0...v1.2.0) (2026-09-30)
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **scripts:** changelog 收录全部提交类型并按 tag 全量重建 ([d5bdcd4](https://github.com/GuoSirius/competitor-crawler/commit/d5bdcd4d57d410c3af6e594f80cd58326e4e346c))
+
+
+### 🚀 新功能 (Features)
+
+* 默认 config 源、面包屑动态分类与公司复用补全 ([a581b40](https://github.com/GuoSirius/competitor-crawler/commit/a581b4090981e584b17c6898844fc14d623263ab))
+* crawl --site 支持逗号分隔多站 ([d8620d3](https://github.com/GuoSirius/competitor-crawler/commit/d8620d3a1a06dc97197cbce985d6cb3f6fcd9953))
+* **crawl:** yaml公司属性competitorType/role随公司upsert落库 ([ab7e49f](https://github.com/GuoSirius/competitor-crawler/commit/ab7e49f363ab4032712a0b37f49217f68d504cdf))
+
+
+### 📚 文档 (Documentation)
+
+* 钉死 sku/price/specText 默认规格口径与形态c说明 ([eab8f8c](https://github.com/GuoSirius/competitor-crawler/commit/eab8f8c484f5aa73e7c8a0c8ff325351a0b67653))
+* 声明 yaml 唯一真相源并登记面包屑动态分类用法 ([5ef7b51](https://github.com/GuoSirius/competitor-crawler/commit/5ef7b511b7c4c147b14b75d34e747f3cf9d5ed15))
+* **config:** 站点模板补齐真相源声明/分类归属/公司属性与形态c口径 ([aaae859](https://github.com/GuoSirius/competitor-crawler/commit/aaae859367d20095033940ce5b8ef30cdfec256f))
+
+# Changelog
+
 ## v1.1.0
 
 [compare changes](https://github.com/GuoSirius/competitor-crawler/compare/v1.0.0...v1.1.0)
@@ -187,4 +212,3 @@
 - 新增 .env.example、种子数据与测试占位 ([2e0c6eb](https://github.com/GuoSirius/competitor-crawler/commit/2e0c6eb))
 - **config:** 新增站点适配器配置模板与模型配置，忽略派生种子 JSON ([e0d9c6c](https://github.com/GuoSirius/competitor-crawler/commit/e0d9c6c))
 - **pnpm:** 构建白名单改用 allowBuilds 修复 install 报错 ([1fdfc83](https://github.com/GuoSirius/competitor-crawler/commit/1fdfc83))
-
