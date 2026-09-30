@@ -15,10 +15,20 @@ export class Progress {
   private readonly stream: NodeJS.WriteStream;
   private readonly multiLine: boolean;
   private current = '';
+  /** 单行模式下是否已绘制活动进度条（done 后置 false）；log() 据此决定是否上移打印 */
+  private barDrawn = false;
+  /** 当前进度条所在行号（单行模式，从 2 起，预留第 1 行为状态行）；log() 据此上移到状态行 */
+  private barLine = 1;
 
   constructor(opts: ProgressOptions = {}) {
     this.stream = opts.stream ?? process.stderr;
     this.multiLine = opts.multiLine ?? false;
+    // 单行模式预留第 1 行为状态行：进度条从第 2 行起，使 log() 把状态打在进度条上方时
+    // 永远落到第 1 行（不会误清掉已定格的上一段进度条）。
+    if (!this.multiLine) {
+      this.stream.write('\n');
+      this.barLine = 2;
+    }
   }
 
   /** 更新进度；单行模式覆盖上一行 */
@@ -29,6 +39,7 @@ export class Progress {
     }
     this.stream.write(`\r\u001b[2K${msg}`);
     this.current = msg;
+    this.barDrawn = true;
   }
 
   /**
@@ -42,11 +53,32 @@ export class Progress {
       return;
     }
     this.stream.write(`\r\u001b[2K${msg ?? this.current}\n`);
+    this.barLine++; // 光标已下移一行，后续进度条在更下方新行
+    this.barDrawn = false;
   }
 
   /** 追加一行（多行模式直接写；单行模式先换行再写——用于进度定格后的明细列表） */
   writeLine(msg: string): void {
     this.stream.write(`${this.multiLine ? '' : '\r\u001b[2K\n'}${msg}\n`);
+    if (!this.multiLine) this.barLine++;
+  }
+
+  /**
+   * 打一行「状态/调试」信息（如当前抓取的 URL、HTTP 方法、回退提示），显示在进度条
+   * **上方的预留状态行（第 1 行）**，不破坏任何进度条所在行——解决多写入者抢同一行
+   * 导致进度条闪烁、以及详情阶段误清已定格列表进度的问题（docs/16 P5：列表进度需保留可见）。
+   * - 非 TTY（管道/CI）：直接换行打印，避免转义码污染日志。
+   * - 尚无活动进度条：退化为普通换行打印。
+   * 实现：上移 (barLine-1) 行到第 1 行 → 清行 → 写状态 → 换行 → 下移回进度条行（进度条不变）。
+   * 无论当前进度条在第几行（列表→详情下移到第 3 行），状态都落在顶部第 1 行，不会误清上一段进度条。
+   */
+  log(msg: string): void {
+    if (this.multiLine || !this.barDrawn || !this.stream.isTTY) {
+      this.stream.write(`${msg}\n`);
+      return;
+    }
+    const up = this.barLine - 1;
+    this.stream.write(`\u001b[${up}A\r\u001b[2K${msg}\n\u001b[${up}B`);
   }
 }
 

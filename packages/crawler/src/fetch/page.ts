@@ -68,7 +68,7 @@ export async function fetchPage(
   const html = await ssrFetch(url, progress, headers);
   if (mode === 'ssr') return html;
   if (html.length < 800) {
-    progress?.update('静态抓取内容偏少，回退 Playwright 渲染…');
+    progress?.log('静态抓取内容偏少，回退 Playwright 渲染…');
     return spaFetch(url, progress);
   }
   return html;
@@ -79,7 +79,7 @@ async function ssrFetch(
   progress?: Progress,
   headers?: Record<string, string>,
 ): Promise<string> {
-  progress?.update(`GET ${url} (ssr)`);
+  progress?.log(`GET ${url} (ssr)`);
   // 与 SPA 分支对齐补齐浏览器头（docs/16 C4）：部分 WAF 对缺 sec-ch-ua / Accept 头的请求直接拦截
   const res = await fetch(url, {
     headers: {
@@ -151,7 +151,7 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
 }
 
 async function spaFetch(url: string, progress?: Progress): Promise<string> {
-  progress?.update(`GET ${url} (spa/playwright)`);
+  progress?.log(`GET ${url} (spa/playwright)`);
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({ args: STEALTH_ARGS });
   try {
@@ -173,7 +173,7 @@ async function spaFetch(url: string, progress?: Progress): Promise<string> {
  * 且只有少部分站点需要「读图」；让不需要的站点零成本。
  */
 export async function fetchScreenshot(url: string, progress?: Progress): Promise<Buffer> {
-  progress?.update(`PLAYWRIGHT 截图 ${url}`);
+  progress?.log(`PLAYWRIGHT 截图 ${url}`);
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({ args: STEALTH_ARGS });
   try {

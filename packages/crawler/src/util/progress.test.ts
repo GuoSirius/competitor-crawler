@@ -119,3 +119,39 @@ describe('ProgressCounter — 页级列表进度（showOutcome:false, liveTime:t
     expect(ms.buf).toContain('详情 1/1');
   });
 });
+
+describe('Progress.log — 状态行显示在进度条上方（不破坏进度条）', () => {
+  it('非 TTY / 尚无活动进度条：退化为普通换行打印', () => {
+    const ms = new MemStream();
+    const stream = ms as unknown as NodeJS.WriteStream; // MemStream 无 isTTY
+    const p = new Progress({ stream });
+    p.update('BAR');
+    p.log('GET x');
+    expect(ms.buf).toContain('BAR');
+    expect(ms.buf).toContain('GET x\n');
+  });
+
+  it('TTY 且有活动进度条：光标上移把状态打在进度条上方，进度条文本保留', () => {
+    const ms = new MemStream();
+    // 伪造 TTY stream（带 isTTY: true）
+    const stream = Object.assign(ms, { isTTY: true }) as unknown as NodeJS.WriteStream;
+    const p = new Progress({ stream });
+    p.update('BAR');
+    p.log('GET x');
+    // 上移一行 + 清行 + 状态 + 换行
+    expect(ms.buf).toContain('\u001b[1A\r\u001b[2KGET x\n');
+    // 进度条文本未被清掉（仍在各自行）
+    expect(ms.buf).toContain('BAR');
+  });
+
+  it('done 后进度条已收尾，log 退化为普通打印（不再上移）', () => {
+    const ms = new MemStream();
+    const stream = Object.assign(ms, { isTTY: true }) as unknown as NodeJS.WriteStream;
+    const p = new Progress({ stream });
+    p.update('BAR');
+    p.done('BAR done');
+    p.log('after-done');
+    expect(ms.buf).toContain('after-done\n');
+    expect(ms.buf).not.toContain('\u001b[1A\r\u001b[2Kafter-done');
+  });
+});

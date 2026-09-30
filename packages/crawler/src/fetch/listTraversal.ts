@@ -106,12 +106,12 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
       // 适配器钩子优先（返回空值走默认拼装逻辑，docs/16 🔴-2）
       const pageUrl =
         opts.buildPageUrlFn?.(url, traversal.urlTemplate, p) || buildPageUrl(url, traversal.urlTemplate, p);
-      opts.progress?.update(`[traverse] 列表 第${p}页 ${pageUrl}`);
+      opts.progress?.log(`[traverse] 列表 第${p}页 ${pageUrl}`);
       let html: string;
       try {
         html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers);
       } catch (e) {
-        opts.progress?.update(`[traverse] 第 ${p} 页抓取失败，终止翻页：${(e as Error).message}`);
+        opts.progress?.log(`[traverse] 第 ${p} 页抓取失败，终止翻页：${(e as Error).message}`);
         break;
       }
       const n = await opts.onPage(html, p, pageUrl);
@@ -135,7 +135,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     browser = await chromium.launch();
   } catch (e) {
     // Playwright 不可用（未安装内核等）→ 回退单页，保证不整轮失败
-    opts.progress?.update(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
+    opts.progress?.log(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n };
