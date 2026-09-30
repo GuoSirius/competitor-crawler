@@ -106,7 +106,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
       // 适配器钩子优先（返回空值走默认拼装逻辑，docs/16 🔴-2）
       const pageUrl =
         opts.buildPageUrlFn?.(url, traversal.urlTemplate, p) || buildPageUrl(url, traversal.urlTemplate, p);
-      opts.progress?.update(`[traverse] URL 翻页 ${pageUrl}`);
+      opts.progress?.update(`[traverse] 列表 第${p}页 ${pageUrl}`);
       let html: string;
       try {
         html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers);

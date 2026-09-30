@@ -28,7 +28,7 @@ import { recordAlert } from '../util/alerts.js';
 import { traverseList } from '../fetch/listTraversal.js';
 import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
-import { Progress } from '../util/progress.js';
+import { Progress, ProgressCounter } from '../util/progress.js';
 import pLimit from 'p-limit';
 import { detailConcurrency } from '../util/limit.js';
 import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
@@ -257,11 +257,16 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
               `[crawl] ${domain} [${section.key}] 内容去重键唯一化：${pendingC.length} → ${uniqueC.length} 条`,
             );
           }
-          for (const c of uniqueC) {
+          for (const [i, c] of uniqueC.entries()) {
             const prev = existedC.get(c.identityKey);
             await upsertContent(db, c, now);
             if (prev) summary.contentUpdated++;
             else summary.contentNew++;
+            // 落库进度节流（与产品管线同口径）
+            const step = Math.max(25, Math.ceil(uniqueC.length / 10));
+            if ((i + 1) % step === 0 || i + 1 === uniqueC.length) {
+              progress.update(`[crawl] ${domain} [${section.key}] 内容落库 ${i + 1}/${uniqueC.length}`);
+            }
           }
           summary.delisted += await softDeleteMissingContents(
             db,
@@ -350,7 +355,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           }
           if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
         }
-        for (const p of unique) {
+        for (const [i, p] of unique.entries()) {
           const prev = existed.get(p.identityKey);
           const productId = await upsertProduct(db, p, now);
           if (prev) summary.updated++;
@@ -360,6 +365,11 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           if (changed && (p.price !== null || (prev?.price ?? null) !== null)) {
             await recordPrice(db, productId, p, crawlRow.id, now);
             summary.pricePoints++;
+          }
+          // 落库进度：逐条刷新太闪，按 10%（至少每 25 条）节流更新
+          const step = Math.max(25, Math.ceil(unique.length / 10));
+          if ((i + 1) % step === 0 || i + 1 === unique.length) {
+            progress.update(`[crawl] ${domain} [${section.key}] 落库 ${i + 1}/${unique.length}`);
           }
         }
         summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
@@ -756,7 +766,7 @@ async function collectSection(args: {
       buildPageUrlFn: adapter?.buildPageUrl
         ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
         : undefined,
-      onPage: async (html, _pageNo, pageUrl) => {
+      onPage: async (html, pageNo, pageUrl) => {
         let pageItems = slicePageItems(parseListWithConfig(html, section.parseList, section.key), tv);
         for (const it of pageItems) {
           it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
@@ -765,6 +775,7 @@ async function collectSection(args: {
         // 适配器钩子：列表解析后二次加工（过滤/补字段）；同步异步均可，统一 await
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
+        progress.update(`[crawl] [${section.key}] 列表 第${pageNo}页 +${pageItems.length} 条（累计 ${items.length}）`);
         return pageItems.length;
       },
     });
@@ -781,11 +792,15 @@ async function collectSection(args: {
   const targets = deduped.slice(0, limit);
   progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
 
-  // 详情失败可见化（docs/16 E1）：失败不再静默——逐条记日志，返回计数由调用方计入 summary.failed
+  // 详情失败可见化（docs/16 E1）：失败不再静默——计数 + 明细收尾统一打印
   // 并发限制（docs/16 P5）：p-limit 限流，CRAWL_DETAIL_CONCURRENCY（0/未设/非法 → CPU 核心数），防同站瞬时高并发被拉黑
   const limiter = pLimit(detailConcurrency());
+  // 并发详情进度：逐条 tick 单行刷新（完成数/百分比/速率），失败明细 finish 时统一打印
+  const detailBar = new ProgressCounter(progress, `[crawl] [${section.key}] 详情`, targets.length);
   let detailFailed = 0;
   await Promise.all(targets.map((it) => limiter(async () => {
+    let ok = true;
+    let errMsg = '';
     try {
       const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
       let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
@@ -845,11 +860,15 @@ async function collectSection(args: {
       });
       seenSet(companyId, section.key).add(identityKey);
     } catch (e) {
-      // 详情失败隔离：跳过该条继续，但**必须可见**（记日志 + 计数，不再静默丢数据）
+      // 详情失败隔离：跳过该条继续，但**必须可见**（计数 + finish 时统一打印明细，不再静默丢数据）
+      ok = false;
+      errMsg = `${it.detailUrl}：${(e as Error).message}`;
       detailFailed++;
-      progress.update(`[crawl] [${section.key}] 详情失败 ${it.detailUrl}：${(e as Error).message}`);
+    } finally {
+      detailBar.tick(ok, ok ? undefined : errMsg);
     }
   })));
+  detailBar.finish();
   return detailFailed;
 }
 
@@ -1126,7 +1145,7 @@ async function collectContentSection(args: {
       buildPageUrlFn: adapter?.buildPageUrl
         ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
         : undefined,
-      onPage: async (html, _pageNo, pageUrl) => {
+      onPage: async (html, pageNo, pageUrl) => {
         let pageItems = slicePageItems(parseListWithConfig(html, section.parseList, section.key), tv);
         for (const it of pageItems) {
           it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
@@ -1134,6 +1153,7 @@ async function collectContentSection(args: {
         }
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
+        progress.update(`[crawl] [${section.key}] 内容列表 第${pageNo}页 +${pageItems.length} 条（累计 ${items.length}）`);
         return pageItems.length;
       },
     });
@@ -1151,8 +1171,11 @@ async function collectContentSection(args: {
 
   // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5（p-limit）
   const limiter = pLimit(detailConcurrency());
+  const detailBar = new ProgressCounter(progress, `[crawl] [${section.key}] 内容详情`, targets.length);
   let detailFailed = 0;
   await Promise.all(targets.map((it) => limiter(async () => {
+    let ok = true;
+    let errMsg = '';
     try {
       const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
       let np = parseDetailWithConfig(html, section.parseDetail.fields);
@@ -1164,11 +1187,15 @@ async function collectContentSection(args: {
         seenSet(companyId, section.key).add(c.identityKey);
       }
     } catch (e) {
-      // 单条失败隔离：跳过该条继续，但记日志 + 计数（不再静默）
+      // 单条失败隔离：跳过该条继续，但记明细 + 计数（不再静默）
+      ok = false;
+      errMsg = `${it.detailUrl}：${(e as Error).message}`;
       detailFailed++;
-      progress.update(`[crawl] [${section.key}] 内容详情失败 ${it.detailUrl}：${(e as Error).message}`);
+    } finally {
+      detailBar.tick(ok, ok ? undefined : errMsg);
     }
   })));
+  detailBar.finish();
   return detailFailed;
 }
 
