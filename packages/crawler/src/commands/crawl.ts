@@ -752,8 +752,17 @@ async function collectSection(args: {
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
 
+  // 列表翻页进度：页级 ProgressCounter（实时用时/速率）。收尾 commit 成独立行（带 \n），
+  // 后续详情进度从新行开始，不会覆盖本行（docs/16 P5-进度：列表进度需保留可见）。
+  // total 仅在 pagination-url 且 pageEnd 已知时才有意义，否则记 0（未知总页数 → 显示「第N页」）。
+  const listCap = tv.pageEnd !== undefined ? tv.pageEnd - tv.pageStart + 1 : 0;
+  const listBar = new ProgressCounter(progress, `[crawl] [${section.key}] 列表`, listCap, {
+    unit: '页',
+    showOutcome: false,
+    liveTime: true,
+  });
   for (const listUrl of section.startUrls) {
-    progress.update(`[crawl] [${section.key}] 列表翻页 ${listUrl}`);
+    listBar.note(`翻页 ${listUrl}`);
     await traverseList({
       url: listUrl,
       traversal: section.listTraversal,
@@ -775,7 +784,7 @@ async function collectSection(args: {
         // 适配器钩子：列表解析后二次加工（过滤/补字段）；同步异步均可，统一 await
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
-        progress.update(`[crawl] [${section.key}] 列表 第${pageNo}页 +${pageItems.length} 条（累计 ${items.length}）`);
+        listBar.tick(true, `第${pageNo}页 +${pageItems.length}条 累计${items.length}`);
         return pageItems.length;
       },
     });
@@ -784,13 +793,12 @@ async function collectSection(args: {
   // 列表去重：列表页常把同一产品渲染两次（pc/web 双套模板、图片链接+标题链接），
   // 不去重会导致同一详情被抓两次、`新增` 计数虚高。去重键 = canonical(detailUrl)，与落库口径一致。
   const { items: deduped, duplicates } = dedupeListItems(items);
-  if (duplicates > 0) {
-    progress.update(
-      `[crawl] [${section.key}] 列表去重：${items.length} → ${deduped.length} 条（丢弃 ${duplicates} 条重复链接）`,
-    );
-  }
   const targets = deduped.slice(0, limit);
-  progress.update(`[crawl] [${section.key}] 详情解析 ${targets.length}/${deduped.length} 条`);
+  // 列表阶段收尾：去重/解析统计一并定格进列表进度行（commit 带 \n，详情进度从其下新行开始）
+  const listNotes: string[] = [];
+  if (duplicates > 0) listNotes.push(`去重${items.length}→${deduped.length}`);
+  listNotes.push(`详情解析${targets.length}/${deduped.length}`);
+  listBar.finish(listNotes.join(' · '));
 
   // 详情失败可见化（docs/16 E1）：失败不再静默——计数 + 明细收尾统一打印
   // 并发限制（docs/16 P5）：p-limit 限流，CRAWL_DETAIL_CONCURRENCY（0/未设/非法 → CPU 核心数），防同站瞬时高并发被拉黑
@@ -1132,8 +1140,15 @@ async function collectContentSection(args: {
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
 
+  // 列表翻页进度：页级 ProgressCounter（实时用时/速率），收尾 commit 成独立行，不被详情覆盖
+  const listCap = tv.pageEnd !== undefined ? tv.pageEnd - tv.pageStart + 1 : 0;
+  const listBar = new ProgressCounter(progress, `[crawl] [${section.key}] 内容列表`, listCap, {
+    unit: '页',
+    showOutcome: false,
+    liveTime: true,
+  });
   for (const listUrl of section.startUrls) {
-    progress.update(`[crawl] [${section.key}] 内容列表翻页 ${listUrl}`);
+    listBar.note(`翻页 ${listUrl}`);
     await traverseList({
       url: listUrl,
       traversal: section.listTraversal,
@@ -1153,7 +1168,7 @@ async function collectContentSection(args: {
         }
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
-        progress.update(`[crawl] [${section.key}] 内容列表 第${pageNo}页 +${pageItems.length} 条（累计 ${items.length}）`);
+        listBar.tick(true, `第${pageNo}页 +${pageItems.length}条 累计${items.length}`);
         return pageItems.length;
       },
     });
@@ -1161,13 +1176,11 @@ async function collectContentSection(args: {
 
   // 列表去重：同 canonical(detailUrl) 只留一条（与产品管线一致）
   const { items: deduped, duplicates } = dedupeListItems(items);
-  if (duplicates > 0) {
-    progress.update(
-      `[crawl] [${section.key}] 内容列表去重：${items.length} → ${deduped.length} 条（丢弃 ${duplicates} 条重复链接）`,
-    );
-  }
   const targets = deduped.slice(0, limit);
-  progress.update(`[crawl] [${section.key}] 内容详情解析 ${targets.length}/${deduped.length} 条`);
+  const listNotes: string[] = [];
+  if (duplicates > 0) listNotes.push(`去重${items.length}→${deduped.length}`);
+  listNotes.push(`详情解析${targets.length}/${deduped.length}`);
+  listBar.finish(listNotes.join(' · '));
 
   // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5（p-limit）
   const limiter = pLimit(detailConcurrency());
