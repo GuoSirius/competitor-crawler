@@ -16,6 +16,7 @@ import {
   unixFromBjParts,
   type ListItem,
   type NormalizedProduct,
+  type DbDialect,
 } from '@competitor-crawler/shared';
 import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode, resolveTraversalLimits, slicePageItems } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
@@ -70,7 +71,7 @@ export interface CrawlOpts {
   trigger?: 'manual' | 'schedule';
 }
 
-interface PendingProduct {
+export interface PendingProduct {
   companyId: number;
   categoryId: number | null;
   /** 详情页面包屑分类路径（categoryFromPage 动态解析）；非空时优先于 categoryId 建树落库 */
@@ -134,7 +135,7 @@ interface CrawlSummary {
  */
 export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   const progress = new Progress();
-  const { db } = createDb();
+  const { db, dialect } = createDb();
   const now = nowSeconds();
   const dryRun = opts.dryRun === true;
   const summary: CrawlSummary = {
@@ -361,22 +362,13 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           }
           if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
         }
-        for (const [i, p] of unique.entries()) {
-          const prev = existed.get(p.identityKey);
-          const productId = await upsertProduct(db, p, now);
-          if (prev) summary.updated++;
-          else summary.new++;
-          // 价格历史：首次入库或价格变化时记一行（新旧价全空则不记）。仅写入，不消费。
-          const changed = !prev || prev.price !== p.price;
-          if (changed && (p.price !== null || (prev?.price ?? null) !== null)) {
-            await recordPrice(db, productId, p, crawlRow.id, now);
-            summary.pricePoints++;
-          }
-          // 落库进度：逐条刷新太闪，按 10%（至少每 25 条）节流更新
-          const step = Math.max(25, Math.ceil(unique.length / 10));
-          if ((i + 1) % step === 0 || i + 1 === unique.length) {
-            progress.update(`[crawl] ${domain} [${section.key}] 落库 ${i + 1}/${unique.length}`);
-          }
+        // 增量批量落库（docs/16 规模化兜底）：按 CRAWL_UPSERT_BATCH 分批，单批事务包裹
+        // （失败整批回滚 / 减少生产库往返），解决逐条写库慢、中途崩全丢、生产库往返多。
+        for (let start = 0; start < unique.length; start += UPSERT_BATCH) {
+          const batch = unique.slice(start, start + UPSERT_BATCH);
+          await flushUpsertBatch(db, dialect, batch, existed, summary, now, crawlRow.id, progress, domain, section.key);
+          const done = Math.min(start + UPSERT_BATCH, unique.length);
+          progress.update(`[crawl] ${domain} [${section.key}] 落库 ${done}/${unique.length}`);
         }
         summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
       }
@@ -990,6 +982,80 @@ async function recordPrice(
     crawlId,
     capturedAt: now,
   });
+}
+
+/**
+ * 批量写价格历史（多行 insert，一次网络往返写一批，解决逐条写库慢）。
+ * 仅写入不消费；与产品 upsert 同事务（见 flushUpsertBatch），失败整批回滚。
+ */
+interface PriceRow {
+  productId: number;
+  p: PendingProduct;
+  crawlId: number;
+  now: number;
+}
+async function batchRecordPrice(db: Db, rows: PriceRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  await db.insert(priceHistory).values(
+    rows.map((r) => ({
+      productId: r.productId,
+      price: r.p.price,
+      currency: r.p.currency,
+      priceText: r.p.priceText,
+      specText: r.p.specText,
+      crawlId: r.crawlId,
+      capturedAt: r.now,
+    })),
+  );
+}
+
+/**
+ * 增量批量落库（docs/16 规模化兜底）：把一批评产品（≤ CRAWL_UPSERT_BATCH，默认 200）逐条 upsert
+ * （复用现有 upsertProduct，零方言风险）+ 批量写价格历史（多行一次插入）。
+ * - 解决「逐条写库慢」：价格历史走多行批量写入，生产库 MySQL/PG 还可整批包进 1 个事务（仅 1 次 commit）。
+ * - 解决「中途崩全丢」：批内 upsert 是幂等的，崩溃最多丢当前批，重跑（断点续跑）会跳过已落盘项，不重复、不丢。
+ *
+ * 方言注意：better-sqlite3 的事务回调**必须是同步函数**，而 drizzle 的 insert 是 async，故 SQLite 走
+ * 逐条 upsert（与旧行为一致、安全）；MySQL/PG 事务支持 async 回调 → 整批包进事务，原子且只 1 次 commit。
+ */
+const UPSERT_BATCH = Number(process.env.CRAWL_UPSERT_BATCH) > 0 ? Number(process.env.CRAWL_UPSERT_BATCH) : 200;
+export async function flushUpsertBatch(
+  db: Db,
+  dialect: DbDialect,
+  batch: PendingProduct[],
+  existed: Map<string, { id: number; price: number | null }>,
+  summary: CrawlSummary,
+  now: number,
+  crawlId: number,
+  progress: Progress,
+  domain: string,
+  sectionKey: string,
+): Promise<void> {
+  const priceRows: PriceRow[] = [];
+  const runBatch = async (tx: Db) => {
+    for (const p of batch) {
+      const prev = existed.get(p.identityKey);
+      const productId = await upsertProduct(tx, p, now);
+      if (prev) summary.updated++;
+      else summary.new++;
+      // 价格历史：首次入库或价格变化时记一行（新旧价全空则不记）
+      const changed = !prev || prev.price !== p.price;
+      if (changed && (p.price !== null || (prev?.price ?? null) !== null)) {
+        priceRows.push({ productId, p, crawlId, now });
+        summary.pricePoints++;
+      }
+    }
+    await batchRecordPrice(tx, priceRows);
+  };
+  if (dialect === 'sqlite') {
+    // better-sqlite3 事务回调必须同步，drizzle insert 是 async → 无法用 db.transaction；逐条 upsert 与旧行为一致
+    await runBatch(db);
+  } else {
+    // MySQL / PostgreSQL：事务支持 async 回调 → 整批原子（失败整批回滚），且只 1 次 commit，大幅减少网络往返
+    await db.transaction(async (tx) => {
+      await runBatch(tx as Db);
+    });
+  }
 }
 
 async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<number> {
