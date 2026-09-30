@@ -23,9 +23,7 @@ All notable changes to this project will be documented in this file. See [standa
 * 声明 yaml 唯一真相源并登记面包屑动态分类用法 ([5ef7b51](https://github.com/GuoSirius/competitor-crawler/commit/5ef7b511b7c4c147b14b75d34e747f3cf9d5ed15))
 * **config:** 站点模板补齐真相源声明/分类归属/公司属性与形态c口径 ([aaae859](https://github.com/GuoSirius/competitor-crawler/commit/aaae859367d20095033940ce5b8ef30cdfec256f))
 
-# Changelog
-
-## v1.1.0
+## [1.1.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.0.0...v1.1.0) (2026-09-29)
 
 [compare changes](https://github.com/GuoSirius/competitor-crawler/compare/v1.0.0...v1.1.0)
 
