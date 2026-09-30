@@ -119,7 +119,6 @@ interface CrawlSummary {
 export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   const progress = new Progress();
   const { db } = createDb();
-  const mode: RenderMode = (opts.render as RenderMode) ?? 'auto';
   const now = nowSeconds();
   const dryRun = opts.dryRun === true;
   const summary: CrawlSummary = {
@@ -192,6 +191,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
       summary.sections += target.sections.length;
       const companyId = target.companyId;
       companyIds.add(companyId);
+      // 渲染模式：CLI --render > YAML render > 'auto'（buildTargets 已解析并存入 target.mode）
+      const mode: RenderMode = target.mode;
 
       // ── 代码适配器（docs/16 🔴-2）：按域名加载，preflight 每站整轮一次 ──
       // 加载失败/无钩子时为 null → 行为与纯 YAML 完全一致（零回归）。
@@ -382,6 +383,8 @@ interface SiteTarget {
   domain: string;
   companyId: number;
   sections: TargetSection[];
+  /** 渲染模式：CLI --render > YAML render > 'auto'（docs/13 渲染模式梳理） */
+  mode: RenderMode;
 }
 
 /** 已绑定到 DB 品类的栏目（携带用于 --category 过滤的品类名） */
@@ -419,6 +422,7 @@ async function buildTargets(
       // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
       if (hasCodeAdapter(domain)) adapterSites.push(domain);
       const cfg = loadSiteConfig(domain);
+      const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? 'auto';
       const sections = resolveSections(cfg);
       const companyId = await resolveCompanyId(db, cfg, dryRun, progress);
       const targetSections: TargetSection[] = [];
@@ -442,7 +446,7 @@ async function buildTargets(
             );
         targetSections.push({ section, categoryId, categoryName });
       }
-      targets.set(domain, { domain, companyId, sections: targetSections });
+      targets.set(domain, { domain, companyId, sections: targetSections, mode });
     }
     return { targets, adapterSites };
   }
@@ -474,6 +478,7 @@ async function buildTargets(
     // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
     if (hasCodeAdapter(domain)) adapterSites.push(domain);
     const cfg = loadSiteConfig(domain);
+    const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? 'auto';
     const sections = resolveSections(cfg);
     const companyId = list[0].company.id;
     const targetSections: TargetSection[] = sections.map((section) => {
@@ -482,7 +487,7 @@ async function buildTargets(
       const categoryName = section.category ?? domain;
       return { section, categoryId, categoryName };
     });
-    targets.set(domain, { domain, companyId, sections: targetSections });
+    targets.set(domain, { domain, companyId, sections: targetSections, mode });
   }
 
   return { targets, adapterSites };

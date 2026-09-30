@@ -54,6 +54,16 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
     expect(cfg.currency).toBe('USD');
   });
 
+  it('parseYamlConfig：render 从已存在文件兜底并写回（批量混合 ssr/spa 无需逐站指定）', () => {
+    const yamlIn = '```yaml\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
+    const existing = { domain: 'old.com', render: 'spa' as const };
+    expect(parseYamlConfig(yamlIn, OPTS, existing).render).toBe('spa');
+    // 无已存在文件且无 CLI 传入 → 默认 auto 并写回
+    expect(parseYamlConfig(yamlIn, OPTS).render).toBe('auto');
+    // CLI 显式传入优先
+    expect(parseYamlConfig(yamlIn, { ...OPTS, render: 'ssr' }, existing).render).toBe('ssr');
+  });
+
   it('parseYamlConfig：缺 parseList 关键字段 → 明确报错', () => {
     expect(() => parseYamlConfig('```yaml\nparseList:\n  itemSelector: ".item"\n```', OPTS)).toThrow(
       /parseList/,

@@ -1,4 +1,5 @@
 import type { FieldSpec, ListStrategy } from '@competitor-crawler/shared';
+import type { RenderMode } from '../fetch/page.js';
 
 /**
  * 翻页策略（与 docs/05 §5.4、_template.yaml 保持一致）。
@@ -214,6 +215,11 @@ export interface SiteConfig {
    * 写入 products.currency，供跨站点比价时做币种区分。
    */
   currency?: string;
+  /**
+   * 抓取渲染模式（写入 YAML 顶层，供 gen-site / probe / crawl 统一复用）：ssr=静态抓取 / spa=Playwright 渲染 / auto=先 ssr，内容过少回退 spa。
+   * 命令行 --render 仍可临时覆盖。批量站点混合 ssr/spa 时，逐站写在 YAML 即可，无需每次指定。
+   */
+  render?: RenderMode;
   /**
    * 站点级默认采集类型（section 未指定 contentType 时继承）。缺省 'products'。
    * 整站只做资讯采集的站点可直接在顶层写 contentType: news，sections 无需逐个声明。

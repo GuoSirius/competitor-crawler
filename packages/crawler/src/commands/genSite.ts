@@ -31,14 +31,14 @@ const DEFAULT_CURRENCY = 'CNY';
  */
 export async function genSite(opts: GenSiteOpts): Promise<void> {
   const progress = new Progress();
-  const mode: RenderMode = (opts.render as RenderMode) ?? 'auto';
-
   let existing: SiteConfig | null = null;
   try {
     existing = loadSiteConfig(opts.domain);
   } catch {
     existing = null;
   }
+
+  const mode: RenderMode = (opts.render as RenderMode) ?? (existing?.render as RenderMode) ?? 'auto';
 
   progress.update(`[gen-site] ${opts.domain} 抓取列表页 ${opts.listUrl}`);
   const listHtml = await fetchPage(opts.listUrl, mode, progress);
@@ -99,6 +99,8 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: Site
   cfg.competitorType = opts.competitorType ?? cfg.competitorType ?? existing?.competitorType;
   cfg.role = opts.role ?? cfg.role ?? existing?.role;
   cfg.currency = opts.currency ?? cfg.currency ?? existing?.currency ?? DEFAULT_CURRENCY;
+  // 渲染模式：CLI 传入 > 已存在文件 > 默认 auto；并写回 YAML，供 probe/crawl 统一复用（批量混合 ssr/spa 无需逐站指定）
+  cfg.render = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? (existing?.render as RenderMode) ?? 'auto';
   cfg.listTraversal = cfg.listTraversal ?? { strategy: 'pagination-html', maxPages: 50, fallbackToUi: true };
   cfg.parseDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };
   return cfg;

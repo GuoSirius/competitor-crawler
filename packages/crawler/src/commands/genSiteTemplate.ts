@@ -26,7 +26,7 @@ const COLUMNS: ColSpec[] = [
   { key: 'competitorType', header: '竞品类型(competitorType,可选)', width: 22, required: false, desc: '竞品类型（可选）；写入 companies.competitor_type，供筛选/分组' },
   { key: 'role', header: '角色(role,可选:own/competitor)', width: 24, required: false, desc: '公司角色（可选）：own=我方 / competitor=竞品；写入 companies.role，缺省 competitor' },
   { key: 'currency', header: '币种(currency,可选)', width: 18, required: false, desc: '站点币种（可选）；写入 products.currency，缺省 CNY；国际站填 USD，中文站可填 元/CNY' },
-  { key: 'render', header: '渲染(render,可选:ssr/spa/auto)', width: 24, required: false, desc: '渲染模式：ssr(纯静态) / spa(需浏览器) / auto(自动判断，默认)' },
+  { key: 'render', header: '渲染(render,可选:ssr/spa/auto)', width: 24, required: false, desc: '渲染模式：ssr(纯静态) / spa(需浏览器) / auto(先 ssr 内容过少回退 spa)。写入 YAML render 字段，供 probe/crawl 统一复用；批量混合 ssr/spa 逐站此列填即可' },
   { key: 'notes', header: '备注(notes,可选)', width: 34, required: false, desc: '补充说明（可选）；如特殊翻页、需登录等，帮助模型更好生成' },
 ];
 

@@ -62,7 +62,7 @@ export async function probe(opts: ProbeOpts): Promise<void> {
       console.log(`\n⚠️ [section=${section.key}] 无列表页 URL（startUrls 为空且未传 --list-url），跳过。`);
       continue;
     }
-    const mode: RenderMode = (opts.render as RenderMode) ?? (section.listTraversal.fallbackToUi ? 'auto' : 'ssr');
+    const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? (section.listTraversal.fallbackToUi ? 'auto' : 'ssr');
 
     let sectionTotal = 0;
     const sectionItems: Array<{ detailUrl: string; name?: string; sectionKey?: string }> = [];
