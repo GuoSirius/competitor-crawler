@@ -22,6 +22,8 @@ const FIELD_KEYWORDS: ColumnField[] = [
   { field: 'listUrl', keys: ['listurl', '列表页', 'list-url', 'list_url'] },
   { field: 'detailUrl', keys: ['detailurl', '详情页', 'detail-url', 'detail_url'] },
   { field: 'companyKey', keys: ['companykey', '公司', 'company', '归属公司'] },
+  { field: 'competitorType', keys: ['competitortype', '竞品类型', 'competitor-type', 'competitor_type'] },
+  { field: 'role', keys: ['role', '角色'] },
   { field: 'render', keys: ['render', '渲染'] },
   { field: 'notes', keys: ['notes', '备注', '说明'] },
 ];
@@ -68,6 +70,8 @@ export async function parseBatchRows(file: string): Promise<BatchRow[]> {
       listUrl,
       detailUrl: get('detailUrl'),
       companyKey: get('companyKey'),
+      competitorType: get('competitorType'),
+      role: get('role'),
       render: get('render'),
       notes: get('notes'),
     });
@@ -100,6 +104,8 @@ export async function genSiteBatch(opts: GenSiteBatchOpts = {}): Promise<void> {
       const extra = [
         genOpts.detailUrl ? `detailUrl=${genOpts.detailUrl}` : null,
         genOpts.companyKey ? `companyKey=${genOpts.companyKey}` : null,
+        genOpts.competitorType ? `competitorType=${genOpts.competitorType}` : null,
+        genOpts.role ? `role=${genOpts.role}` : null,
         genOpts.render ? `render=${genOpts.render}` : null,
         genOpts.notes ? `notes=${genOpts.notes}` : null,
       ]

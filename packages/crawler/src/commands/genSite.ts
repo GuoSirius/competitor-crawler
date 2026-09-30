@@ -11,6 +11,8 @@ export interface GenSiteOpts {
   listUrl: string;
   detailUrl?: string;
   companyKey?: string;
+  competitorType?: string;
+  role?: string;
   render?: string;
   notes?: string;
 }
@@ -37,6 +39,8 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
   const userMsg = [
     `站点域名：${opts.domain}`,
     opts.companyKey ? `归属公司：${opts.companyKey}` : '',
+    opts.competitorType ? `竞品类型：${opts.competitorType}` : '',
+    opts.role ? `公司角色：${opts.role}` : '',
     `列表页 URL：${opts.listUrl}`,
     opts.notes ? `补充说明：${opts.notes}` : '',
     '',
@@ -79,6 +83,9 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts): SiteConfig {
   cfg.startUrl = opts.listUrl;
   // 归属公司：优先用用户传入的 companyKey；否则保留模型可能写出的 company
   cfg.company = opts.companyKey ?? cfg.company;
+  // 公司属性：用户显式传入时以传入值为准；未传入保留模型产出（通常没有）
+  cfg.competitorType = opts.competitorType ?? cfg.competitorType;
+  cfg.role = opts.role ?? cfg.role;
   cfg.listTraversal = cfg.listTraversal ?? { strategy: 'pagination-html', maxPages: 50, fallbackToUi: true };
   cfg.parseDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };
   return cfg;

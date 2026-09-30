@@ -45,6 +45,8 @@ async function main() {
       listUrl,
       detailUrl: typeof flags['detail-url'] === 'string' ? flags['detail-url'] : undefined,
       companyKey: typeof flags['company-key'] === 'string' ? flags['company-key'] : undefined,
+      competitorType: typeof flags['competitor-type'] === 'string' ? flags['competitor-type'] : undefined,
+      role: typeof flags.role === 'string' ? flags.role : undefined,
       render: typeof flags.render === 'string' ? flags.render : undefined,
       notes: typeof flags.notes === 'string' ? flags.notes : undefined,
     });

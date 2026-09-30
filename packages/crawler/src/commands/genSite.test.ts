@@ -27,6 +27,16 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
     expect(parseYamlConfig(yamlIn, OPTS).company).toBe('模型猜的公司');
   });
 
+  it('parseYamlConfig：competitorType/role 用户传入为准，未传入不注水', () => {
+    const yamlIn = '```yaml\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
+    const withAttrs = parseYamlConfig(yamlIn, { ...OPTS, competitorType: '多肽合成试剂', role: 'own' });
+    expect(withAttrs.competitorType).toBe('多肽合成试剂');
+    expect(withAttrs.role).toBe('own');
+    const withoutAttrs = parseYamlConfig(yamlIn, OPTS);
+    expect(withoutAttrs.competitorType).toBeUndefined();
+    expect(withoutAttrs.role).toBeUndefined();
+  });
+
   it('parseYamlConfig：缺 parseList 关键字段 → 明确报错', () => {
     expect(() => parseYamlConfig('```yaml\nparseList:\n  itemSelector: ".item"\n```', OPTS)).toThrow(
       /parseList/,

@@ -21,8 +21,10 @@ interface ColSpec {
 const COLUMNS: ColSpec[] = [
   { key: 'domain', header: '域名(domain)', width: 24, required: true, desc: '站点域名，如 www.xpbiomed.com；执行后会生成 config/sites/<domain>.yaml' },
   { key: 'listUrl', header: '列表页URL(listUrl)', width: 46, required: true, desc: '列表页地址（必填）；模型据此抓取列表并生成 parseList' },
-  { key: 'detailUrl', header: '详情页URL(detailUrl,可选)', width: 46, required: false, desc: '详情页示例地址（可选）；提供后模型同时参考详情页结构，生成更准' },
-  { key: 'companyKey', header: '公司(companyKey,可选)', width: 20, required: false, desc: '归属公司名（可选）；不填则爬取时按域名兜底' },
+  { key: 'detailUrl', header: '详情页URL(detailUrl,可选)', width: 46, required: false, desc: '详情页示例地址（可选）；提供后模型同时参考详情页结构生成更准，且会尝试识别面包屑产出 categoryFromPage（动态分类）' },
+  { key: 'companyKey', header: '公司(companyKey,可选)', width: 20, required: false, desc: '归属公司名（可选）；写入 YAML 顶层 company（同名=同一家公司，多域名共用同一名字）；不填则爬取时按域名兜底' },
+  { key: 'competitorType', header: '竞品类型(competitorType,可选)', width: 22, required: false, desc: '竞品类型（可选）；写入 companies.competitor_type，供筛选/分组' },
+  { key: 'role', header: '角色(role,可选:own/competitor)', width: 24, required: false, desc: '公司角色（可选）：own=我方 / competitor=竞品；写入 companies.role，缺省 competitor' },
   { key: 'render', header: '渲染(render,可选:ssr/spa/auto)', width: 24, required: false, desc: '渲染模式：ssr(纯静态) / spa(需浏览器) / auto(自动判断，默认)' },
   { key: 'notes', header: '备注(notes,可选)', width: 34, required: false, desc: '补充说明（可选）；如特殊翻页、需登录等，帮助模型更好生成' },
 ];
@@ -52,6 +54,8 @@ export async function genSiteTemplate(file?: string): Promise<string> {
     listUrl: 'https://www.example.com/products',
     detailUrl: 'https://www.example.com/products/1',
     companyKey: '示例公司',
+    competitorType: '示例类型',
+    role: 'competitor',
     render: 'auto',
     notes: '★ 示例行：正式批量生成前请整行删除',
   });
@@ -74,6 +78,9 @@ export async function genSiteTemplate(file?: string): Promise<string> {
   help.addRow({ col: '', req: '', desc: '3) 可用 pnpm gen-site:batch --file <路径> 指定其它 Excel' });
   help.addRow({ col: '', req: '', desc: '4) 加 --dry-run 仅解析并打印待生成清单，不调用模型' });
   help.addRow({ col: '', req: '', desc: '5) 每个站点生成后产出 config/sites/<domain>.yaml，再 pnpm probe 验证' });
+  help.addRow({});
+  help.addRow({ col: '说明', req: '', desc: 'config/sites/ 目录是爬取范围的唯一真相源（crawl 默认 --source config）：' });
+  help.addRow({ col: '', req: '', desc: '放一个 <domain>.yaml 就爬一个站，删掉就不爬；本 Excel 只是把站点信息喂给模型生成 YAML 的辅助工具。' });
 
   fs.mkdirSync(path.dirname(out), { recursive: true });
   await wb.xlsx.writeFile(out);
