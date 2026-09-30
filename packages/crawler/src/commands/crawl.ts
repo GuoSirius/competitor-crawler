@@ -326,10 +326,34 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         const baseNew = summary.new;
         const baseUpdated = summary.updated;
         const baseFailed = summary.failed;
+        // 流式落库上下文（docs/16 规模化兜底）：详情每满 CRAWL_UPSERT_BATCH 条就地刷库——
+        // 边抓边写（库里实时可见）、内存有界、崩溃最多丢一批。面包屑建树挪进刷批前逐条解析。
+        const catCache = new Map<string, number>();
+        const flushedKeys = new Set<string>(); // 跨批防重（同 identityKey 只落一次，计数不虚高）
+        let flushedCount = 0;
+        const flushBatch = async (batch: PendingProduct[]): Promise<void> => {
+          const fresh = uniqueBy(batch, (p) => p.identityKey).filter((p) => !flushedKeys.has(p.identityKey));
+          if (fresh.length === 0) return;
+          for (const p of fresh) {
+            if (!p.breadcrumb?.length) continue;
+            const key = p.breadcrumb.join(' > ');
+            let cid = catCache.get(key);
+            if (cid === undefined) {
+              cid = await upsertCategoryPath(db, companyId, p.breadcrumb, null, section.productLine ?? null, dryRun, progress);
+              catCache.set(key, cid);
+            }
+            if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
+          }
+          for (const p of fresh) flushedKeys.add(p.identityKey);
+          await flushUpsertBatch(db, dialect, fresh, existed, summary, now, crawlRow.id, progress, domain, section.key);
+          flushedCount += fresh.length;
+          progress.update(`[crawl] ${domain} [${section.key}] 落库 累计${flushedCount}`);
+        };
         try {
           const { detailFailed, missingPages } = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
             domain, adapter, headers: extraHeaders, skipKeys,
+            onBatch: dryRun ? undefined : flushBatch, // dry-run 全程零写入，缓冲全量留给解析计数
           });
           // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
           summary.failed += detailFailed;
@@ -378,34 +402,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           });
         }
 
-        // 同一栏目内 identityKey 唯一化：同一身份键只应写一条，否则计数虚高且重复 upsert。
-        const unique = uniqueBy(pending, (p) => p.identityKey);
-        if (unique.length !== pending.length) {
-          progress.update(
-            `[crawl] ${domain} [${section.key}] 去重键唯一化：${pending.length} → ${unique.length} 条`,
-          );
-        }
-        // 面包屑动态分类：categoryFromPage 解析到的路径动态建树（同路径只建一次），产品挂叶子；
-        // 未解析到面包屑的产品沿用栏目绑定分类（categoryPath/category）
-        const catCache = new Map<string, number>();
-        for (const p of unique) {
-          if (!p.breadcrumb?.length) continue;
-          const key = p.breadcrumb.join(' > ');
-          let cid = catCache.get(key);
-          if (cid === undefined) {
-            cid = await upsertCategoryPath(db, companyId, p.breadcrumb, null, section.productLine ?? null, dryRun, progress);
-            catCache.set(key, cid);
-          }
-          if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
-        }
-        // 增量批量落库（docs/16 规模化兜底）：按 CRAWL_UPSERT_BATCH 分批，单批事务包裹
-        // （失败整批回滚 / 减少生产库往返），解决逐条写库慢、中途崩全丢、生产库往返多。
-        for (let start = 0; start < unique.length; start += UPSERT_BATCH) {
-          const batch = unique.slice(start, start + UPSERT_BATCH);
-          await flushUpsertBatch(db, dialect, batch, existed, summary, now, crawlRow.id, progress, domain, section.key);
-          const done = Math.min(start + UPSERT_BATCH, unique.length);
-          progress.update(`[crawl] ${domain} [${section.key}] 落库 ${done}/${unique.length}`);
-        }
+        // 流式落库收尾：详情阶段已满批刷出，这里只补刷不满一批的余量（dry-run 已在上面 continue）
+        if (pending.length > 0) await flushBatch(pending.splice(0, pending.length));
         summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
         // 断点落盘：本栏目采集+落库+软删全部完成 → 标记 done 并写文件（崩溃后 --resume 可跳过）
         state?.markDone(domain, section.key, {
@@ -844,8 +842,13 @@ async function collectSection(args: {
    * 仅 --resume 时传入；正常轮不传（全量重抓才能发现价格/描述变化）。
    */
   skipKeys?: Set<string>;
+  /**
+   * 流式落库（docs/16 规模化兜底）：详情缓冲满 UPSERT_BATCH 条时同步切批回调刷库。
+   * 不传则维持旧行为「整栏目抓完再落」。刷库失败不吞成详情失败——记录后收尾统一上抛（整栏目失败）。
+   */
+  onBatch?: (batch: PendingProduct[]) => Promise<void>;
 }): Promise<{ detailFailed: number; missingPages: number[] }> {
-  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers, skipKeys } = args;
+  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers, skipKeys, onBatch } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
   const detailMode = detailRenderMode(section, mode);
@@ -913,6 +916,7 @@ async function collectSection(args: {
   const detailBar = new ProgressCounter(progress, `[crawl] [${section.key}] 详情`, targets.length);
   let detailFailed = 0;
   let skippedSaved = 0; // 续跑时跳过的已落库条数（收尾打进详情行，让「跳过」可见）
+  let flushError: unknown = null; // 流式刷库失败：不吞成详情失败，收尾统一上抛（整栏目失败）
   await Promise.all(targets.map((it) => limiter(async () => {
     let ok = true;
     let errMsg = '';
@@ -985,6 +989,18 @@ async function collectSection(args: {
         row: { ...normalized.row, listName: it.name ?? undefined },
       });
       seenSet(companyId, section.key).add(identityKey);
+      // 流式落库：缓冲满一批就同步切出刷库（check+splice 同步原子，并发 worker 不会双刷）；
+      // 刷库失败记录后不再继续刷（防级联报错），收尾统一上抛
+      if (onBatch && pending.length >= UPSERT_BATCH) {
+        const batch = pending.splice(0, pending.length);
+        if (flushError === null) {
+          try {
+            await onBatch(batch);
+          } catch (e) {
+            flushError = e;
+          }
+        }
+      }
     } catch (e) {
       // 详情失败隔离：跳过该条继续，但**必须可见**（计数 + finish 时统一打印明细，不再静默丢数据）
       ok = false;
@@ -995,6 +1011,7 @@ async function collectSection(args: {
     }
   })));
   detailBar.finish(skippedSaved > 0 ? `跳过已落库${skippedSaved}（--resume 续跑）` : undefined);
+  if (flushError) throw flushError; // 落库失败按栏目失败上抛（进主循环 catch，不混入详情失败计数）
   return { detailFailed, missingPages };
 }
 
