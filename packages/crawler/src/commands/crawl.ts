@@ -17,7 +17,7 @@ import {
   type ListItem,
   type NormalizedProduct,
 } from '@competitor-crawler/shared';
-import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter } from '../config/loader.js';
+import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { parseBreadcrumb } from '../adapter/breadcrumb.js';
 import { loadCodeAdapter } from '../adapter/adapterLoader.js';
@@ -717,6 +717,9 @@ async function collectSection(args: {
   headers: Record<string, string>;
 }): Promise<number> {
   const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers } = args;
+  // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
+  const listMode = listRenderMode(section, mode);
+  const detailMode = detailRenderMode(section, mode);
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
@@ -726,7 +729,7 @@ async function collectSection(args: {
     await traverseList({
       url: listUrl,
       traversal: section.listTraversal,
-      mode,
+      listMode,
       maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
       progress,
       // 适配器钩子（docs/16 🔴-2）：preflight 附加头 + 自定义翻页拼装
@@ -765,7 +768,7 @@ async function collectSection(args: {
   let detailFailed = 0;
   await Promise.all(targets.map((it) => limiter(async () => {
     try {
-      const html = await fetchPage(it.detailUrl, mode, undefined, headers);
+      const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
       let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
       // 适配器钩子：详情解析后二次加工（在 api 源 / 模型兜底之前，它们只补空不覆盖）
       if (adapter?.postParseDetail) normalized = await adapter.postParseDetail(normalized, html, ctx);
@@ -1074,6 +1077,9 @@ async function collectContentSection(args: {
   headers: Record<string, string>;
 }): Promise<number> {
   const { progress, mode, opts, section, companyId, pending, seenSet, domain, adapter, headers } = args;
+  // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
+  const listMode = listRenderMode(section, mode);
+  const detailMode = detailRenderMode(section, mode);
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
@@ -1083,7 +1089,7 @@ async function collectContentSection(args: {
     await traverseList({
       url: listUrl,
       traversal: section.listTraversal,
-      mode,
+      listMode,
       maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
       progress,
       headers,
@@ -1118,7 +1124,7 @@ async function collectContentSection(args: {
   let detailFailed = 0;
   await Promise.all(targets.map((it) => limiter(async () => {
     try {
-      const html = await fetchPage(it.detailUrl, mode, undefined, headers);
+      const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
       let np = parseDetailWithConfig(html, section.parseDetail.fields);
       // 适配器钩子：详情解析后二次加工（与产品管线同口径）
       if (adapter?.postParseDetail) np = await adapter.postParseDetail(np, html, ctx);

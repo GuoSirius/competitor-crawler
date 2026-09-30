@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
 import { repoRoot } from '@competitor-crawler/shared';
+import type { RenderMode } from '../fetch/page.js';
 import type { ListTraversalConfig, ResolvedSection, SectionConfig, SiteConfig } from './types.js';
 
 // 仓库根统一由 shared/src/paths.ts 提供（避免各处重复上溯算错层级）
@@ -126,6 +127,10 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         parseList: (s.parseList ?? cfg.parseList)!,
         parseDetail: s.parseDetail ?? topDetail,
         match: s.match,
+        // 渲染模式合并：section 显式值优先，否则继承站点级（render 已含站点顶层；renderList/renderDetail 同理）
+        render: s.render ?? cfg.render,
+        renderList: s.renderList ?? cfg.renderList,
+        renderDetail: s.renderDetail ?? cfg.renderDetail,
       };
     });
   }
@@ -146,8 +151,34 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       listTraversal: topTraversal,
       parseList: cfg.parseList,
       parseDetail: topDetail,
+      // 单规则站点：渲染模式直接取站点级（无 section 覆盖）
+      render: cfg.render,
+      renderList: cfg.renderList,
+      renderDetail: cfg.renderDetail,
     },
   ];
+}
+
+/**
+ * 列表页最终渲染模式（Hybrid 站点支持）：renderList > render > 调用方回退值。
+ * 调用方传入站点级 mode（CLI --render > YAML render > auto）作为最终兜底。
+ */
+export function listRenderMode(
+  s: Pick<ResolvedSection, 'render' | 'renderList' | 'renderDetail'>,
+  fallback: RenderMode,
+): RenderMode {
+  return s.renderList ?? s.render ?? fallback;
+}
+
+/**
+ * 详情页最终渲染模式（Hybrid 站点支持）：renderDetail > render > 调用方回退值。
+ * 与 listRenderMode 对称，仅把 renderList 换成 renderDetail，覆盖「列表/详情渲染不一致」站点。
+ */
+export function detailRenderMode(
+  s: Pick<ResolvedSection, 'render' | 'renderList' | 'renderDetail'>,
+  fallback: RenderMode,
+): RenderMode {
+  return s.renderDetail ?? s.render ?? fallback;
 }
 
 /**

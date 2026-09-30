@@ -50,7 +50,7 @@ describe('traverseList — pagination-url', () => {
     const res = await traverseList({
       url: 'https://x.com/list?lcid=5',
       traversal: { strategy: 'pagination-url', urlTemplate: '?page={page}', maxPages: 50 },
-      mode: 'ssr',
+      listMode: 'ssr',
       maxPages: 50,
       onPage,
     });
@@ -75,7 +75,7 @@ describe('traverseList — pagination-url', () => {
     await traverseList({
       url: 'https://x.com/list',
       traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 3 },
-      mode: 'ssr',
+      listMode: 'ssr',
       maxPages: 999,
       onPage,
     });
@@ -94,7 +94,7 @@ describe('traverseList — pagination-url', () => {
     const res = await traverseList({
       url: 'https://x.com/list',
       traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 3 },
-      mode: 'ssr',
+      listMode: 'ssr',
       maxPages: 999, // 调用方上限远高于配置，应以配置 3 为准
       onPage,
     });
@@ -114,7 +114,7 @@ describe('traverseList — pagination-url', () => {
     const res = await traverseList({
       url: 'https://x.com/list',
       traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 10 },
-      mode: 'ssr',
+      listMode: 'ssr',
       maxPages: 10,
       onPage,
     });
@@ -129,7 +129,7 @@ describe('traverseList — pagination-url', () => {
       traverseList({
         url: 'https://x.com/list',
         traversal: { strategy: 'pagination-url', maxPages: 3 },
-        mode: 'ssr',
+        listMode: 'ssr',
         maxPages: 3,
         onPage: async () => 0,
       }),
@@ -147,7 +147,7 @@ describe('traverseList — pagination-url', () => {
     await traverseList({
       url: 'https://x.com/list',
       traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 2, pageStart: 5 },
-      mode: 'ssr',
+      listMode: 'ssr',
       maxPages: 2,
       onPage,
     });

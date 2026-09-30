@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickSectionByUrl, resolveSections } from './loader.js';
+import { pickSectionByUrl, resolveSections, listRenderMode, detailRenderMode } from './loader.js';
 import type { SiteConfig } from './types.js';
 
 const single: SiteConfig = {
@@ -79,6 +79,70 @@ describe('resolveSections — 多规则写法', () => {
       sections: [{ key: '', startUrls: ['https://d.com/x'] }],
     };
     expect(resolveSections(cfg)[0].key).toBe('default');
+  });
+});
+
+describe('resolveSections — 渲染模式 Hybrid 合并', () => {
+  it('单规则站点：站点级 render/renderList/renderDetail 透传到 default 栏目', () => {
+    const cfg: SiteConfig = {
+      ...single,
+      render: 'ssr',
+      renderList: 'spa',
+      renderDetail: 'auto',
+    };
+    const [s] = resolveSections(cfg);
+    expect(s.render).toBe('ssr');
+    expect(s.renderList).toBe('spa');
+    expect(s.renderDetail).toBe('auto');
+  });
+
+  it('多规则站点：section 覆盖站点级，未写则继承站点级', () => {
+    const cfg: SiteConfig = {
+      domain: 'h.com',
+      render: 'ssr',
+      parseList: { itemSelector: '.i', fields: {} },
+      parseDetail: { fields: {} },
+      sections: [
+        // 仅覆盖 render（整栏目统一），renderList/renderDetail 继承站点级 ssr
+        { key: 'all-ssr', render: 'ssr', startUrls: ['https://h.com/a'] },
+        // 覆盖 renderList/renderDetail（列表 ssr、详情 spa），render 继承站点级
+        { key: 'hybrid', renderList: 'ssr', renderDetail: 'spa', startUrls: ['https://h.com/b'] },
+        // 全继承站点级
+        { key: 'inherit', startUrls: ['https://h.com/c'] },
+      ],
+    };
+    const got = resolveSections(cfg);
+    expect(got[0].render).toBe('ssr');
+    expect(got[0].renderList).toBeUndefined();
+    expect(got[0].renderDetail).toBeUndefined();
+    expect(got[1].render).toBe('ssr'); // 继承站点级
+    expect(got[1].renderList).toBe('ssr');
+    expect(got[1].renderDetail).toBe('spa');
+    expect(got[2].render).toBe('ssr'); // 全继承
+    expect(got[2].renderList).toBeUndefined();
+    expect(got[2].renderDetail).toBeUndefined();
+  });
+});
+
+describe('listRenderMode / detailRenderMode — 回退链', () => {
+  const base = { render: 'auto' as const };
+
+  it('列表页：renderList > render > 回退值', () => {
+    expect(listRenderMode({ ...base, renderList: 'ssr' }, 'spa')).toBe('ssr');
+    expect(listRenderMode(base, 'spa')).toBe('auto'); // 无 renderList → render
+    expect(listRenderMode({ render: undefined }, 'spa')).toBe('spa'); // 全无 → 回退
+  });
+
+  it('详情页：renderDetail > render > 回退值（与列表对称）', () => {
+    expect(detailRenderMode({ ...base, renderDetail: 'spa' }, 'ssr')).toBe('spa');
+    expect(detailRenderMode(base, 'ssr')).toBe('auto');
+    expect(detailRenderMode({ render: undefined }, 'ssr')).toBe('ssr');
+  });
+
+  it('Hybrid 站点：同一栏目列表 ssr、详情 spa', () => {
+    const s = { render: 'auto' as const, renderList: 'ssr' as const, renderDetail: 'spa' as const };
+    expect(listRenderMode(s, 'auto')).toBe('ssr');
+    expect(detailRenderMode(s, 'auto')).toBe('spa');
   });
 });
 

@@ -177,6 +177,19 @@ export interface SectionConfig {
   parseList?: ListParseConfig;
   /** 该栏目单独的详情页规则；省略则回退顶层 parseDetail */
   parseDetail?: DetailParseConfig;
+  /**
+   * 该栏目单独的渲染模式（覆盖站点级 render）：ssr/spa/auto。
+   * 用于 Hybrid 站点：同站内不同栏目用不同渲染模式（如产品列表 ssr、新闻列表 spa）。
+   * 列表/详情分别指定见 renderList / renderDetail（更细粒度）。
+   */
+  render?: RenderMode;
+  /**
+   * 该栏目列表页单独渲染模式（覆盖本栏目 render）：适用「列表页 ssr、详情页 csr」等
+   * 列表与详情不一致的站点。省略则回退 本栏目 render → 站点级 render → auto。
+   */
+  renderList?: RenderMode;
+  /** 该栏目详情页单独渲染模式（覆盖本栏目 render）；省略回退逻辑同 renderList */
+  renderDetail?: RenderMode;
 }
 
 /**
@@ -220,6 +233,16 @@ export interface SiteConfig {
    * 命令行 --render 仍可临时覆盖。批量站点混合 ssr/spa 时，逐站写在 YAML 即可，无需每次指定。
    */
   render?: RenderMode;
+  /**
+   * 站点级列表页渲染模式（单规则站点可直接写顶层让列表页用指定模式；section 未指定 renderList 时继承）。
+   * 回退链：section.renderList → section.render → 顶层 render → auto。
+   */
+  renderList?: RenderMode;
+  /**
+   * 站点级详情页渲染模式（单规则站点可直接写顶层让详情页用指定模式；section 未指定 renderDetail 时继承）。
+   * 回退链同 renderList，仅作用于详情页。
+   */
+  renderDetail?: RenderMode;
   /**
    * 站点级默认采集类型（section 未指定 contentType 时继承）。缺省 'products'。
    * 整站只做资讯采集的站点可直接在顶层写 contentType: news，sections 无需逐个声明。
@@ -271,4 +294,13 @@ export interface ResolvedSection {
   parseList: ListParseConfig;
   parseDetail: DetailParseConfig;
   match?: SectionConfig['match'];
+  /**
+   * 该栏目最终生效的渲染模式（已合并顶层 render：section.render ?? 站点 render）。
+   * 列表/详情分别指定见 renderList / renderDetail（更细粒度，覆盖本字段）。
+   */
+  render?: RenderMode;
+  /** 该栏目列表页渲染模式（已合并顶层 renderList）；回退链 renderList → render → auto */
+  renderList?: RenderMode;
+  /** 该栏目详情页渲染模式（已合并顶层 renderDetail）；回退链 renderDetail → render → auto */
+  renderDetail?: RenderMode;
 }

@@ -1,6 +1,6 @@
 import { like } from 'drizzle-orm';
 import { absoluteUrl, categories, createDb } from '@competitor-crawler/shared';
-import { resolveSections, loadSiteConfig } from '../config/loader.js';
+import { resolveSections, loadSiteConfig, listRenderMode, detailRenderMode } from '../config/loader.js';
 import type { SiteConfig, ResolvedSection } from '../config/types.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
@@ -43,7 +43,6 @@ export async function probe(opts: ProbeOpts): Promise<void> {
   try {
     cfg = loadSiteConfig(opts.domain);
   } catch (e) {
-    process.exitCode = 1;
     console.error(
       `\n❌ 无法加载站点配置 config/sites/${opts.domain}.yaml：${(e as Error).message}\n` +
         `   请确认文件存在且 YAML 合法；若尚未创建，运行：\n` +
@@ -60,7 +59,6 @@ export async function probe(opts: ProbeOpts): Promise<void> {
     const missingParseList = !cfg.parseList && !(cfg.sections && cfg.sections.length > 0);
     const missingStartUrl =
       !cfg.startUrl && !(cfg.sections && cfg.sections.some((s) => s.startUrls && s.startUrls.length > 0));
-    process.exitCode = 1;
     console.error(`\n⚠️ 站点配置不完整，无法执行 probe：${msg}`);
     if (missingParseList) {
       console.error(`   这看起来是一份未完成的配置桩（可能只有 domain/company/role/currency 等身份信息，缺 parseList）。`);
@@ -78,7 +76,6 @@ export async function probe(opts: ProbeOpts): Promise<void> {
     const wanted = opts.section;
     const all = sections.map((s) => s.key).join(', ');
     if (!sections.some((s) => s.key === wanted)) {
-      process.exitCode = 1;
       console.error(`\n⚠️ 未找到 section="${wanted}"（该站可用栏目：${all}）`);
       return;
     }
@@ -100,13 +97,16 @@ export async function probe(opts: ProbeOpts): Promise<void> {
       console.log(`\n⚠️ [section=${section.key}] 无列表页 URL（startUrls 为空且未传 --list-url），跳过。`);
       continue;
     }
-    const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? (section.listTraversal.fallbackToUi ? 'auto' : 'ssr');
+    // 渲染模式回退链（Hybrid 站点）：CLI --render > 栏目 renderList/renderDetail > 栏目 render(已含站点级) > auto
+    const cliRender = (opts.render as RenderMode) ?? 'auto';
+    const listMode = listRenderMode(section, cliRender);
+    const detailMode = detailRenderMode(section, cliRender);
 
     let sectionTotal = 0;
     const sectionItems: Array<{ detailUrl: string; name?: string; sectionKey?: string }> = [];
     for (const listUrl of listUrls) {
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 抓取列表页 ${listUrl}`);
-      const html = await fetchPage(listUrl, mode, progress);
+      const html = await fetchPage(listUrl, listMode, progress);
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 解析列表页…`);
       const items = parseListWithConfig(html, section.parseList, section.key);
 
@@ -140,7 +140,7 @@ export async function probe(opts: ProbeOpts): Promise<void> {
       for (const it of targets) {
         console.log(`\n[section=${section.key}] 详情页探测：${it.detailUrl}`);
         try {
-          const html = await fetchPage(it.detailUrl, mode, progress);
+          const html = await fetchPage(it.detailUrl, detailMode, progress);
           const np = parseDetailWithConfig(html, section.parseDetail.fields);
           printProductSample(it.name, np);
 

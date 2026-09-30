@@ -40,6 +40,22 @@ company: 示例生物科技有限公司      # 站点归属公司名（写入 co
 currency: CNY                    # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
 startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
 
+# ---------- 1.x) 渲染模式（Hybrid 站点：不同页面/栏目用不同模式抓取）----------
+# render: 抓取渲染模式（写入 YAML 顶层，probe / crawl / gen-site 统一复用）：
+#   ssr  = 纯 Node fetch 静态 HTML（最快，SSR/SSG/ISR 站首选）
+#   spa  = 用 Playwright 渲染（CSR / 前端路由站必须）
+#   auto = 先 ssr 抓，内容过少（<800 字符）自动升级 spa（缺省兜底、最稳）
+# 命令行 --render 仍可临时覆盖；逐站写进 YAML 即可混合 ssr/spa 无需每次指定。
+#
+# ★ 更细粒度（Hybrid 站点真实覆盖）：列表页与详情页、不同栏目可分别指定——
+#   renderList   : 仅列表页用指定模式（覆盖本栏目 render）
+#   renderDetail : 仅详情页用指定模式（覆盖本栏目 render）
+#   回退链：列表 = renderList → render → 顶层 render → auto；详情 = renderDetail → render → 顶层 render → auto
+#   多规则站点在对应 section 内写 render / renderList / renderDetail 即可（见 _template.sections.yaml）。
+# render: auto                     # 单规则站点：整站统一模式（最常写）
+# renderList: ssr                  # 可选：仅列表页用 ssr（如产品列表是 SSR）
+# renderDetail: spa                # 可选：仅详情页用 spa（如详情是 CSR、列表页已 SSR）
+
 # ---------- 1.5) 分类归属（产品挂到 categories 通用分类树；三种来源按优先级取一）----------
 # 优先级：categoryFromPage（动态，最准）> categoryPath（静态数组）> category（单名兜底）
 # 三种都省略 → 产品不绑分类（category_id 记空）。

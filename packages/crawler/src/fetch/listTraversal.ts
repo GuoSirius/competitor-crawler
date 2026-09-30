@@ -7,8 +7,8 @@ export interface TraverseOpts {
   url: string;
   /** 翻页策略（见 docs/05 §5.4） */
   traversal: ListTraversalConfig;
-  /** 渲染模式：ssr=不启浏览器（仅单页）；spa/auto=用 Playwright 翻页 */
-  mode: RenderMode;
+  /** 列表页渲染模式：ssr=不启浏览器（仅单页）；spa/auto=用 Playwright 翻页 */
+  listMode: RenderMode;
   /** 最大翻页数（含首页） */
   maxPages: number;
   progress?: Progress;
@@ -78,7 +78,7 @@ export function buildPageUrl(base: string, template: string, page: number): stri
  * - pagination-url 模式：不改写 HTML、不启浏览器，按 maxPages 顺序拼 URL 逐页抓取。
  */
 export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> {
-  const { url, traversal, mode, maxPages } = opts;
+  const { url, traversal, listMode, maxPages } = opts;
   // 翻页上限语义（「显式意图放行」）：
   // - 显式配置（YAML traversal.maxPages / CLI --pages，二者取小）→ 尊重配置，不受 500 限制；
   // - 两边都没显式配置（YAML 未写 maxPages 且 CLI 未传 --pages）→ 500 硬兜底，
@@ -101,7 +101,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
       opts.progress?.update(`[traverse] URL 翻页 ${pageUrl}`);
       let html: string;
       try {
-        html = await fetchPage(pageUrl, mode, opts.progress, opts.headers);
+        html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers);
       } catch (e) {
         opts.progress?.update(`[traverse] 第 ${p} 页抓取失败，终止翻页：${(e as Error).message}`);
         break;
@@ -115,7 +115,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   }
 
   // ssr：无浏览器，单页
-  if (mode === 'ssr') {
+  if (listMode === 'ssr') {
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n };
