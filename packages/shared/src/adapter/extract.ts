@@ -15,6 +15,9 @@ export const SELF_SEL = '$self';
  * - 无 map → 叶子值（text / attr / regex）
  */
 export function extractField(node: DomRead, spec: FieldSpec): unknown {
+  // 防御：模型产出 / 手写 YAML 里的 `field: null` 声明（表示「该字段不取」）→ 返回空值，
+  // 不崩管线（曾使 gen-site 回验与 crawl 直接 TypeError，见 2026-09-30 普诺赛案例）
+  if (!spec) return null;
   const matches = resolveMatches(node, spec);
 
   if (spec.map) {

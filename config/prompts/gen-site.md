@@ -68,3 +68,5 @@ categoryFromPage:
 3. 商品条目 = 页面中重复出现 ≥3 次的同构容器，先数 class 重复度再定 itemSelector；
 4. 详情链接常有统一 URL 前缀（/p/、/product/、/goods/…），优先用 a[href^="…"] 属性选择器，比 class 稳；
 5. 收到的 HTML 可能被截断：若其中看不到商品条目结构，itemSelector 写 null 并加注释 # NEED_MORE_HTML，不要硬猜。
+6. strategy 选 pagination-url 时 urlTemplate 必须同时给出（含 {page} 占位，如 "?page={page}"），二者缺一即产出作废；判断不了翻页形态就选 pagination-html + nextSelector，不要写半截配置；
+7. 你的身份字段输出（company 等）只在新站点无既有配置时生效：company 必须用「归属公司」原词，禁止翻译/改写/用英文名替代。

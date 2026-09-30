@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildModelHtml, extractYaml, parseYamlConfig } from './genSite.js';
+import { buildModelHtml, extractYaml, parseYamlConfig, validateConfig } from './genSite.js';
+import type { SiteConfig } from '../config/types.js';
 
 const OPTS = { domain: 'example.com', listUrl: 'https://www.example.com/list' };
 
@@ -62,13 +63,23 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
     expect(withoutAttrs.role).toBeUndefined();
   });
 
-  it('parseYamlConfig：已存在文件身份字段（currency/role/company）在模型未产出时兜底保留', () => {
+  it('parseYamlConfig：已存在文件身份字段在模型未产出时兜底保留', () => {
     const yamlIn = '```yaml\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
     const existing = { domain: 'old.com', company: '老公司', role: 'own', currency: '元' } as const;
     const cfg = parseYamlConfig(yamlIn, OPTS, existing);
     expect(cfg.currency).toBe('元');
     expect(cfg.role).toBe('own');
     expect(cfg.company).toBe('老公司');
+  });
+
+  it('parseYamlConfig：已存在文件的 company 压过模型产出（普诺赛事故回归：普诺赛中文站 不被 Procell 覆盖）', () => {
+    const yamlIn =
+      '```yaml\ncompany: Procell\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
+    const existing = { domain: 'x.com', company: '普诺赛中文站' } as const;
+    // 无 CLI 传入：用户手填真相优先，模型值绝不覆盖
+    expect(parseYamlConfig(yamlIn, OPTS, existing).company).toBe('普诺赛中文站');
+    // CLI 显式传入 > 已存在文件 > 模型
+    expect(parseYamlConfig(yamlIn, { ...OPTS, companyKey: 'CLI 名' }, existing).company).toBe('CLI 名');
   });
 
   it('parseYamlConfig：CLI 传入优先级高于已存在文件的身份字段', () => {
@@ -108,5 +119,50 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
       /parseList/,
     );
     expect(() => parseYamlConfig('不是 YAML 输出：随便一段话', OPTS)).toThrow();
+  });
+});
+
+describe('validateConfig — 产出真实 HTML 回验', () => {
+  const listOk =
+    '<div class="item"><a href="/p/1">A</a></div><div class="item"><a href="/p/2">B</a></div><div class="item"><a href="/p/3">C</a></div>';
+  const cfgBase = {
+    domain: 'x.com',
+    listTraversal: { strategy: 'pagination-url', urlTemplate: '?page={page}' },
+    parseList: { itemSelector: '.item', fields: { detailUrl: { sel: 'a', attr: 'href' } } },
+  } as const;
+
+  it('pagination-url 缺 urlTemplate → hard（crawl 会直接报错）', () => {
+    const cfg = { ...cfgBase, listTraversal: { strategy: 'pagination-url' } } as unknown as SiteConfig;
+    const vs = validateConfig(cfg, listOk);
+    expect(vs.some((v) => v.level === 'hard' && /urlTemplate/.test(v.message))).toBe(true);
+  });
+
+  it('列表页解析 0 条 → hard；命中 ≥1 条 → 无 hard', () => {
+    const cfg = cfgBase as unknown as SiteConfig;
+    expect(validateConfig(cfg, listOk).some((v) => v.level === 'hard')).toBe(false);
+    const miss = validateConfig(cfg, '<div class="other">无商品</div>');
+    expect(miss.some((v) => v.level === 'hard' && /解析 0 条/.test(v.message))).toBe(true);
+  });
+
+  it('详情页字段全 null → soft（不拒稿，标 TODO）；命中 → 无 soft', () => {
+    const cfg = {
+      ...cfgBase,
+      parseDetail: { fields: { name: { sel: '.real-name', text: true } } },
+    } as unknown as SiteConfig;
+    // HTML 无 .real-name → soft
+    const miss = validateConfig(cfg, listOk, '<div class="detail"><p>无名称节点</p></div>');
+    expect(miss.some((v) => v.level === 'soft' && /name/.test(v.message))).toBe(true);
+    expect(miss.some((v) => v.level === 'hard')).toBe(false);
+    // HTML 有 .real-name → 无 soft
+    const hit = validateConfig(cfg, listOk, '<div class="detail"><span class="real-name">X</span></div>');
+    expect(hit).toHaveLength(0);
+  });
+
+  it('无 detailHtml 时跳过详情校验（gen-site 未传 --detail-url 场景）', () => {
+    const cfg = {
+      ...cfgBase,
+      parseDetail: { fields: { name: { sel: '.whatever', text: true } } },
+    } as unknown as SiteConfig;
+    expect(validateConfig(cfg, listOk)).toHaveLength(0);
   });
 });

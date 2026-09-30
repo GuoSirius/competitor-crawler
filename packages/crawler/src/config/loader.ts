@@ -66,11 +66,12 @@ export function loadSiteConfig(domain: string): SiteConfig {
   return yaml.parse(fs.readFileSync(p, 'utf-8')) as SiteConfig;
 }
 
-/** 写出站点配置（gen-site 调用） */
-export function saveSiteConfig(domain: string, cfg: SiteConfig): string {
+/** 写出站点配置（gen-site 调用）；header 为可选的文件头注释（如 gen-site 回验 TODO 提醒） */
+export function saveSiteConfig(domain: string, cfg: SiteConfig, header?: string): string {
   const p = siteConfigPath(domain);
   fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, yaml.stringify(cfg), 'utf-8');
+  const body = yaml.stringify(cfg);
+  fs.writeFileSync(p, header ? header + body : body, 'utf-8');
   return p;
 }
 
