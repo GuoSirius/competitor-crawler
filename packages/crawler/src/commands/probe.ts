@@ -1,6 +1,7 @@
 import { like } from 'drizzle-orm';
 import { absoluteUrl, categories, createDb } from '@competitor-crawler/shared';
 import { resolveSections, loadSiteConfig } from '../config/loader.js';
+import type { SiteConfig, ResolvedSection } from '../config/types.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { detectSpecPriceShape } from '../adapter/shapeDetect.js';
@@ -35,16 +36,53 @@ export interface ProbeOpts {
  */
 export async function probe(opts: ProbeOpts): Promise<void> {
   const progress = new Progress();
-  const cfg = loadSiteConfig(opts.domain);
-  let sections = resolveSections(cfg);
+
+  // 配置加载与解析：配置不完整（桩 / 缺 parseList / 缺 startUrl）时给出友好告警，
+  // 而非抛出堆栈崩溃（docs/10 工作流：须先 gen-site 再 probe）。
+  let cfg: SiteConfig;
+  try {
+    cfg = loadSiteConfig(opts.domain);
+  } catch (e) {
+    process.exitCode = 1;
+    console.error(
+      `\n❌ 无法加载站点配置 config/sites/${opts.domain}.yaml：${(e as Error).message}\n` +
+        `   请确认文件存在且 YAML 合法；若尚未创建，运行：\n` +
+        `   pnpm gen-site --domain ${opts.domain} --list-url <列表页URL>`,
+    );
+    return;
+  }
+
+  let sections: ResolvedSection[];
+  try {
+    sections = resolveSections(cfg);
+  } catch (e) {
+    const msg = (e as Error).message;
+    const missingParseList = !cfg.parseList && !(cfg.sections && cfg.sections.length > 0);
+    const missingStartUrl =
+      !cfg.startUrl && !(cfg.sections && cfg.sections.some((s) => s.startUrls && s.startUrls.length > 0));
+    process.exitCode = 1;
+    console.error(`\n⚠️ 站点配置不完整，无法执行 probe：${msg}`);
+    if (missingParseList) {
+      console.error(`   这看起来是一份未完成的配置桩（可能只有 domain/company/role/currency 等身份信息，缺 parseList）。`);
+      console.error(`   请先运行：pnpm gen-site --domain ${opts.domain} --list-url <列表页URL>`);
+      console.error(`   或手动补全 config/sites/${opts.domain}.yaml 的 parseList / parseDetail / listTraversal / startUrl 后再 probe。`);
+    } else if (missingStartUrl) {
+      console.error(`   缺少列表页入口：请在顶层写 startUrl，或在对应 section 写 startUrls，再 probe。`);
+    } else {
+      console.error(`   请检查并补全 config/sites/${opts.domain}.yaml 后重试。`);
+    }
+    return;
+  }
 
   if (opts.section) {
     const wanted = opts.section;
-    sections = sections.filter((s) => s.key === wanted);
-    if (sections.length === 0) {
-      const all = resolveSections(cfg).map((s) => s.key).join(', ');
-      throw new Error(`未找到 section="${wanted}"（该站可用栏目：${all}）`);
+    const all = sections.map((s) => s.key).join(', ');
+    if (!sections.some((s) => s.key === wanted)) {
+      process.exitCode = 1;
+      console.error(`\n⚠️ 未找到 section="${wanted}"（该站可用栏目：${all}）`);
+      return;
     }
+    sections = sections.filter((s) => s.key === wanted);
   }
 
   const sample = opts.sample ?? 5;

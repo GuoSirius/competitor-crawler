@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dataDir } from '@competitor-crawler/shared';
 
-/** 批量生成模板默认落盘位置 */
+/** 批量生成模板默认落盘位置（填完即被 gen-site-batch 读取，故二者同一路径） */
 export const BATCH_TEMPLATE_FILE = path.join(dataDir, 'seeds', 'gen-site-template.xlsx');
-/** 批量生成默认读取位置（与模板路径对应，方便"填完即跑"） */
-export const BATCH_DEFAULT_FILE = path.join(dataDir, 'seeds', 'gen-site-batch.xlsx');
+/** 批量生成默认读取位置：与模板路径一致，方便"填完即跑"（pnpm gen-site:batch 不传 --file 时） */
+export const BATCH_DEFAULT_FILE = BATCH_TEMPLATE_FILE;
 
 interface ColSpec {
   key: string;

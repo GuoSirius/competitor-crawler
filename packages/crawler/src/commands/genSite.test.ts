@@ -64,6 +64,20 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
     expect(parseYamlConfig(yamlIn, { ...OPTS, render: 'ssr' }, existing).render).toBe('ssr');
   });
 
+  it('parseYamlConfig：startUrl 合并优先级 CLI --list-url > 已存在文件 > 模型产出（必须等于实际抓取入口）', () => {
+    const yamlIn =
+      '```yaml\nstartUrl: https://www.example.com/MODEL-WRONG\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
+    const existing = { domain: 'old.com', startUrl: 'https://www.example.com/search' } as const;
+    // 省略 --list-url、桩文件带 startUrl：保留桩的真值（不采模型产出的错误 URL）
+    expect(parseYamlConfig(yamlIn, { ...OPTS, listUrl: undefined }, existing).startUrl).toBe(
+      'https://www.example.com/search',
+    );
+    // 传 --list-url：覆盖桩与模型产出
+    expect(parseYamlConfig(yamlIn, { ...OPTS, listUrl: 'https://www.example.com/CLI' }, existing).startUrl).toBe(
+      'https://www.example.com/CLI',
+    );
+  });
+
   it('parseYamlConfig：缺 parseList 关键字段 → 明确报错', () => {
     expect(() => parseYamlConfig('```yaml\nparseList:\n  itemSelector: ".item"\n```', OPTS)).toThrow(
       /parseList/,

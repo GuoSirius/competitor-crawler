@@ -37,9 +37,9 @@ async function main() {
     });
   } else if (cmd === 'gen-site') {
     const domain = flags.domain;
-    const listUrl = flags['list-url'];
     if (typeof domain !== 'string') throw new Error('gen-site 需要 --domain <domain>');
-    if (typeof listUrl !== 'string') throw new Error('gen-site 需要 --list-url <url>');
+    // --list-url 可选：省略时回退到已存在 YAML 的 startUrl（桩文件填充场景）
+    const listUrl = typeof flags['list-url'] === 'string' ? flags['list-url'] : undefined;
     await genSite({
       domain,
       listUrl,

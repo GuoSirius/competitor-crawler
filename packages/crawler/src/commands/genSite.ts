@@ -8,7 +8,8 @@ import type { SiteConfig } from '../config/types.js';
 
 export interface GenSiteOpts {
   domain: string;
-  listUrl: string;
+  /** 列表页 URL；省略时回退到已存在 YAML 的 startUrl（桩文件填充场景：只写 startUrl 即可） */
+  listUrl?: string;
   detailUrl?: string;
   companyKey?: string;
   competitorType?: string;
@@ -40,8 +41,14 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
 
   const mode: RenderMode = (opts.render as RenderMode) ?? (existing?.render as RenderMode) ?? 'auto';
 
-  progress.update(`[gen-site] ${opts.domain} 抓取列表页 ${opts.listUrl}`);
-  const listHtml = await fetchPage(opts.listUrl, mode, progress);
+  // 列表页 URL：优先用 --list-url；桩文件填充场景下回退到已存在 YAML 的 startUrl
+  const listUrl = opts.listUrl ?? existing?.startUrl;
+  if (!listUrl) {
+    throw new Error('gen-site 需要 --list-url <url>，或在已存在的 config/sites/<domain>.yaml 中配置 startUrl');
+  }
+
+  progress.update(`[gen-site] ${opts.domain} 抓取列表页 ${listUrl}`);
+  const listHtml = await fetchPage(listUrl, mode, progress);
   let detailHtml = '';
   if (opts.detailUrl) {
     progress.update(`[gen-site] 抓取详情页 ${opts.detailUrl}`);
@@ -54,7 +61,7 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
     opts.competitorType ? `竞品类型：${opts.competitorType}` : '',
     opts.role ? `公司角色：${opts.role}` : '',
     opts.currency ? `币种：${opts.currency}` : '',
-    `列表页 URL：${opts.listUrl}`,
+    `列表页 URL：${listUrl}`,
     opts.notes ? `补充说明：${opts.notes}` : '',
     '',
     '===== 列表页 HTML（已截断）=====',
@@ -76,7 +83,7 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
   const cfg = parseYamlConfig(out, opts, existing);
   const saved = saveSiteConfig(opts.domain, cfg);
   progress.done(`[gen-site] 已写入 ${saved}`);
-  console.log(`\n下一步验证：pnpm probe --domain ${opts.domain} --list-url ${opts.listUrl}`);
+  console.log(`\n下一步验证：pnpm probe --domain ${opts.domain} --list-url ${listUrl}`);
 }
 
 /** 从模型输出中提取 YAML：优先 ```yaml 围栏，其次任意 ``` 围栏，最后整段 */
@@ -93,7 +100,10 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: Site
   }
   // 补全关键字段，保证产出可直接被 probe / crawl 消费
   cfg.domain = opts.domain;
-  cfg.startUrl = opts.listUrl;
+  // startUrl：CLI --list-url > 已存在 YAML 的 startUrl > 模型产出（最后兜底）。
+  // 关键：写回的 startUrl 必须等于 gen-site 实际抓取的入口（opts.listUrl ?? existing.startUrl），
+  // 否则 probe/crawl 会抓到与生成时不同的页面；模型产出的 startUrl 仅作缺省兜底。
+  cfg.startUrl = opts.listUrl ?? existing?.startUrl ?? cfg.startUrl;
   // 身份字段兜底优先级：CLI/Excel 传入 > 模型产出 > 已存在文件（避免误删用户手填值）
   cfg.company = opts.companyKey ?? cfg.company ?? existing?.company;
   cfg.competitorType = opts.competitorType ?? cfg.competitorType ?? existing?.competitorType;
