@@ -116,6 +116,8 @@ interface CrawlSummary {
   contentNew: number;
   /** 内容采集（contents 表）：本轮更新条数 */
   contentUpdated: number;
+  /** 列表页抓取失败被跳过（重试耗尽）的页码清单（docs/16 规模化兜底）："domain [sectionKey] 第N页" */
+  missingPages: string[];
   /** 仅 dry-run：各栏目解析出的条目合计（全程零写入，新增/更新恒 0，靠它判断解析是否有效） */
   dryRunParsed?: number;
 }
@@ -147,6 +149,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     adapterSites: 0,
     contentNew: 0,
     contentUpdated: 0,
+    missingPages: [],
   };
 
   let crawlRow: { id: number };
@@ -236,9 +239,10 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         if (section.contentType !== 'products') {
           const pendingC: PendingContent[] = [];
           try {
-            const detailFailedC = await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet, domain, adapter, headers: extraHeaders });
+            const { detailFailed: detailFailedC, missingPages: missingPagesC } = await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet, domain, adapter, headers: extraHeaders });
             // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
             summary.failed += detailFailedC;
+            for (const p of missingPagesC) summary.missingPages.push(`${domain} [${section.key}] 内容第${p}页`);
           } catch (e) {
             summary.failed++;
             progress.update(`[crawl] ${domain} [${section.key}] 内容采集失败：${(e as Error).message}`);
@@ -285,7 +289,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         // 模型兜底（形态 E）本栏目统计：补全字段数 / 失败条数 + 首条失败原因
         const modelStat: ModelStat = { filled: 0, failed: 0 };
         try {
-          const detailFailed = await collectSection({
+          const { detailFailed, missingPages } = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
             domain, adapter, headers: extraHeaders,
           });
@@ -294,6 +298,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           if (detailFailed > 0) {
             progress.update(`[crawl] ${domain} [${section.key}] 详情失败 ${detailFailed} 条（已计入 summary.failed）`);
           }
+          // 列表页抓取失败被跳过的页码：汇总进 summary，结束前统一告警（docs/16 规模化兜底）
+          for (const p of missingPages) summary.missingPages.push(`${domain} [${section.key}] 第${p}页`);
         } catch (e) {
           summary.failed++;
           progress.update(`[crawl] ${domain} [${section.key}] 失败：${(e as Error).message}`);
@@ -377,8 +383,25 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     }
 
     summary.companies = companyIds.size;
+    // 列表页缺失强告警（docs/16 规模化兜底）：重试耗尽仍失败的页已跳过、继续翻页，不再静默终止整轮
+    if (summary.missingPages.length > 0) {
+      progress.update(`[crawl] ⚠️ ${summary.missingPages.length} 个列表页抓取失败（重试耗尽已跳过，继续翻页）：`);
+      for (const m of summary.missingPages.slice(0, 20)) progress.update(`[crawl]   ⚠️ 缺失 ${m}`);
+      if (summary.missingPages.length > 20) progress.update(`[crawl]   … 其余 ${summary.missingPages.length - 20} 个略`);
+      if (!dryRun) {
+        await recordAlert(db, {
+          type: 'SITE_UNREACHABLE',
+          severity: 'warning',
+          message: `本轮 ${summary.missingPages.length} 个列表页抓取失败（重试耗尽已跳过，继续翻页，不终止整轮）`,
+          payload: {
+            missingPages: summary.missingPages,
+            hint: '检查该站点 listTraversal（listRetry / urlTemplate / 渲染模式 / WAF 前置 preflight）',
+          },
+        });
+      }
+    }
     progress.done(
-      `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
+      `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.missingPages.length ? ` / 缺失页 ${summary.missingPages.length}` : ''}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
   } catch (e) {
@@ -741,7 +764,7 @@ async function collectSection(args: {
   adapter: CodeAdapter | null;
   /** preflight 产出的附加请求头（如 Cookie） */
   headers: Record<string, string>;
-}): Promise<number> {
+}): Promise<{ detailFailed: number; missingPages: number[] }> {
   const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
@@ -751,6 +774,8 @@ async function collectSection(args: {
   const tv = resolveTraversalLimits(section.listTraversal, opts);
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
+  // 列表抓取失败被跳过的页码（重试耗尽仍失败），汇总后由主循环落告警（docs/16 规模化兜底）
+  const missingPages: number[] = [];
 
   // 列表翻页进度：页级 ProgressCounter（实时用时/速率）。收尾 commit 成独立行（带 \n），
   // 后续详情进度从新行开始，不会覆盖本行（docs/16 P5-进度：列表进度需保留可见）。
@@ -763,7 +788,7 @@ async function collectSection(args: {
   });
   for (const listUrl of section.startUrls) {
     listBar.note(`翻页 ${listUrl}`);
-    await traverseList({
+    const res = await traverseList({
       url: listUrl,
       traversal: section.listTraversal,
       listMode,
@@ -788,6 +813,7 @@ async function collectSection(args: {
         return pageItems.length;
       },
     });
+    if (res.missingPages.length) missingPages.push(...res.missingPages);
   }
 
   // 列表去重：列表页常把同一产品渲染两次（pc/web 双套模板、图片链接+标题链接），
@@ -877,7 +903,7 @@ async function collectSection(args: {
     }
   })));
   detailBar.finish();
-  return detailFailed;
+  return { detailFailed, missingPages };
 }
 
 /**
@@ -1129,7 +1155,7 @@ async function collectContentSection(args: {
   adapter: CodeAdapter | null;
   /** preflight 产出的附加请求头（如 Cookie） */
   headers: Record<string, string>;
-}): Promise<number> {
+}): Promise<{ detailFailed: number; missingPages: number[] }> {
   const { progress, mode, opts, section, companyId, pending, seenSet, domain, adapter, headers } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
@@ -1139,6 +1165,8 @@ async function collectContentSection(args: {
   const tv = resolveTraversalLimits(section.listTraversal, opts);
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
+  // 列表抓取失败被跳过的页码（重试耗尽仍失败），汇总后由主循环落告警（docs/16 规模化兜底）
+  const missingPages: number[] = [];
 
   // 列表翻页进度：页级 ProgressCounter（实时用时/速率），收尾 commit 成独立行，不被详情覆盖
   const listCap = tv.pageEnd !== undefined ? tv.pageEnd - tv.pageStart + 1 : 0;
@@ -1149,7 +1177,7 @@ async function collectContentSection(args: {
   });
   for (const listUrl of section.startUrls) {
     listBar.note(`翻页 ${listUrl}`);
-    await traverseList({
+    const res = await traverseList({
       url: listUrl,
       traversal: section.listTraversal,
       listMode,
@@ -1172,6 +1200,7 @@ async function collectContentSection(args: {
         return pageItems.length;
       },
     });
+    if (res.missingPages.length) missingPages.push(...res.missingPages);
   }
 
   // 列表去重：同 canonical(detailUrl) 只留一条（与产品管线一致）
@@ -1209,7 +1238,7 @@ async function collectContentSection(args: {
     }
   })));
   detailBar.finish();
-  return detailFailed;
+  return { detailFailed, missingPages };
 }
 
 /**

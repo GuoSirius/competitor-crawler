@@ -129,6 +129,11 @@ export interface TraversalLimits {
   offset: number;
   /** 每页最多取条目数（undefined = 取到页尾） */
   perPage?: number;
+  /**
+   * 单页抓取失败重试次数（仅 pagination-url 生效）。
+   * 默认 1：失败 1 次即跳过该页（记入缺失页）；0 = 不重试；2 = 最多重试 2 次。
+   */
+  listRetry: number;
 }
 
 /**
@@ -147,6 +152,7 @@ export function resolveTraversalLimits(t: ListTraversalConfig, cli?: CliTraversa
     maxPages: cli?.pages !== undefined ? Math.min(cli.pages, yamlMax) : yamlMax,
     offset: Math.max(0, cli?.offset ?? t.offset ?? 0),
     perPage: cli?.perPage ?? t.limit,
+    listRetry: Math.max(0, t.listRetry ?? 1),
   };
 }
 

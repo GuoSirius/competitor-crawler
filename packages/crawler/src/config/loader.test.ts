@@ -174,7 +174,7 @@ describe('resolveTraversalLimits / slicePageItems — 分页条目控制', () =>
 
   it('resolveTraversalLimits：YAML 缺省 → 默认值（maxPages 1000 / pageStart 1 / offset 0）', () => {
     const tv = resolveTraversalLimits({ strategy: 'pagination-url' });
-    expect(tv).toEqual({ pageStart: 1, pageEnd: undefined, maxPages: 1000, offset: 0, perPage: undefined });
+    expect(tv).toEqual({ pageStart: 1, pageEnd: undefined, maxPages: 1000, offset: 0, perPage: undefined, listRetry: 1 });
   });
 
   it('resolveTraversalLimits：CLI 显式覆盖 YAML（pageStart/pageEnd/offset/perPage）', () => {
@@ -182,7 +182,7 @@ describe('resolveTraversalLimits / slicePageItems — 分页条目控制', () =>
       { strategy: 'pagination-url', pageStart: 2, pageEnd: 9, offset: 5, limit: 20 },
       { pageStart: 4, pageEnd: 6, offset: 10, perPage: 3 },
     );
-    expect(tv).toEqual({ pageStart: 4, pageEnd: 6, maxPages: 1000, offset: 10, perPage: 3 });
+    expect(tv).toEqual({ pageStart: 4, pageEnd: 6, maxPages: 1000, offset: 10, perPage: 3, listRetry: 1 });
   });
 
   it('resolveTraversalLimits：--pages 与 YAML maxPages 取小（安全护栏语义）', () => {

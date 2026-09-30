@@ -37,6 +37,8 @@ export interface TraverseOpts {
 export interface TraverseResult {
   pages: number;
   items: number;
+  /** pagination-url 策略下抓取失败（重试耗尽）被跳过的页码列表；其它策略恒为空 */
+  missingPages: number[];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -99,34 +101,52 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     }
     const pageStart = traversal.pageStart ?? 1;
     const pageEnd = opts.pageEnd;
+    // 单页抓取失败重试次数（docs/16 规模化兜底）：默认 1（首次失败后再试 1 次）；
+    // 0 = 不重试。重试耗尽仍失败 → 跳过该页、记缺失页、继续翻下一页（不再静默终止整轮，避免「个别失败前功尽弃」）。
+    const listRetry = Math.max(0, traversal.listRetry ?? 1);
     let pages = 0;
     let items = 0;
+    const missingPages: number[] = [];
     for (let p = pageStart; p < pageStart + max; p++) {
       if (pageEnd !== undefined && p > pageEnd) break; // 终止页（闭区间）已翻过
       // 适配器钩子优先（返回空值走默认拼装逻辑，docs/16 🔴-2）
       const pageUrl =
         opts.buildPageUrlFn?.(url, traversal.urlTemplate, p) || buildPageUrl(url, traversal.urlTemplate, p);
       opts.progress?.log(`[traverse] 列表 第${p}页 ${pageUrl}`);
-      let html: string;
-      try {
-        html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers);
-      } catch (e) {
-        opts.progress?.log(`[traverse] 第 ${p} 页抓取失败，终止翻页：${(e as Error).message}`);
-        break;
+      // 重试：首次失败后再试 listRetry 次；全部失败才跳过该页继续
+      let html: string | null = null;
+      let lastErr = '';
+      for (let attempt = 0; attempt <= listRetry; attempt++) {
+        try {
+          html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers);
+          break;
+        } catch (e) {
+          lastErr = (e as Error).message;
+          if (attempt < listRetry) {
+            opts.progress?.log(`[traverse] 第 ${p} 页抓取失败，重试 ${attempt + 1}/${listRetry}：${lastErr}`);
+            await sleep(800 * (attempt + 1)); // 简单线性退避，避免瞬时抖动连续失败
+          }
+        }
+      }
+      if (html === null) {
+        // 重试耗尽仍失败：记录缺失页、强告警、跳到下一页（不终止整轮翻页）
+        missingPages.push(p);
+        opts.progress?.log(`[traverse] 第 ${p} 页抓取失败（重试 ${listRetry} 次仍失败），跳过该页继续：${lastErr}`);
+        continue;
       }
       const n = await opts.onPage(html, p, pageUrl);
       pages++;
       items += n;
       if (n === 0) break; // 本页无条目 → 视为末页
     }
-    return { pages, items };
+    return { pages, items, missingPages };
   }
 
   // ssr：无浏览器，单页
   if (listMode === 'ssr') {
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
     const n = await opts.onPage(html, 1, url);
-    return { pages: 1, items: n };
+    return { pages: 1, items: n, missingPages: [] };
   }
 
   let browser: import('playwright').Browser | null = null;
@@ -138,7 +158,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     opts.progress?.log(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
     const n = await opts.onPage(html, 1, url);
-    return { pages: 1, items: n };
+    return { pages: 1, items: n, missingPages: [] };
   }
 
   let pages = 0;
@@ -175,7 +195,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     await browser.close().catch(() => {});
   }
 
-  return { pages, items };
+  return { pages, items, missingPages: [] };
 }
 
 /** 点下一页；成功返回 true，找不到/不可点/异常返回 false（终止翻页） */

@@ -102,26 +102,68 @@ describe('traverseList — pagination-url', () => {
     expect(res.pages).toBe(3);
   });
 
-  it('某页抓取抛错 → 终止翻页（不整轮失败）', async () => {
+  it('某页抓取抛错 → 默认重试 1 次后仍失败则跳过该页并继续翻页（记录缺失页）', async () => {
     const urls: string[] = [];
     mockFetch.mockImplementation(async (url: string) => {
       urls.push(url);
-      if (urls.length === 2) throw new Error('HTTP 500');
+      if (url.includes('p=2')) throw new Error('HTTP 500'); // 第 2 页始终失败
       return '<html></html>';
     });
     const onPage = vi.fn(async () => 1);
 
     const res = await traverseList({
       url: 'https://x.com/list',
-      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 10 },
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 4 },
       listMode: 'ssr',
-      maxPages: 10,
+      maxPages: 4,
       onPage,
     });
 
-    // 第 1 页成功、第 2 页抛错终止 → 只翻了 1 页
-    expect(urls).toEqual(['https://x.com/list?p=1', 'https://x.com/list?p=2']);
-    expect(res.pages).toBe(1);
+    // 第 2 页：首次 + 1 次重试 = 2 次 fetch；其余页各 1 次；不终止整轮
+    expect(urls.filter((u) => u === 'https://x.com/list?p=2')).toHaveLength(2);
+    expect(res.pages).toBe(3); // 1/3/4 成功
+    expect(res.missingPages).toEqual([2]);
+  });
+
+  it('listRetry=0：失败页不重试，跳过并继续翻页', async () => {
+    const urls: string[] = [];
+    mockFetch.mockImplementation(async (url: string) => {
+      urls.push(url);
+      if (url.includes('p=2')) throw new Error('HTTP 500');
+      return '<html></html>';
+    });
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 4, listRetry: 0 },
+      listMode: 'ssr',
+      maxPages: 4,
+      onPage: async () => 1,
+    });
+
+    expect(urls.filter((u) => u === 'https://x.com/list?p=2')).toHaveLength(1); // 不重试
+    expect(res.pages).toBe(3);
+    expect(res.missingPages).toEqual([2]);
+  });
+
+  it('listRetry=2：首次失败后重试成功，不记为缺失', async () => {
+    let calls = 0;
+    mockFetch.mockImplementation(async (url: string) => {
+      calls++;
+      if (url.includes('p=2') && calls <= 2) throw new Error('HTTP 500'); // 前 2 次失败，第 3 次成功
+      return '<html></html>';
+    });
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 3, listRetry: 2 },
+      listMode: 'ssr',
+      maxPages: 3,
+      onPage: async () => 1,
+    });
+
+    expect(res.pages).toBe(3); // 全部成功（第 2 页第 3 次重试成功）
+    expect(res.missingPages).toEqual([]);
   });
 
   it('缺少 urlTemplate → 报错', async () => {

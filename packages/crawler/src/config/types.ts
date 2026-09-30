@@ -123,6 +123,12 @@ export interface ListTraversalConfig {
    * CLI --per-page 可临时覆盖。
    */
   limit?: number;
+  /**
+   * 单页抓取失败重试次数（仅 pagination-url 策略生效，其它 UI 驱动策略无法按页重试）。
+   * 默认 1：失败 1 次即跳过该页并记入缺失页（不再静默终止整轮翻页，docs/16 规模化兜底）。
+   * 设为 0 表示不重试（与旧行为一致）；设为 2 表示最多重试 2 次。
+   */
+  listRetry?: number;
 }
 
 /**
