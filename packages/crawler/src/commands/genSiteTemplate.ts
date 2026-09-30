@@ -25,6 +25,7 @@ const COLUMNS: ColSpec[] = [
   { key: 'companyKey', header: '公司(companyKey,可选)', width: 20, required: false, desc: '归属公司名（可选）；写入 YAML 顶层 company（同名=同一家公司，多域名共用同一名字）；不填则爬取时按域名兜底' },
   { key: 'competitorType', header: '竞品类型(competitorType,可选)', width: 22, required: false, desc: '竞品类型（可选）；写入 companies.competitor_type，供筛选/分组' },
   { key: 'role', header: '角色(role,可选:own/competitor)', width: 24, required: false, desc: '公司角色（可选）：own=我方 / competitor=竞品；写入 companies.role，缺省 competitor' },
+  { key: 'currency', header: '币种(currency,可选)', width: 18, required: false, desc: '站点币种（可选）；写入 products.currency，缺省 CNY；国际站填 USD，中文站可填 元/CNY' },
   { key: 'render', header: '渲染(render,可选:ssr/spa/auto)', width: 24, required: false, desc: '渲染模式：ssr(纯静态) / spa(需浏览器) / auto(自动判断，默认)' },
   { key: 'notes', header: '备注(notes,可选)', width: 34, required: false, desc: '补充说明（可选）；如特殊翻页、需登录等，帮助模型更好生成' },
 ];
@@ -56,6 +57,7 @@ export async function genSiteTemplate(file?: string): Promise<string> {
     companyKey: '示例公司',
     competitorType: '示例类型',
     role: 'competitor',
+    currency: 'CNY',
     render: 'auto',
     notes: '★ 示例行：正式批量生成前请整行删除',
   });

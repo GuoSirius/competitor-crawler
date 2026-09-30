@@ -37,6 +37,23 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
     expect(withoutAttrs.role).toBeUndefined();
   });
 
+  it('parseYamlConfig：已存在文件身份字段（currency/role/company）在模型未产出时兜底保留', () => {
+    const yamlIn = '```yaml\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
+    const existing = { domain: 'old.com', company: '老公司', role: 'own', currency: '元' } as const;
+    const cfg = parseYamlConfig(yamlIn, OPTS, existing);
+    expect(cfg.currency).toBe('元');
+    expect(cfg.role).toBe('own');
+    expect(cfg.company).toBe('老公司');
+  });
+
+  it('parseYamlConfig：CLI 传入优先级高于已存在文件的身份字段', () => {
+    const yamlIn = '```yaml\nparseList:\n  itemSelector: ".item"\n  fields:\n    detailUrl: { sel: "a", attr: href }\n```';
+    const existing = { domain: 'old.com', role: 'own', currency: '元' } as const;
+    const cfg = parseYamlConfig(yamlIn, { ...OPTS, role: 'competitor', currency: 'USD' }, existing);
+    expect(cfg.role).toBe('competitor');
+    expect(cfg.currency).toBe('USD');
+  });
+
   it('parseYamlConfig：缺 parseList 关键字段 → 明确报错', () => {
     expect(() => parseYamlConfig('```yaml\nparseList:\n  itemSelector: ".item"\n```', OPTS)).toThrow(
       /parseList/,

@@ -24,6 +24,7 @@ const FIELD_KEYWORDS: ColumnField[] = [
   { field: 'companyKey', keys: ['companykey', '公司', 'company', '归属公司'] },
   { field: 'competitorType', keys: ['competitortype', '竞品类型', 'competitor-type', 'competitor_type'] },
   { field: 'role', keys: ['role', '角色'] },
+  { field: 'currency', keys: ['currency', '币种', '货币'] },
   { field: 'render', keys: ['render', '渲染'] },
   { field: 'notes', keys: ['notes', '备注', '说明'] },
 ];
@@ -72,6 +73,7 @@ export async function parseBatchRows(file: string): Promise<BatchRow[]> {
       companyKey: get('companyKey'),
       competitorType: get('competitorType'),
       role: get('role'),
+      currency: get('currency'),
       render: get('render'),
       notes: get('notes'),
     });
@@ -106,6 +108,7 @@ export async function genSiteBatch(opts: GenSiteBatchOpts = {}): Promise<void> {
         genOpts.companyKey ? `companyKey=${genOpts.companyKey}` : null,
         genOpts.competitorType ? `competitorType=${genOpts.competitorType}` : null,
         genOpts.role ? `role=${genOpts.role}` : null,
+        genOpts.currency ? `currency=${genOpts.currency}` : null,
         genOpts.render ? `render=${genOpts.render}` : null,
         genOpts.notes ? `notes=${genOpts.notes}` : null,
       ]
