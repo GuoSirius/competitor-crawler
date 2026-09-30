@@ -33,6 +33,7 @@ export const categories = mysqlTable('categories', {
   // 自引用外键必须显式标注 AnyMySqlColumn，否则 TS 循环推断报 TS7022
   parentId: int('parent_id').references((): AnyMySqlColumn => categories.id), // 父节点；NULL=根
   path: varchar('path', { length: 700 }).notNull(), // 面包屑全路径（业务主键的一部分）
+  idPath: varchar('id_path', { length: 255 }), // id 物化路径 '0-<rootId>-…-<selfId>'：辅助键，改名不动它；子树查询按前缀 LIKE。可空=旧数据待下轮爬取自愈
   name: varchar('name', { length: 255 }).notNull(),
   level: int('level').notNull().default(0),
   productLine: varchar('product_line', { length: 255 }), // 产品线（根节点写入，向下冗余；= path 根节点的镜像，语义以 path 首段为准）
@@ -44,6 +45,7 @@ export const categories = mysqlTable('categories', {
 }, (t) => [
   uniqueIndex('uniq_cat').on(t.companyId, t.contentType, t.path),
   index('idx_cat_parent').on(t.companyId, t.contentType, t.parentId),
+  index('idx_cat_idpath').on(t.companyId, t.contentType, t.idPath), // id 子树前缀扫描（改名安全）
   index('idx_cat_pline').on(t.companyId, t.contentType, t.productLine),
 ]);
 

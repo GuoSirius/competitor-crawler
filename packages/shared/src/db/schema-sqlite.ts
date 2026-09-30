@@ -29,6 +29,7 @@ export const categories = sqliteTable('categories', {
   // 自引用外键必须显式标注 AnySQLiteColumn，否则 TS 循环推断报 TS7022
   parentId: integer('parent_id').references((): AnySQLiteColumn => categories.id), // 父节点；NULL=根
   path: text('path').notNull(), // 面包屑全路径（业务主键的一部分）
+  idPath: text('id_path'), // id 物化路径 '0-<rootId>-…-<selfId>'：辅助键，改名不动它；子树查询按前缀 LIKE。可空=旧数据待下轮爬取自愈
   name: text('name').notNull(), // 本节点名（= path 末段）
   level: integer('level').notNull().default(0), // 深度
   productLine: text('product_line'), // 产品线（根节点写入，向下冗余；= path 根节点的镜像，语义以 path 首段为准）
@@ -40,6 +41,7 @@ export const categories = sqliteTable('categories', {
 }, (t) => [
   uniqueIndex('uniq_cat').on(t.companyId, t.contentType, t.path), // upsert 键 + 子树前缀扫描
   index('idx_cat_parent').on(t.companyId, t.contentType, t.parentId), // 取直接子节点
+  index('idx_cat_idpath').on(t.companyId, t.contentType, t.idPath), // id 子树前缀扫描（改名安全）
   index('idx_cat_pline').on(t.companyId, t.contentType, t.productLine), // --product-line 筛选
 ]);
 

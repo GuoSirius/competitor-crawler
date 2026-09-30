@@ -84,12 +84,15 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
     const productLine = s.productLine ?? null;
     const catPath = productLine ? `${productLine}/${s.categoryName}` : s.categoryName;
     let parentId: number | null = null;
+    let parentIds = '0'; // idPath 以 0 起头
     if (productLine) {
       // 产品线根节点
-      parentId = await upsertSeedCategory(db, companyId, productLine, productLine, productLine, null, null, 0, s.sourceRow, t);
+      const root = await upsertSeedCategory(db, companyId, productLine, productLine, productLine, null, null, parentIds, 0, s.sourceRow, t);
+      parentId = root.id;
+      parentIds = root.idPath;
       seenCatKeys.add(`${companyId}|products|${productLine}`);
     }
-    await upsertSeedCategory(db, companyId, s.categoryName, catPath, productLine, s.categoryUrl, parentId, parentId === null ? 0 : 1, s.sourceRow, t);
+    await upsertSeedCategory(db, companyId, s.categoryName, catPath, productLine, s.categoryUrl, parentId, parentIds, parentId === null ? 0 : 1, s.sourceRow, t);
     seenCatKeys.add(`${companyId}|products|${catPath}`);
   }
 
@@ -107,7 +110,7 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
 
 type SeedDb = ReturnType<typeof createDb>['db'];
 
-/** 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点（seeds 数据源）。 */
+/** 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点（seeds 数据源）；返回 { id, idPath }（id 物化路径，与 crawl 同口径） */
 async function upsertSeedCategory(
   db: SeedDb,
   companyId: number,
@@ -116,12 +119,13 @@ async function upsertSeedCategory(
   productLine: string | null,
   url: string | null,
   parentId: number | null,
+  parentIds: string,
   level: number,
   sourceRow: Record<string, unknown>,
   t: number,
-): Promise<number> {
+): Promise<{ id: number; idPath: string }> {
   const existing = await db
-    .select({ id: categories.id })
+    .select({ id: categories.id, idPath: categories.idPath })
     .from(categories)
     .where(
       and(
@@ -132,15 +136,21 @@ async function upsertSeedCategory(
     )
     .limit(1);
   if (existing.length) {
+    const idPath = `${parentIds}-${existing[0].id}`;
     await db
       .update(categories)
-      .set({ name, url, productLine, parentId, level, sourceRow, removedAt: null, updatedAt: t })
+      .set({
+        name, url, productLine, parentId, level, sourceRow, removedAt: null, updatedAt: t,
+        ...(existing[0].idPath !== idPath ? { idPath } : {}), // 自愈旧数据
+      })
       .where(eq(categories.id, existing[0].id));
-    return existing[0].id;
+    return { id: existing[0].id, idPath };
   }
   const [ins] = await db
     .insert(categories)
     .values({ companyId, contentType: 'products', parentId, path, name, level, productLine, url, sourceRow, removedAt: null, createdAt: t, updatedAt: t })
     .returning();
-  return ins.id;
+  const idPath = `${parentIds}-${ins.id}`;
+  await db.update(categories).set({ idPath }).where(eq(categories.id, ins.id));
+  return { id: ins.id, idPath };
 }

@@ -720,7 +720,12 @@ async function upsertCompany(
   return ins.id;
 }
 
-/** 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点；返回其 id */
+/**
+ * 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点；返回 { id, idPath }。
+ * idPath = id 物化路径（`0-<rootId>-…-<selfId>`，parentIds 传父链、根传 '0'）：辅助键，
+ * 改名不动它、子树可按前缀 LIKE 精准圈定；**爬虫业务键仍是 name-path**（自增 id 跨库不稳定）。
+ * idPath 含自身 id → 新建行先插再补写（两次语句，分类量小可接受）；旧行 idPath 缺失/漂移则顺带自愈。
+ */
 async function upsertCategoryNode(
   db: Db,
   companyId: number,
@@ -729,14 +734,15 @@ async function upsertCategoryNode(
   productLine: string | null,
   url: string | null,
   parentId: number | null,
+  parentIds: string,
   level: number,
   dryRun: boolean,
   progress: Progress,
   contentType = 'products',
-): Promise<number> {
+): Promise<{ id: number; idPath: string }> {
   const t = nowSeconds();
   const existing = await db
-    .select({ id: categories.id })
+    .select({ id: categories.id, idPath: categories.idPath })
     .from(categories)
     .where(
       and(
@@ -747,23 +753,29 @@ async function upsertCategoryNode(
     )
     .limit(1);
   if (existing.length) {
+    const idPath = `${parentIds}-${existing[0].id}`;
     if (!dryRun) {
       await db
         .update(categories)
-        .set({ name, url, productLine, parentId, level, removedAt: null, updatedAt: t })
+        .set({
+          name, url, productLine, parentId, level, removedAt: null, updatedAt: t,
+          ...(existing[0].idPath !== idPath ? { idPath } : {}), // 自愈旧数据/漂移
+        })
         .where(eq(categories.id, existing[0].id));
     }
-    return existing[0].id;
+    return { id: existing[0].id, idPath };
   }
   if (dryRun) {
     progress.update(`[crawl] (dry-run) 将新建分类 ${path} (contentType=${contentType}, company=${companyId})`);
-    return 0;
+    return { id: 0, idPath: `${parentIds}-0` }; // dry-run 哨兵：不写库，链形状仅用于延续父链
   }
   const [ins] = await db
     .insert(categories)
     .values({ companyId, contentType, parentId, path, name, level, productLine, url, removedAt: null, createdAt: t, updatedAt: t })
     .returning();
-  return ins.id;
+  const idPath = `${parentIds}-${ins.id}`;
+  await db.update(categories).set({ idPath }).where(eq(categories.id, ins.id));
+  return { id: ins.id, idPath };
 }
 
 /**
@@ -783,14 +795,17 @@ export async function upsertCategoryPath(
 ): Promise<number> {
   const full = productLine ? [productLine, ...breadcrumb] : breadcrumb.slice();
   let parentId: number | null = null;
+  let parentIds = '0'; // 根的父链（idPath 以 0 起头：0-<rootId>-…）
   let leafId = 0;
   for (let i = 0; i < full.length; i++) {
     const isLeaf = i === full.length - 1;
-    parentId = await upsertCategoryNode(
+    const node = await upsertCategoryNode(
       db, companyId, full[i], full.slice(0, i + 1).join('/'), productLine,
-      isLeaf ? url : null, parentId, i, dryRun, progress, contentType,
+      isLeaf ? url : null, parentId, parentIds, i, dryRun, progress, contentType,
     );
-    leafId = parentId;
+    parentId = node.id;
+    parentIds = node.idPath;
+    leafId = node.id;
   }
   return leafId;
 }
