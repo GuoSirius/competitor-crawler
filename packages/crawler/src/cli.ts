@@ -90,6 +90,8 @@ async function main() {
       section: typeof flags.section === 'string' ? flags.section : undefined,
       category: typeof flags.category === 'string' ? flags.category : undefined,
       productLine: typeof flags['product-line'] === 'string' ? flags['product-line'] : undefined,
+      // --resume：不带值（true）= 自动取 .crawl-state/ 最新断点；带值 = 指定断点文件
+      resume: flags.resume === true ? '' : typeof flags.resume === 'string' ? flags.resume : undefined,
     });
   } else if (cmd === 'report') {
     await report({
@@ -119,6 +121,7 @@ async function main() {
     console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|schedule|report> [--flags]');
     console.log('  crawl 额外参数: --source config|seeds (默认 config；seeds 为 Excel 初始化导入后的一次性场景) --site <d[,d2..]> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');
     console.log('  crawl 分页/条数（覆盖 YAML listTraversal，显式传入生效）: --page-start <n> 起始页 / --page-end <n> 终止页(闭区间，仅 pagination-url) / --offset <n> 每页条目偏移 / --per-page <n> 每页最多条数；--pages 与 YAML maxPages 取小（安全护栏）');
+    console.log('  crawl 断点续跑（docs/16 规模化兜底）: --resume [<文件>] 中断后续跑——不带值自动取最新断点；已完成栏目跳过、已落库详情不重抓。运行中断时会打印续跑命令');
     console.log('  schedule 额外参数: --daemon（常驻守护，按季度首月 1 日 03:00 触发，北京时间口径）');
   }
 }

@@ -8,7 +8,8 @@ export type AlertType =
   | 'BULK_DRIFT'
   | 'SITE_UNREACHABLE'
   | 'NEEDS_API_HINT'
-  | 'MODEL_FAILURE';
+  | 'MODEL_FAILURE'
+  | 'CRAWL_INTERRUPTED';
 
 /**
  * 告警严重级别（单一事实源，docs/16 M8）。

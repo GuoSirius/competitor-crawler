@@ -26,6 +26,7 @@ import type { CodeAdapter, CodeAdapterCtx } from '../adapters/types.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
 import { recordAlert } from '../util/alerts.js';
+import { CrawlState } from './crawlState.js';
 import { traverseList } from '../fetch/listTraversal.js';
 import { dedupeListItems, uniqueBy } from '../fetch/listDedupe.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
@@ -69,6 +70,11 @@ export interface CrawlOpts {
   productLine?: string;
   /** 触发来源：manual（手动/cli）/ schedule（调度器）；写入 crawls.trigger 便于追溯 */
   trigger?: 'manual' | 'schedule';
+  /**
+   * 断点续跑（docs/16 规模化兜底）：传入上次中断保存的断点文件路径；空字符串 = 自动取
+   * .crawl-state/ 内最新文件。续跑时已完成栏目整段跳过、已落库产品详情不重抓。
+   */
+  resume?: string;
 }
 
 export interface PendingProduct {
@@ -169,6 +175,22 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
       .returning();
   }
 
+  // 断点续跑状态（dry-run 不落盘）：正常轮 create（成功后清理，失败保留）；--resume 读旧断点跳过已完成栏目
+  let state: CrawlState | null = null;
+  if (!dryRun) {
+    if (opts.resume !== undefined) {
+      const p = opts.resume === '' ? CrawlState.latest() : opts.resume;
+      if (!p || !fs.existsSync(p)) {
+        throw new Error(`--resume 找不到断点文件：${opts.resume || '.crawl-state/ 目录为空（没有可续跑的断点）'}`);
+      }
+      state = CrawlState.load(p);
+      if (!state) throw new Error(`--resume 断点文件损坏或格式不对：${p}`);
+      progress.update(`[crawl] 断点续跑：已完成 ${state.doneCount} 个栏目将被跳过（${p}）`);
+    } else {
+      state = CrawlState.create({ site: opts.site ?? null, source: opts.source ?? null, trigger: opts.trigger ?? 'manual' });
+    }
+  }
+
   const companyIds = new Set<number>();
   // 每个 (companyId|sectionKey) 见到的 identityKey，用于软删判断
   const seenKeys = new Map<string, Set<string>>();
@@ -235,6 +257,11 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           summary.failed++;
           continue;
         }
+        // 断点续跑：上次已完整落库的栏目整段跳过（含软删，不再触碰该栏目数据）
+        if (state?.isDone(domain, section.key)) {
+          progress.update(`[crawl] 断点续跑：跳过已完成栏目 ${domain} [${section.key}]`);
+          continue;
+        }
 
         // ── 非产品内容采集（section.contentType !== 'products'）→ contents 表管线 ──
         if (section.contentType !== 'products') {
@@ -289,10 +316,18 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         const pending: PendingProduct[] = [];
         // 模型兜底（形态 E）本栏目统计：补全字段数 / 失败条数 + 首条失败原因
         const modelStat: ModelStat = { filled: 0, failed: 0 };
+        // 先读库内已有产品（identityKey → id/price）：既供落库阶段判 新增/更新/价格变化，
+        // 又在续跑时作为「已落库不重抓」的跳过集合（docs/16 规模化兜底）
+        const existed = await loadExisting(db, companyId, section.key);
+        const skipKeys = state ? new Set(existed.keys()) : undefined;
+        // 栏目级计数基线：完成后算增量，写进断点文件
+        const baseNew = summary.new;
+        const baseUpdated = summary.updated;
+        const baseFailed = summary.failed;
         try {
           const { detailFailed, missingPages } = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
-            domain, adapter, headers: extraHeaders,
+            domain, adapter, headers: extraHeaders, skipKeys,
           });
           // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
           summary.failed += detailFailed;
@@ -341,7 +376,6 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           });
         }
 
-        const existed = await loadExisting(db, companyId, section.key);
         // 同一栏目内 identityKey 唯一化：同一身份键只应写一条，否则计数虚高且重复 upsert。
         const unique = uniqueBy(pending, (p) => p.identityKey);
         if (unique.length !== pending.length) {
@@ -371,6 +405,13 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           progress.update(`[crawl] ${domain} [${section.key}] 落库 ${done}/${unique.length}`);
         }
         summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
+        // 断点落盘：本栏目采集+落库+软删全部完成 → 标记 done 并写文件（崩溃后 --resume 可跳过）
+        state?.markDone(domain, section.key, {
+          newCount: summary.new - baseNew,
+          updatedCount: summary.updated - baseUpdated,
+          failedCount: summary.failed - baseFailed,
+        });
+        state?.save();
       }
     }
 
@@ -396,8 +437,33 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
       `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.missingPages.length ? ` / 缺失页 ${summary.missingPages.length}` : ''}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
+    // 整轮成功（含 partial：栏目级失败已计 summary.failed，下轮全量重跑即可）→ 清理断点文件
+    state?.remove();
   } catch (e) {
     await finalize(db, crawlRow.id, 'failed', summary, dryRun);
+    // 断点保留 + 明确告知续跑方式（docs/16 规模化兜底：失败不前功尽弃）
+    if (state) {
+      state.save();
+      progress.done(`[crawl] ⚠️ 运行中断：${(e as Error).message}`);
+      progress.done(
+        `[crawl] 断点已保存（已完成 ${state.doneCount} 个栏目）。续跑：pnpm crawl --resume ${state.path}${opts.site ? ` --site ${opts.site}` : ''}`,
+      );
+      try {
+        await recordAlert(db, {
+          type: 'CRAWL_INTERRUPTED',
+          severity: 'critical',
+          crawlId: crawlRow.id,
+          message: `crawl 运行中断（断点已保存，已完成 ${state.doneCount} 个栏目，可用 --resume 续跑）`,
+          payload: {
+            resumePath: state.path,
+            doneSections: state.doneCount,
+            error: (e as Error).message,
+          },
+        });
+      } catch {
+        /* 告警写入失败不影响中断处理 */
+      }
+    }
     throw e;
   }
 }
@@ -756,8 +822,13 @@ async function collectSection(args: {
   adapter: CodeAdapter | null;
   /** preflight 产出的附加请求头（如 Cookie） */
   headers: Record<string, string>;
+  /**
+   * 断点续跑（docs/16）：已落库的 identityKey 集合，命中则跳过详情抓取（不重抓，只标 seen 防软删）。
+   * 仅 --resume 时传入；正常轮不传（全量重抓才能发现价格/描述变化）。
+   */
+  skipKeys?: Set<string>;
 }): Promise<{ detailFailed: number; missingPages: number[] }> {
-  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers } = args;
+  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers, skipKeys } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
   const detailMode = detailRenderMode(section, mode);
@@ -828,6 +899,16 @@ async function collectSection(args: {
     let ok = true;
     let errMsg = '';
     try {
+      // 断点续跑：该条已落库 → 不重抓详情，只标 seen（软删口径不变）。
+      // 列表阶段没有类型化 sourceProductId（在 raw 快照里），与落库时 pickIdentityKey 同源兜底到 canonical(detailUrl)
+      const preKey = pickIdentityKey(
+        typeof it.raw?.sourceProductId === 'string' ? it.raw.sourceProductId : null,
+        it.detailUrl,
+      );
+      if (skipKeys?.has(preKey)) {
+        seenSet(companyId, section.key).add(preKey);
+        return;
+      }
       const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
       let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
       // 适配器钩子：详情解析后二次加工（在 api 源 / 模型兜底之前，它们只补空不覆盖）
