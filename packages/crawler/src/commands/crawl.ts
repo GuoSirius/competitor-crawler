@@ -319,7 +319,9 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         // 先读库内已有产品（identityKey → id/price）：既供落库阶段判 新增/更新/价格变化，
         // 又在续跑时作为「已落库不重抓」的跳过集合（docs/16 规模化兜底）
         const existed = await loadExisting(db, companyId, section.key);
-        const skipKeys = state ? new Set(existed.keys()) : undefined;
+        // ⚠️ 仅续跑（--resume）才跳过已落库详情；普通轮必须全量重抓——否则价格/描述永远刷新不到
+        // （state 普通轮也非空：为了中途崩溃可续跑，每轮都会建断点文件，不能拿它当续跑判据）
+        const skipKeys = opts.resume !== undefined ? new Set(existed.keys()) : undefined;
         // 栏目级计数基线：完成后算增量，写进断点文件
         const baseNew = summary.new;
         const baseUpdated = summary.updated;
@@ -910,6 +912,7 @@ async function collectSection(args: {
   // 并发详情进度：逐条 tick 单行刷新（完成数/百分比/速率），失败明细 finish 时统一打印
   const detailBar = new ProgressCounter(progress, `[crawl] [${section.key}] 详情`, targets.length);
   let detailFailed = 0;
+  let skippedSaved = 0; // 续跑时跳过的已落库条数（收尾打进详情行，让「跳过」可见）
   await Promise.all(targets.map((it) => limiter(async () => {
     let ok = true;
     let errMsg = '';
@@ -922,6 +925,7 @@ async function collectSection(args: {
       );
       if (skipKeys?.has(preKey)) {
         seenSet(companyId, section.key).add(preKey);
+        skippedSaved++;
         return;
       }
       const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
@@ -990,7 +994,7 @@ async function collectSection(args: {
       detailBar.tick(ok, ok ? undefined : errMsg);
     }
   })));
-  detailBar.finish();
+  detailBar.finish(skippedSaved > 0 ? `跳过已落库${skippedSaved}（--resume 续跑）` : undefined);
   return { detailFailed, missingPages };
 }
 
