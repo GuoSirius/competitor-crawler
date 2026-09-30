@@ -84,11 +84,15 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 listTraversal:
   strategy: pagination-html      # 见上；默认 pagination-html
   nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination-* 类必填；pagination-url 不需要）
-  maxPages: 50                   # 最大翻页数（防死循环；默认 50）
+  maxPages: 1000                 # 最大翻页数（防呆上限；默认 1000。实际终止主要靠「本页解析 0 条」；CLI --pages 与本值取小）
   fallbackToUi: true             # 接口/模型模式失败自动回退 UI 驱动（默认 true，优先浏览器渲染）
   # —— pagination-url 专用字段（其余策略留空即可）——
   # urlTemplate: "?page={page}"  # 含 {page} 占位：完整 URL / 查询串后缀(?page= 或 &p=) / 绝对路径(/c/{page})
-  # pageStart: 1                # 可选，起始页码（部分站点从 0 / 2 起算）
+  # pageStart: 1                 # 起始页码（默认 1；部分站点从 0 / 2 起算）
+  # pageEnd: 500                 # 终止页码（闭区间）；与 maxPages 取更近者（有效终点 = min(pageStart+maxPages-1, pageEnd)）
+  # —— 条目级截取（所有翻页策略生效；CLI --offset / --per-page 可临时覆盖）——
+  # offset: 0                    # 每页条目起始偏移（0 起）：跳过每页前 N 条
+  # limit: 20                    # 每页最多取条数：offset 之后连取 limit 条（注意与 CLI --limit 详情总数上限不同）
 
 # ---------- 3) 列表页解析（每个产品条目 → detailUrl + name）----------
 parseList:

@@ -74,10 +74,86 @@ export function saveSiteConfig(domain: string, cfg: SiteConfig): string {
   return p;
 }
 
-const DEFAULT_TRAVERSAL: ListTraversalConfig = { strategy: 'pagination-html', maxPages: 50, fallbackToUi: true };
+/** maxPages 硬兜底（YAML / CLI 都未显式配置时的防呆上限，见 traverseList「显式意图放行」） */
+export const DEFAULT_MAX_PAGES = 1000;
+
+const DEFAULT_TRAVERSAL: ListTraversalConfig = { strategy: 'pagination-html', maxPages: DEFAULT_MAX_PAGES, fallbackToUi: true };
 
 /** 站点币种缺省值 */
 const DEFAULT_CURRENCY = 'CNY';
+
+/**
+ * listTraversal **字段级合并**：section 显式值优先，未写的字段逐个回退顶层默认。
+ * 与渲染模式的逐字段回退链同哲学——section 只覆盖自己关心的字段
+ * （如只覆盖 maxPages，strategy/nextSelector 仍继承顶层）。
+ */
+function mergeTraversal(s: ListTraversalConfig | undefined, top: ListTraversalConfig): ListTraversalConfig {
+  if (!s) return top;
+  return {
+    strategy: s.strategy ?? top.strategy,
+    nextSelector: s.nextSelector ?? top.nextSelector,
+    maxPages: s.maxPages ?? top.maxPages,
+    fallbackToUi: s.fallbackToUi ?? top.fallbackToUi,
+    urlTemplate: s.urlTemplate ?? top.urlTemplate,
+    pageStart: s.pageStart ?? top.pageStart,
+    pageEnd: s.pageEnd ?? top.pageEnd,
+    offset: s.offset ?? top.offset,
+    limit: s.limit ?? top.limit,
+  };
+}
+
+/** CLI 分页/条数参数（页面级覆盖，全部可选；显式传入时覆盖 YAML，--pages 除外——与 YAML 取小） */
+export interface CliTraversalOpts {
+  /** CLI --page-start：起始页码 */
+  pageStart?: number;
+  /** CLI --page-end：终止页码（闭区间） */
+  pageEnd?: number;
+  /** CLI --pages：最多翻页数（与 YAML maxPages **取小**，安全护栏语义） */
+  pages?: number;
+  /** CLI --offset：每页条目起始偏移 */
+  offset?: number;
+  /** CLI --per-page：每页最多取条目数（对应 YAML listTraversal.limit） */
+  perPage?: number;
+}
+
+/** 最终生效的翻页/条目控制参数（YAML 字段级合并后再叠 CLI 覆盖） */
+export interface TraversalLimits {
+  /** 起始页码（默认 1） */
+  pageStart: number;
+  /** 终止页码（闭区间；undefined = 不限）。仅 pagination-url 生效 */
+  pageEnd?: number;
+  /** 最多翻页数（含首页） */
+  maxPages: number;
+  /** 每页条目起始偏移（≥0） */
+  offset: number;
+  /** 每页最多取条目数（undefined = 取到页尾） */
+  perPage?: number;
+}
+
+/**
+ * 计算「最终生效」的翻页/条目控制：section/顶层字段级合并（resolveSections 已做）后的
+ * traversal 配置，再叠加 CLI 显式覆盖。
+ *
+ * 覆盖规则：
+ * - pageStart / pageEnd / offset / perPage：CLI 显式传入 → **覆盖** YAML（调试意图优先）；
+ * - pages（maxPages）：CLI 与 YAML **取小**——防翻页失控是安全护栏，不是意图指定。
+ */
+export function resolveTraversalLimits(t: ListTraversalConfig, cli?: CliTraversalOpts): TraversalLimits {
+  const yamlMax = t.maxPages ?? DEFAULT_MAX_PAGES;
+  return {
+    pageStart: cli?.pageStart ?? t.pageStart ?? 1,
+    pageEnd: cli?.pageEnd ?? t.pageEnd,
+    maxPages: cli?.pages !== undefined ? Math.min(cli.pages, yamlMax) : yamlMax,
+    offset: Math.max(0, cli?.offset ?? t.offset ?? 0),
+    perPage: cli?.perPage ?? t.limit,
+  };
+}
+
+/** 每页条目截取（offset 起连取 perPage 条）；无需截取时原样返回 */
+export function slicePageItems<T>(items: T[], limits: Pick<TraversalLimits, 'offset' | 'perPage'>): T[] {
+  if (limits.offset <= 0 && limits.perPage === undefined) return items;
+  return items.slice(limits.offset, limits.perPage !== undefined ? limits.offset + limits.perPage : undefined);
+}
 
 /**
  * 推断栏目的品类面包屑：section.categoryPath > 顶层 categoryPath > section.category 单层级 > 顶层 category 单层级。
@@ -122,7 +198,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         productLine: s.productLine ?? cfg.productLine,
         currency,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
-        listTraversal: s.listTraversal ?? topTraversal,
+        listTraversal: mergeTraversal(s.listTraversal, topTraversal),
         // 上面的前置校验保证二者至少有一个存在
         parseList: (s.parseList ?? cfg.parseList)!,
         parseDetail: s.parseDetail ?? topDetail,

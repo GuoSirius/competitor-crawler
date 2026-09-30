@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { pickSectionByUrl, resolveSections, listRenderMode, detailRenderMode } from './loader.js';
+import {
+  pickSectionByUrl,
+  resolveSections,
+  listRenderMode,
+  detailRenderMode,
+  resolveTraversalLimits,
+  slicePageItems,
+} from './loader.js';
 import type { SiteConfig } from './types.js';
 
 const single: SiteConfig = {
@@ -143,6 +150,55 @@ describe('listRenderMode / detailRenderMode — 回退链', () => {
     const s = { render: 'auto' as const, renderList: 'ssr' as const, renderDetail: 'spa' as const };
     expect(listRenderMode(s, 'auto')).toBe('ssr');
     expect(detailRenderMode(s, 'auto')).toBe('spa');
+  });
+});
+
+describe('resolveTraversalLimits / slicePageItems — 分页条目控制', () => {
+  it('字段级合并：section 只覆盖部分字段，其余回退顶层', () => {
+    const cfg: SiteConfig = {
+      domain: 't.com',
+      parseList: { itemSelector: '.i', fields: {} },
+      listTraversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 30, offset: 5 },
+      sections: [
+        // 只覆盖 maxPages / limit，strategy/urlTemplate/offset 继承顶层
+        { key: 'partial', listTraversal: { strategy: 'pagination-url', maxPages: 3, limit: 10 }, startUrls: ['https://t.com/a'] },
+      ],
+    };
+    const [s] = resolveSections(cfg);
+    expect(s.listTraversal.strategy).toBe('pagination-url'); // section 自带
+    expect(s.listTraversal.urlTemplate).toBe('?p={page}'); // 继承顶层
+    expect(s.listTraversal.maxPages).toBe(3); // section 覆盖
+    expect(s.listTraversal.offset).toBe(5); // 继承顶层
+    expect(s.listTraversal.limit).toBe(10); // section 覆盖
+  });
+
+  it('resolveTraversalLimits：YAML 缺省 → 默认值（maxPages 1000 / pageStart 1 / offset 0）', () => {
+    const tv = resolveTraversalLimits({ strategy: 'pagination-url' });
+    expect(tv).toEqual({ pageStart: 1, pageEnd: undefined, maxPages: 1000, offset: 0, perPage: undefined });
+  });
+
+  it('resolveTraversalLimits：CLI 显式覆盖 YAML（pageStart/pageEnd/offset/perPage）', () => {
+    const tv = resolveTraversalLimits(
+      { strategy: 'pagination-url', pageStart: 2, pageEnd: 9, offset: 5, limit: 20 },
+      { pageStart: 4, pageEnd: 6, offset: 10, perPage: 3 },
+    );
+    expect(tv).toEqual({ pageStart: 4, pageEnd: 6, maxPages: 1000, offset: 10, perPage: 3 });
+  });
+
+  it('resolveTraversalLimits：--pages 与 YAML maxPages 取小（安全护栏语义）', () => {
+    expect(resolveTraversalLimits({ strategy: 'pagination-html', maxPages: 30 }, { pages: 5 }).maxPages).toBe(5);
+    expect(resolveTraversalLimits({ strategy: 'pagination-html', maxPages: 3 }, { pages: 50 }).maxPages).toBe(3);
+    // 双方都没显式写 maxPages → 硬兜底 1000
+    expect(resolveTraversalLimits({ strategy: 'pagination-html' }, { pages: 5000 }).maxPages).toBe(1000);
+  });
+
+  it('slicePageItems：offset 起连取 perPage 条；无需截取时原样返回', () => {
+    const items = [1, 2, 3, 4, 5, 6];
+    expect(slicePageItems(items, { offset: 0, perPage: undefined })).toBe(items); // 无截取 → 原引用
+    expect(slicePageItems(items, { offset: 2, perPage: undefined })).toEqual([3, 4, 5, 6]);
+    expect(slicePageItems(items, { offset: 1, perPage: 3 })).toEqual([2, 3, 4]);
+    expect(slicePageItems(items, { offset: 10, perPage: 3 })).toEqual([]); // 越界 → 空
+    expect(slicePageItems(items, { offset: 4, perPage: 100 })).toEqual([5, 6]); // 尾部不足 → 到页尾
   });
 });
 

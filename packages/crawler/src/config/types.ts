@@ -90,6 +90,11 @@ export interface ListTraversalConfig {
   strategy: ListStrategy;
   /** 翻页按钮选择器（pagination-* 类必填；pagination-url 不需要） */
   nextSelector?: string;
+  /**
+   * 最多翻页数（含首页）。默认 1000：实际翻页终止主要靠「本页解析 0 条」，
+   * 本值只是防呆上限（1000 页 × 每页约 20 条 ≈ 2 万条，覆盖目标站点量级）。
+   * CLI --pages 与本值**取小**（安全护栏语义，见 traverseList）。
+   */
   maxPages?: number;
   /** 接口模式失败自动回退 UI 驱动（pagination-url 不使用） */
   fallbackToUi?: boolean;
@@ -102,8 +107,22 @@ export interface ListTraversalConfig {
    *   - 绝对路径：`/c/{page}` → 取 base 的 origin + 该路径
    */
   urlTemplate?: string;
-  /** 起始页码（默认 1；部分站点从 0 或 2 起算） */
+  /** 起始页码（默认 1；部分站点从 0 或 2 起算）。仅 pagination-url 支持（UI 点击无法跳页） */
   pageStart?: number;
+  /** 终止页码（闭区间，含本页）。缺省不限。仅 pagination-url 支持 */
+  pageEnd?: number;
+  /**
+   * 每页条目起始偏移（0 起）：每页解析出的条目先跳过前 offset 条再取。
+   * 语义对齐「页面上从第 offset+1 个条目开始看」。所有翻页策略生效；
+   * 缺省 0。CLI --offset 可临时覆盖。
+   */
+  offset?: number;
+  /**
+   * 每页最多取条目数：offset 之后连取 limit 条，缺省取到页尾。
+   * 与 CLI --limit（详情抓取总数上限）语义不同：本值作用于**每一页**的条目截取。
+   * CLI --per-page 可临时覆盖。
+   */
+  limit?: number;
 }
 
 /**

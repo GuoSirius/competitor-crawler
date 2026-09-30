@@ -17,7 +17,7 @@ import {
   type ListItem,
   type NormalizedProduct,
 } from '@competitor-crawler/shared';
-import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode } from '../config/loader.js';
+import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode, resolveTraversalLimits, slicePageItems } from '../config/loader.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { parseBreadcrumb } from '../adapter/breadcrumb.js';
 import { loadCodeAdapter } from '../adapter/adapterLoader.js';
@@ -40,8 +40,16 @@ export interface CrawlOpts {
   site?: string;
   /** 只跑不入库（接站点前验证） */
   dryRun?: boolean;
-  /** 每栏目最大翻页数（缺省用配置 maxPages） */
+  /** 每栏目最大翻页数（缺省用配置 maxPages；与 YAML **取小**，安全护栏语义） */
   pages?: number;
+  /** 起始页码（覆盖 YAML pageStart；仅 pagination-url 策略生效） */
+  pageStart?: number;
+  /** 终止页码，闭区间（覆盖 YAML pageEnd；仅 pagination-url 策略生效） */
+  pageEnd?: number;
+  /** 每页条目起始偏移（覆盖 YAML offset；所有翻页策略生效） */
+  offset?: number;
+  /** 每页最多取条目数（覆盖 YAML limit；注意与 --limit 详情总数上限的区别） */
+  perPage?: number;
   /** 每栏目最大详情抓取数（调试用，缺省不限） */
   limit?: number;
   /** 渲染模式 ssr/spa/auto */
@@ -729,6 +737,8 @@ async function collectSection(args: {
   const listMode = listRenderMode(section, mode);
   const detailMode = detailRenderMode(section, mode);
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
+  // 翻页/条目控制：YAML（section 字段级合并）+ CLI 覆盖 → 最终生效值
+  const tv = resolveTraversalLimits(section.listTraversal, opts);
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
 
@@ -738,7 +748,8 @@ async function collectSection(args: {
       url: listUrl,
       traversal: section.listTraversal,
       listMode,
-      maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
+      maxPages: tv.maxPages,
+      pageEnd: tv.pageEnd,
       progress,
       // 适配器钩子（docs/16 🔴-2）：preflight 附加头 + 自定义翻页拼装
       headers,
@@ -746,7 +757,7 @@ async function collectSection(args: {
         ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
         : undefined,
       onPage: async (html, _pageNo, pageUrl) => {
-        let pageItems = parseListWithConfig(html, section.parseList, section.key);
+        let pageItems = slicePageItems(parseListWithConfig(html, section.parseList, section.key), tv);
         for (const it of pageItems) {
           it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
           it.listUrl = pageUrl ?? listUrl; // 溯源：本条出自哪个列表页
@@ -1097,6 +1108,8 @@ async function collectContentSection(args: {
   const listMode = listRenderMode(section, mode);
   const detailMode = detailRenderMode(section, mode);
   const limit = opts.limit ?? Number.MAX_SAFE_INTEGER;
+  // 翻页/条目控制：与产品管线同口径（YAML 字段级合并 + CLI 覆盖）
+  const tv = resolveTraversalLimits(section.listTraversal, opts);
   const items: ListItem[] = [];
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
 
@@ -1106,14 +1119,15 @@ async function collectContentSection(args: {
       url: listUrl,
       traversal: section.listTraversal,
       listMode,
-      maxPages: opts.pages ?? Number.POSITIVE_INFINITY,
+      maxPages: tv.maxPages,
+      pageEnd: tv.pageEnd,
       progress,
       headers,
       buildPageUrlFn: adapter?.buildPageUrl
         ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
         : undefined,
       onPage: async (html, _pageNo, pageUrl) => {
-        let pageItems = parseListWithConfig(html, section.parseList, section.key);
+        let pageItems = slicePageItems(parseListWithConfig(html, section.parseList, section.key), tv);
         for (const it of pageItems) {
           it.detailUrl = absoluteUrl(it.detailUrl, pageUrl ?? listUrl);
           it.listUrl = pageUrl ?? listUrl; // 溯源：本条出自哪个列表页

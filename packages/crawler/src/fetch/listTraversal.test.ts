@@ -154,4 +154,50 @@ describe('traverseList — pagination-url', () => {
 
     expect(urls).toEqual(['https://x.com/list?p=5', 'https://x.com/list?p=6']);
   });
+
+  it('pageEnd 终止页（闭区间）：翻到第 3 页即停，maxPages 再大也不越界', async () => {
+    const urls: string[] = [];
+    mockFetch.mockImplementation(async (url: string) => {
+      urls.push(url);
+      return '<html></html>';
+    });
+    const onPage = vi.fn(async () => 1);
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 100 },
+      listMode: 'ssr',
+      maxPages: 100,
+      pageEnd: 3,
+      onPage,
+    });
+
+    expect(urls).toEqual([
+      'https://x.com/list?p=1',
+      'https://x.com/list?p=2',
+      'https://x.com/list?p=3',
+    ]);
+    expect(res.pages).toBe(3);
+  });
+
+  it('pageStart + pageEnd 组合：只抓区间内页码', async () => {
+    const urls: string[] = [];
+    mockFetch.mockImplementation(async (url: string) => {
+      urls.push(url);
+      return '<html></html>';
+    });
+    const onPage = vi.fn(async () => 1);
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 100, pageStart: 4 },
+      listMode: 'ssr',
+      maxPages: 100,
+      pageEnd: 5,
+      onPage,
+    });
+
+    expect(urls).toEqual(['https://x.com/list?p=4', 'https://x.com/list?p=5']);
+    expect(res.pages).toBe(2);
+  });
 });

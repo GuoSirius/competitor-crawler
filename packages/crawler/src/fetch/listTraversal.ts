@@ -11,6 +11,11 @@ export interface TraverseOpts {
   listMode: RenderMode;
   /** 最大翻页数（含首页） */
   maxPages: number;
+  /**
+   * 终止页码（闭区间，含本页）；缺省不限。仅 pagination-url 策略生效
+   * （ssr 单页 / spa UI 点击无法按页码跳页，语义不成立故忽略）。
+   */
+  pageEnd?: number;
   progress?: Progress;
   /**
    * 每页回调：解析该页 HTML，返回本页解析出的条目数（供翻页终止判断）。
@@ -86,15 +91,18 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   const explicit = Math.min(traversal.maxPages ?? Number.POSITIVE_INFINITY, maxPages);
   const max = Math.max(1, Number.isFinite(explicit) ? explicit : 500);
 
-  // URL 模板翻页：不改写 HTML、不启浏览器，按 maxPages 顺序拼 URL 逐页抓取
+  // URL 模板翻页：不改写 HTML、不启浏览器，按 maxPages 顺序拼 URL 逐页抓取。
+  // pageStart/pageEnd 仅本策略支持（URL 可精确定位页码；ssr 单页 / spa UI 点击无法跳页）
   if (traversal.strategy === 'pagination-url') {
     if (!traversal.urlTemplate) {
       throw new Error('pagination-url 策略必须提供 urlTemplate（含 {page} 占位）');
     }
     const pageStart = traversal.pageStart ?? 1;
+    const pageEnd = opts.pageEnd;
     let pages = 0;
     let items = 0;
     for (let p = pageStart; p < pageStart + max; p++) {
+      if (pageEnd !== undefined && p > pageEnd) break; // 终止页（闭区间）已翻过
       // 适配器钩子优先（返回空值走默认拼装逻辑，docs/16 🔴-2）
       const pageUrl =
         opts.buildPageUrlFn?.(url, traversal.urlTemplate, p) || buildPageUrl(url, traversal.urlTemplate, p);

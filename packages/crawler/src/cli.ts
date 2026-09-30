@@ -70,11 +70,21 @@ async function main() {
     const saved = await genSiteTemplate(typeof flags.file === 'string' ? flags.file : undefined);
     console.log(`[gen-site-template] 已生成模板 -> ${saved}`);
   } else if (cmd === 'crawl') {
+    // 数值型 flag 解析：非法/缺省 → undefined（交给 YAML 默认值）
+    const num = (k: string): number | undefined => {
+      const raw = flags[k];
+      if (typeof raw !== 'string' || raw === '' || !Number.isFinite(Number(raw))) return undefined;
+      return Number(raw);
+    };
     await crawl({
       site: typeof flags.site === 'string' ? flags.site : undefined,
       dryRun: flags['dry-run'] === true || flags['dry-run'] === 'true',
-      pages: typeof flags.pages === 'string' ? Number(flags.pages) : undefined,
-      limit: typeof flags.limit === 'string' ? Number(flags.limit) : undefined,
+      pages: num('pages'),
+      pageStart: num('page-start'),
+      pageEnd: num('page-end'),
+      offset: num('offset'),
+      perPage: num('per-page'),
+      limit: num('limit'),
       render: typeof flags.render === 'string' ? flags.render : undefined,
       source: typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : undefined,
       section: typeof flags.section === 'string' ? flags.section : undefined,
@@ -108,6 +118,7 @@ async function main() {
   } else {
     console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|schedule|report> [--flags]');
     console.log('  crawl 额外参数: --source config|seeds (默认 config；seeds 为 Excel 初始化导入后的一次性场景) --site <d[,d2..]> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');
+    console.log('  crawl 分页/条数（覆盖 YAML listTraversal，显式传入生效）: --page-start <n> 起始页 / --page-end <n> 终止页(闭区间，仅 pagination-url) / --offset <n> 每页条目偏移 / --per-page <n> 每页最多条数；--pages 与 YAML maxPages 取小（安全护栏）');
     console.log('  schedule 额外参数: --daemon（常驻守护，按季度首月 1 日 03:00 触发，北京时间口径）');
   }
 }
