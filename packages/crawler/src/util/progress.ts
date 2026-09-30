@@ -130,6 +130,8 @@ export class ProgressCounter {
   private readonly unit: string;
   private readonly showOutcome: boolean;
   private readonly liveTime: boolean;
+  /** 实时后缀（如「已落库200」）：由外部阶段（流式落库）设置，随下次 tick/note 一起渲染 */
+  private suffix: string | null = null;
 
   constructor(
     private readonly progress: Progress,
@@ -140,6 +142,23 @@ export class ProgressCounter {
     this.unit = opts.unit ?? '条';
     this.showOutcome = opts.showOutcome ?? true;
     this.liveTime = opts.liveTime ?? false;
+  }
+
+  /**
+   * 设置实时后缀（如流式落库的「已落库200」）：下次 tick/note/finish 一起渲染。
+   * 传 null 清除。不立即重绘——tick 频率远高于刷库频率，下一次计数自然带上。
+   */
+  setSuffix(msg: string | null): void {
+    this.suffix = msg;
+  }
+
+  private render(detail?: string): void {
+    const outcome = this.showOutcome
+      ? ` ✓${this.done - this.failed} ✗${this.failed}`
+      : detail
+        ? ` · ${detail}`
+        : '';
+    this.progress.update(`${this.head()}${outcome}${this.suffix ? ` · ${this.suffix}` : ''}`);
   }
 
   /** 进度头：done/total（或 第N页，当 total 未知）+ 百分比 + 速率 +（可选）用时 */
@@ -159,7 +178,8 @@ export class ProgressCounter {
 
   /** 阶段内提示（不增加计数、不计入失败，仅刷新进度行），如「翻页中 URL」「第N页 +X条」 */
   note(msg?: string): void {
-    this.progress.update(`${this.head()}${msg ? ` · ${msg}` : ''}`);
+    const base = msg ? `${this.head()} · ${msg}` : this.head();
+    this.progress.update(`${base}${this.suffix ? ` · ${this.suffix}` : ''}`);
   }
 
   /**
@@ -173,13 +193,7 @@ export class ProgressCounter {
       this.failed++;
       if (detail) this.failures.push(detail);
     }
-    let extra = '';
-    if (this.showOutcome) {
-      extra = ` ✓${this.done - this.failed} ✗${this.failed}`;
-    } else if (detail) {
-      extra = ` · ${detail}`;
-    }
-    this.progress.update(`${this.head()}${extra}`);
+    this.render(this.showOutcome ? undefined : detail);
   }
 
   /**
@@ -193,7 +207,7 @@ export class ProgressCounter {
     const where = this.total > 0 ? `${this.done}/${this.total}` : `第${this.done}页`;
     const outcome = this.showOutcome ? ` ✓${this.done - this.failed} ✗${this.failed}` : '';
     this.progress.done(
-      `${this.label} 完成 ${where}${outcome} 用时${dur}${finalNote ? ` · ${finalNote}` : ''}`,
+      `${this.label} 完成 ${where}${outcome} 用时${dur}${this.suffix ? ` · ${this.suffix}` : ''}${finalNote ? ` · ${finalNote}` : ''}`,
     );
     for (const f of this.failures) this.progress.writeLine(`  ✗ ${f}`);
     return this.failures;

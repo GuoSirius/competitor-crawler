@@ -120,6 +120,48 @@ describe('ProgressCounter — 页级列表进度（showOutcome:false, liveTime:t
   });
 });
 
+describe('ProgressCounter — setSuffix 实时后缀（流式落库进度并入详情行）', () => {
+  it('未设后缀不拼、设置后 tick/note 带后缀、传 null 清除', () => {
+    const ms = new MemStream();
+    const stream = ms as unknown as NodeJS.WriteStream;
+    const p = new Progress({ stream });
+    const c = new ProgressCounter(p, '详情', 3);
+    c.tick(true);
+    expect(ms.buf).not.toContain('已落库'); // 未设后缀时不拼
+    c.setSuffix('已落库200');
+    c.tick(true);
+    expect(ms.buf).toContain('· 已落库200'); // 实时行带后缀
+    c.note('补抓中');
+    expect(ms.buf).toContain('· 已落库200'); // note 同样带后缀
+    c.setSuffix(null);
+    c.tick(true);
+    // 清除后最近一次输出不再拼接后缀（缓冲区含历史值，看末尾）
+    expect(ms.buf.endsWith('已落库200')).toBe(false);
+  });
+
+  it('finish 带未清除的后缀；clear 后 finish 不带', () => {
+    const ms1 = new MemStream();
+    const p1 = new Progress({ stream: ms1 as unknown as NodeJS.WriteStream });
+    const c1 = new ProgressCounter(p1, '详情', 2);
+    c1.tick(true);
+    c1.tick(true);
+    c1.setSuffix('已落库200');
+    c1.finish();
+    expect(ms1.buf).toContain('详情 完成 2/2 ✓2 ✗0 用时0秒 · 已落库200');
+
+    const ms2 = new MemStream();
+    const p2 = new Progress({ stream: ms2 as unknown as NodeJS.WriteStream });
+    const c2 = new ProgressCounter(p2, '详情', 2);
+    c2.tick(true);
+    c2.tick(true);
+    c2.setSuffix('已落库200');
+    c2.setSuffix(null);
+    c2.finish();
+    expect(ms2.buf).toContain('详情 完成 2/2 ✓2 ✗0 用时0秒');
+    expect(ms2.buf).not.toContain('已落库');
+  });
+});
+
 describe('Progress.log — 状态行显示在进度条上方（不破坏进度条）', () => {
   it('非 TTY / 尚无活动进度条：退化为普通换行打印', () => {
     const ms = new MemStream();

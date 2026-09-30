@@ -331,9 +331,11 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         const catCache = new Map<string, number>();
         const flushedKeys = new Set<string>(); // 跨批防重（同 identityKey 只落一次，计数不虚高）
         let flushedCount = 0;
-        const flushBatch = async (batch: PendingProduct[]): Promise<void> => {
+        let batchNo = 0;
+        // 返回实际刷库条数（去重防重后可能 < batch.length）：collectSection 据此打「已落库N」实时后缀
+        const flushBatch = async (batch: PendingProduct[]): Promise<number> => {
           const fresh = uniqueBy(batch, (p) => p.identityKey).filter((p) => !flushedKeys.has(p.identityKey));
-          if (fresh.length === 0) return;
+          if (fresh.length === 0) return 0;
           for (const p of fresh) {
             if (!p.breadcrumb?.length) continue;
             const key = p.breadcrumb.join(' > ');
@@ -347,7 +349,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           for (const p of fresh) flushedKeys.add(p.identityKey);
           await flushUpsertBatch(db, dialect, fresh, existed, summary, now, crawlRow.id, progress, domain, section.key);
           flushedCount += fresh.length;
-          progress.update(`[crawl] ${domain} [${section.key}] 落库 累计${flushedCount}`);
+          batchNo++;
+          return fresh.length;
         };
         try {
           const { detailFailed, missingPages } = await collectSection({
@@ -366,6 +369,14 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           summary.failed++;
           progress.update(`[crawl] ${domain} [${section.key}] 失败：${(e as Error).message}`);
           continue;
+        }
+        // 流式落库收尾（docs/16 规模化兜底）：详情阶段已满批刷出，这里补刷不满一批的余量，
+        // 并定格独立的「落库 完成」行（紧跟详情行之后；置于瞬时提示前，防 writeLine 清掉下方提示）。
+        if (!dryRun) {
+          if (pending.length > 0) await flushBatch(pending.splice(0, pending.length));
+          progress.writeLine(
+            `[crawl] ${domain} [${section.key}] 落库 完成 累计${flushedCount}${batchNo > 0 ? ` · 批次${batchNo}` : ''}`,
+          );
         }
 
         if (modelStat.filled > 0) {
@@ -402,8 +413,6 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           });
         }
 
-        // 流式落库收尾：详情阶段已满批刷出，这里只补刷不满一批的余量（dry-run 已在上面 continue）
-        if (pending.length > 0) await flushBatch(pending.splice(0, pending.length));
         summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
         // 断点落盘：本栏目采集+落库+软删全部完成 → 标记 done 并写文件（崩溃后 --resume 可跳过）
         state?.markDone(domain, section.key, {
@@ -844,9 +853,10 @@ async function collectSection(args: {
   skipKeys?: Set<string>;
   /**
    * 流式落库（docs/16 规模化兜底）：详情缓冲满 UPSERT_BATCH 条时同步切批回调刷库。
+   * 返回实际刷库条数（跨批去重后可能 < batch.length），用于详情行「已落库N」实时后缀。
    * 不传则维持旧行为「整栏目抓完再落」。刷库失败不吞成详情失败——记录后收尾统一上抛（整栏目失败）。
    */
-  onBatch?: (batch: PendingProduct[]) => Promise<void>;
+  onBatch?: (batch: PendingProduct[]) => Promise<number>;
 }): Promise<{ detailFailed: number; missingPages: number[] }> {
   const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers, skipKeys, onBatch } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
@@ -917,6 +927,15 @@ async function collectSection(args: {
   let detailFailed = 0;
   let skippedSaved = 0; // 续跑时跳过的已落库条数（收尾打进详情行，让「跳过」可见）
   let flushError: unknown = null; // 流式刷库失败：不吞成详情失败，收尾统一上抛（整栏目失败）
+  // 流式落库实时后缀：满批刷库回调外包一层，刷完立刻在详情行尾追加「已落库N」（三段进度：列表/详情/落库）
+  let flushedSaved = 0;
+  const wrappedOnBatch = onBatch
+    ? async (batch: PendingProduct[]) => {
+        const n = await onBatch(batch);
+        flushedSaved += n;
+        detailBar.setSuffix(`已落库${flushedSaved}`);
+      }
+    : undefined;
   await Promise.all(targets.map((it) => limiter(async () => {
     let ok = true;
     let errMsg = '';
@@ -991,11 +1010,11 @@ async function collectSection(args: {
       seenSet(companyId, section.key).add(identityKey);
       // 流式落库：缓冲满一批就同步切出刷库（check+splice 同步原子，并发 worker 不会双刷）；
       // 刷库失败记录后不再继续刷（防级联报错），收尾统一上抛
-      if (onBatch && pending.length >= UPSERT_BATCH) {
+      if (wrappedOnBatch && pending.length >= UPSERT_BATCH) {
         const batch = pending.splice(0, pending.length);
         if (flushError === null) {
           try {
-            await onBatch(batch);
+            await wrappedOnBatch(batch);
           } catch (e) {
             flushError = e;
           }
@@ -1010,6 +1029,8 @@ async function collectSection(args: {
       detailBar.tick(ok, ok ? undefined : errMsg);
     }
   })));
+  // 定格详情行前清掉中间态后缀（定格行只报详情结果；最终落库数由主循环紧随其后的「落库 完成」行给出）
+  detailBar.setSuffix(null);
   detailBar.finish(skippedSaved > 0 ? `跳过已落库${skippedSaved}（--resume 续跑）` : undefined);
   if (flushError) throw flushError; // 落库失败按栏目失败上抛（进主循环 catch，不混入详情失败计数）
   return { detailFailed, missingPages };
