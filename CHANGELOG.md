@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.3.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.2.0...v1.3.0) (2026-09-30)
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **release:** 门禁自动补记 changelog 未发布段 ([d07c79c](https://github.com/GuoSirius/competitor-crawler/commit/d07c79cc81927f1f8bf98c1760bb41a5d300208f))
+* **sites:** 新增伊莱瑞特/普诺赛四站 yaml 试用桩 ([d9b0fe2](https://github.com/GuoSirius/competitor-crawler/commit/d9b0fe264e26c1f21165c6b59ffa2ac95fff57b3))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* **crawler:** probe 配置不完整时友好告警；修复 gen-site 桩填充与批量路径 ([29b1edf](https://github.com/GuoSirius/competitor-crawler/commit/29b1edf4644a4d353e2438e5aeb34fe7fb3658a0))
+
+
+### 🚀 新功能 (Features)
+
+* **crawler:** 支持按 section / 列表页 / 详情页 分别指定渲染模式 ([98fd767](https://github.com/GuoSirius/competitor-crawler/commit/98fd76779a38875fa234aca6d712b488a193f396))
+* **crawler:** render 渲染模式写入 YAML 并逐站解析 ([40f9b73](https://github.com/GuoSirius/competitor-crawler/commit/40f9b73c41d5ccdb264bff3ba2f4b0201da1ca37))
+* **gen-site:** 批量模板与生成链路补齐公司属性与动态分类产出 ([1e461f2](https://github.com/GuoSirius/competitor-crawler/commit/1e461f2aa0533e24480d0fdd8cc23180d2621b45))
+* **gen-site:** 生成时安全合并已存在配置并补currency参数 ([7cc011e](https://github.com/GuoSirius/competitor-crawler/commit/7cc011ee6ba03a2e4477571e5a4c747133cd072b))
+* **gen-site:** 生成prompt支持categoryFromPage/pagination-url并重刷批量模板 ([0da21e5](https://github.com/GuoSirius/competitor-crawler/commit/0da21e5a4befd2e39bb6c552412053f559301f0a))
+
+
+### 📚 文档 (Documentation)
+
+* 补 Hybrid 渲染（renderList/renderDetail）与修正 gen-site 过期事实 ([3f53a14](https://github.com/GuoSirius/competitor-crawler/commit/3f53a14d178fdfcbb32bda2f1aa82547a7979f15))
+
 ## [1.2.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.1.0...v1.2.0) (2026-09-30)
 
 
