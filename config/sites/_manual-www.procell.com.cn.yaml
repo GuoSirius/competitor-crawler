@@ -23,23 +23,23 @@ parseList:
   itemSelector: .searchs-list-content
   fields:
     detailUrl:
-      sel: '.s-list-div:nth-child(1) a'
+      sel: ".s-list-div:nth-child(1) a"
       attr: href
     # data-title 是干净中文名（不带货号括注）
     name:
-      sel: '.s-list-div:nth-child(1) a'
+      sel: ".s-list-div:nth-child(1) a"
       attr: data-title
     # 货号在名称文本的全角括号里：特级胎牛血清（164210）
     sku:
-      sel: '.s-list-div:nth-child(1) a'
+      sel: ".s-list-div:nth-child(1) a"
       text: true
-      regex: '（([A-Za-z0-9-]+)）'
+      regex: "（([A-Za-z0-9-]+)）"
     specText:
-      sel: '.s-list-div:nth-child(2) p:contains(规格)'
+      sel: ".s-list-div:nth-child(2) p:contains(规格)"
       text: true
       regex: '规格：\s*(.*)'
     priceText:
-      sel: '.s-list-div:nth-child(2) p:contains(价格)'
+      sel: ".s-list-div:nth-child(2) p:contains(价格)"
       text: true
       regex: '价格：\s*(.*)'
 
@@ -50,59 +50,59 @@ parseDetail:
     # h1.js-p-title 是「名称+附加信息」混合串（如 293T…(STR鉴定正确)）不采用。
     # 血清类无此行 → null → 落库时回退列表页 data-title（同样干净）。
     name:
-      sel: 'tr:contains(产品名称) td.d-content'
+      sel: "tr:contains(产品名称) td.d-content"
       text: true
     englishName:
-      sel: '.js-en-title'
+      sel: ".js-en-title"
       text: true
     sku:
-      sel: '.js-huohao'
+      sel: ".js-huohao"
       text: true
     # 曾用货号（分号拼接串，含现用）；按 label 文本定位，比行号稳
     oldSkus:
-      sel: '.produc-canshu p:contains(曾用货号) span:nth-child(2)'
+      sel: ".produc-canshu p:contains(曾用货号) span:nth-child(2)"
       text: true
     # 别称（细胞系等页面 .detail-table 有此行，分号拼接；血清类无此行 → null）
     aliases:
-      sel: 'tr:contains(别称) td.d-content'
+      sel: "tr:contains(别称) td.d-content"
       text: true
     # 种属（无独立列 → 进 row 兜底）
     种属:
-      sel: 'tr:contains(种属) td.d-content'
+      sel: "tr:contains(种属) td.d-content"
       text: true
     # 默认规格快照：price/specText 不会自动从 specs[0] 推导，必须显式声明（tr:not([class]) 跳过表头行）
     # specText 与 specs[].spec 同口径：同样剥离结尾括注
     specText:
-      sel: '.produc-canshu table tr:not([class]) .size_span'
+      sel: ".produc-canshu table tr:not([class]) .size_span"
       text: true
       regex: '^(.*?)\s*(?:[（(][^）)]*[）)])?\s*$'
     price:
-      sel: '.produc-canshu table tr:not([class]) .price_span'
+      sel: ".produc-canshu table tr:not([class]) .price_span"
       text: true
       number: true
     priceText:
-      sel: '.produc-canshu table tr:not([class]) .price_span'
+      sel: ".produc-canshu table tr:not([class]) .price_span"
       text: true
     specs:
-      sel: '.produc-canshu table tr:not([class])'
+      sel: ".produc-canshu table tr:not([class])"
       list: true
       map:
         spec:
-          sel: '.size_span'
+          sel: ".size_span"
           text: true
           # 剥离结尾的（常温）/(冻存) 等括注 → 干净规格名；无括注时整段保留
           regex: '^(.*?)\s*(?:[（(][^）)]*[）)])?\s*$'
         # 括注单独存（如「常温」），与 spec 成对；无括注为 null
         condition:
-          sel: '.size_span'
+          sel: ".size_span"
           text: true
-          regex: '[（(]([^）)]+)[）)]'
+          regex: "[（(]([^）)]+)[）)]"
         priceNow:
-          sel: '.price_span'
+          sel: ".price_span"
           text: true
           number: true
     introMedia:
-      sel: '#carouseldetail .carousel-inner .carousel-item'
+      sel: "#carouseldetail .carousel-inner .carousel-item"
       list: true
       map:
         image:
@@ -110,7 +110,7 @@ parseDetail:
           attr: src
         # 视频项 = B 站播放器 iframe（纯图片项为 null）；Web 展示侧按 video 渲染
         video:
-          sel: 'iframe'
+          sel: "iframe"
           attr: src
         description:
           sel: img
