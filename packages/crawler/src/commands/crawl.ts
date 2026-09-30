@@ -73,6 +73,10 @@ interface PendingProduct {
   sku: string | null;
   name: string | null;
   englishName: string | null;
+  /** 别称/曾用名（页面拼接原样，可能含现用名） */
+  aliases: string | null;
+  /** 曾用货号（页面拼接原样，可能含现用货号） */
+  oldSkus: string | null;
   brand: string | null;
   detailUrl: string | null;
   listUrl: string | null;
@@ -808,6 +812,8 @@ async function collectSection(args: {
         sku: normalized.sku ?? null,
         name: normalized.name ?? it.name ?? null,
         englishName: normalized.englishName ?? null,
+        aliases: normalized.aliases ?? null,
+        oldSkus: normalized.oldSkus ?? null,
         brand: normalized.brand ?? null,
         detailUrl,
         listUrl: it.listUrl ?? null,
@@ -848,6 +854,8 @@ function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>)
     sourceProductId: pick(np.sourceProductId, raw.sourceProductId),
     sku: pick(np.sku, raw.sku),
     englishName: pick(np.englishName, raw.englishName),
+    aliases: pick(np.aliases, raw.aliases),
+    oldSkus: pick(np.oldSkus, raw.oldSkus),
     brand: pick(np.brand, raw.brand),
     priceText: pick(np.priceText, raw.priceText),
     specText: pick(np.specText, raw.specText),
@@ -929,6 +937,8 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       sectionKey: p.sectionKey,
       name: p.name,
       englishName: p.englishName,
+      aliases: p.aliases,
+      oldSkus: p.oldSkus,
       brand: p.brand,
       detailUrl: p.detailUrl,
       listUrl: p.listUrl,
@@ -958,6 +968,8 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
         sku: p.sku,
         name: p.name,
         englishName: p.englishName,
+        aliases: p.aliases,
+        oldSkus: p.oldSkus,
         brand: p.brand,
         detailUrl: p.detailUrl,
         listUrl: p.listUrl,

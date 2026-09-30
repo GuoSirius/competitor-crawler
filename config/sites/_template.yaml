@@ -257,7 +257,7 @@ parseDetail:
 #                   ⚠️ 多 Tab 页先看内容在不在 HTML 里（在 → 直接写选择器，不用点击），见 docs/05 §5.3.5
 #
 # ★ 内置字段（写这些名字会被归一化到 products 对应列，其余一律进 row 兜底）：
-#   身份：name / englishName / sourceProductId / sku / detailUrl
+#   身份：name / englishName / aliases(别称) / sourceProductId / sku / oldSkus(曾用货号) / detailUrl
 #   可比：price / priceText / specText / brand
 #   描述：description
 #   其他：cloneNumber / applications / specs / introMedia

@@ -31,6 +31,8 @@ const SCALAR_KEYS = [
   'sourceProductId',
   'sku',
   'englishName',
+  'aliases',
+  'oldSkus',
   'brand',
   'priceText',
   'specText',

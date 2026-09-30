@@ -58,6 +58,8 @@ export const products = mysqlTable('products', {
   sectionKey: varchar('section_key', { length: 64 }).notNull().default('default'),
   name: varchar('name', { length: 512 }),
   englishName: varchar('english_name', { length: 255 }),
+  aliases: varchar('aliases', { length: 1024 }), // 别称/曾用名（站点拼接原样）
+  oldSkus: varchar('old_skus', { length: 512 }), // 曾用货号（拼接串）
   brand: varchar('brand', { length: 255 }),
   detailUrl: varchar('detail_url', { length: 1024 }),
   listUrl: varchar('list_url', { length: 1024 }),

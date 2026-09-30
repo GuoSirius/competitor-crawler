@@ -57,6 +57,8 @@ export const products = sqliteTable('products', {
   sectionKey: text('section_key').notNull().default('default'), // 同 SKU 跨栏目分开；默认 default
   name: text('name'),
   englishName: text('english_name'),
+  aliases: text('aliases'), // 别称/曾用名（站点拼接原样，可能含现用名）
+  oldSkus: text('old_skus'), // 曾用货号（拼接串，可能含现用货号）
   brand: text('brand'),
   detailUrl: text('detail_url'), // 详情页地址
   listUrl: text('list_url'), // 列表页地址（溯源）

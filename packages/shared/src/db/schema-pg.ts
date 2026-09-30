@@ -52,6 +52,8 @@ export const products = pgTable('products', {
   sectionKey: text('section_key').notNull().default('default'),
   name: text('name'),
   englishName: text('english_name'),
+  aliases: text('aliases'), // 别称/曾用名（站点拼接原样）
+  oldSkus: text('old_skus'), // 曾用货号（拼接串）
   brand: text('brand'),
   detailUrl: text('detail_url'),
   listUrl: text('list_url'),

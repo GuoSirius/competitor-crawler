@@ -36,6 +36,8 @@ export type ListStrategy =
 
 export interface SpecItem {
   spec?: string | null;
+  /** 规格名的补充括注（如「常温/冻存」等储存条件），从规格文本剥离出来单独存；无则省略 */
+  condition?: string | null;
   /** 该规格变体的货号（catalog number）。形态 C/D 用 pick 映射（如 WooCommerce 可变产品每个变体各有一个 sku） */
   sku?: string | null;
   /** 现价 / 售价 */
@@ -51,6 +53,8 @@ export interface SpecItem {
 export interface IntroMedia {
   image?: string | null;
   description?: string | null;
+  /** 介绍视频地址（如 B 站播放器 iframe 的 src）；纯图片项省略 */
+  video?: string | null;
 }
 
 export interface NormalizedProduct {
@@ -69,6 +73,10 @@ export interface NormalizedProduct {
   name?: string | null;
   /** 英文名 */
   englishName?: string | null;
+  /** 别称/曾用名（站点页面拼接原样，可能含现用名，分号分隔） */
+  aliases?: string | null;
+  /** 曾用货号（站点页面拼接原样，可能含现用货号，分号分隔） */
+  oldSkus?: string | null;
   /** 品牌 */
   brand?: string | null;
   /** 价格数值 = 默认规格现价（specs 首项 priceNow；无规格时为唯一价）。排序/涨跌/价格历史统一用这个口径 */
