@@ -64,9 +64,9 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
     `列表页 URL：${listUrl}`,
     opts.notes ? `补充说明：${opts.notes}` : '',
     '',
-    '===== 列表页 HTML（已截断）=====',
-    listHtml.slice(0, 20000),
-    opts.detailUrl ? '===== 详情页 HTML（已截断）=====\n' + detailHtml.slice(0, 20000) : '',
+    '===== 列表页 HTML（已清洗/截取）=====',
+    buildModelHtml(listHtml),
+    opts.detailUrl ? '===== 详情页 HTML（已清洗/截取）=====\n' + buildModelHtml(detailHtml) : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -86,6 +86,60 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
   console.log(`\n下一步验证：pnpm probe --domain ${opts.domain} --list-url ${listUrl}`);
 }
 
+/** 喂给模型的清洗后 HTML 预算（字符）。清洗已去掉 head/style/script，60K 约覆盖绝大多数列表页全文 */
+const MODEL_HTML_BUDGET = 60000;
+
+/**
+ * 清洗并截取喂给模型的 HTML（gen-site 专用，导出供测试）。
+ *
+ * 根因背景（普诺赛案例）：完整页面 110KB+，产品卡在 62KB 处——旧实现 `slice(0, 20000)`
+ * 把全部预算花在 head/style/导航上，模型根本看不到商品卡片，只能臆造选择器。
+ *
+ * 处理两步：
+ * ① 去 head/script/style/注释 并压缩空白（head+style 常占原始 HTML 一半以上）；
+ * ② 清洗后仍超预算时按「链接密度」选窗口：商品列表区是 <a href> 最密集的区域，
+ *    从密度最高的 2KB 块向两侧扩展拼满预算（块边界可能切断标签，模型只需看结构无需闭合）。
+ * 若窗口里确实没有商品条目，模型会按 prompt 硬规则输出 NEED_MORE_HTML，调用方给出明确指引。
+ */
+export function buildModelHtml(html: string, budget = MODEL_HTML_BUDGET): string {
+  const cleaned = html
+    .replace(/<head[\s\S]*?<\/head>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (cleaned.length <= budget) return cleaned;
+
+  const CHUNK = 2048;
+  const chunks: string[] = [];
+  for (let i = 0; i < cleaned.length; i += CHUNK) chunks.push(cleaned.slice(i, i + CHUNK));
+  const score = (s: string): number => (s.match(/<a\s/gi)?.length ?? 0);
+  let best = 0;
+  for (let i = 1; i < chunks.length; i++) if (score(chunks[i]) > score(chunks[best])) best = i;
+
+  // 从最佳块向两侧扩展拼满预算（unshift 左块 / push 右块，保持文档顺序）
+  const picked: string[] = [chunks[best]];
+  let used = chunks[best].length;
+  for (let step = 1; used < budget; step++) {
+    let grew = false;
+    const right = chunks[best + step];
+    if (right && used + right.length <= budget) {
+      picked.push(right);
+      used += right.length;
+      grew = true;
+    }
+    const left = chunks[best - step];
+    if (left && used + left.length <= budget) {
+      picked.unshift(left);
+      used += left.length;
+      grew = true;
+    }
+    if (!grew) break;
+  }
+  return picked.join('');
+}
+
 /** 从模型输出中提取 YAML：优先 ```yaml 围栏，其次任意 ``` 围栏，最后整段 */
 export function extractYaml(text: string): string {
   const fenced = text.match(/```yaml\s*([\s\S]*?)```/i) ?? text.match(/```\s*([\s\S]*?)```/i);
@@ -94,9 +148,16 @@ export function extractYaml(text: string): string {
 
 /** 解析模型产出的 YAML 并补全关键字段（导出供测试；非法产出抛明确错误） */
 export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: SiteConfig | null): SiteConfig {
-  const cfg = yaml.parse(extractYaml(text)) as SiteConfig;
+  const yamlOut = extractYaml(text);
+  const cfg = yaml.parse(yamlOut) as SiteConfig;
   if (!cfg?.parseList?.itemSelector || !cfg?.parseList?.fields?.detailUrl) {
-    throw new Error('模型产出缺少必要的 parseList（itemSelector / fields.detailUrl），请检查页面 HTML 或重试');
+    // 模型按 prompt 硬规则「看不到商品条目 → itemSelector: null + NEED_MORE_HTML」时给出针对性指引
+    const needMore = /NEED_MORE_HTML/.test(yamlOut);
+    throw new Error(
+      needMore
+        ? '模型反馈清洗截取后的页面 HTML 中看不到商品条目结构（NEED_MORE_HTML）。可尝试：① 换更直接的列表页 URL（含真实产品网格的页面）；② 该站可能需要 spa 渲染（--render spa 重试）。'
+        : '模型产出缺少必要的 parseList（itemSelector / fields.detailUrl），请检查页面 HTML 或重试',
+    );
   }
   // 补全关键字段，保证产出可直接被 probe / crawl 消费
   cfg.domain = opts.domain;

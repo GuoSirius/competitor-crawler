@@ -46,9 +46,11 @@ parseList:
 parseDetail:
   captureRest: true
   fields:
-    # 中文名：产品页 h1（.detail-table 是「产品特性/储存条件/运输条件」表，别用行号定位）
+    # 中文名：优先 .detail-table 的「产品名称」行（纯净名；行序不固定按 label 选行）。
+    # h1.js-p-title 是「名称+附加信息」混合串（如 293T…(STR鉴定正确)）不采用。
+    # 血清类无此行 → null → 落库时回退列表页 data-title（同样干净）。
     name:
-      sel: 'h1.js-p-title'
+      sel: 'tr:contains(产品名称) td.d-content'
       text: true
     englishName:
       sel: '.js-en-title'

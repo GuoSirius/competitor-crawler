@@ -1,9 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { extractYaml, parseYamlConfig } from './genSite.js';
+import { buildModelHtml, extractYaml, parseYamlConfig } from './genSite.js';
 
 const OPTS = { domain: 'example.com', listUrl: 'https://www.example.com/list' };
 
 describe('genSite 模型产出解析（docs/16 Q2）', () => {
+  it('buildModelHtml：去 head/script/style/注释 并压缩空白', () => {
+    const html =
+      '<html><head><style>.a{color:red}</style><script>var x=1;</script></head>' +
+      '<body><!-- 注释 --><div  class="card">  <a href="/p/1">A</a>  </div></body></html>';
+    const out = buildModelHtml(html);
+    expect(out).not.toMatch(/<style|<script|<head|<!--/);
+    expect(out).toContain('class="card"');
+    expect(out).not.toMatch(/\s{2,}/);
+  });
+
+  it('buildModelHtml：超预算时按链接密度选窗，窗口包含商品卡而非纯导航', () => {
+    // 前 40KB 只有 1 个链接（导航壳），后面 80 张商品卡每张 2 个链接 → 密度最高的块在卡片区
+    const nav = '<div class="nav">' + '<span>x</span>'.repeat(20000) + '<a href="/nav">N</a></div>';
+    const cards = Array.from({ length: 80 }, (_, i) => `<div class="product-card"><a href="/p/${i}">P${i}</a><a href="/p/${i}?t">T</a></div>`).join('');
+    const out = buildModelHtml(nav + cards, 20000);
+    expect(out.length).toBeLessThanOrEqual(20000);
+    expect(out).toContain('product-card'); // 窗口命中卡片区，而不是把预算全花在导航上
+  });
+
+  it('parseYamlConfig：NEED_MORE_HTML（截断看不到条目）给出针对性指引', () => {
+    expect(() =>
+      parseYamlConfig('```yaml\nparseList:\n  itemSelector: null # NEED_MORE_HTML\n```', OPTS),
+    ).toThrow(/NEED_MORE_HTML.*列表页 URL|看不到商品条目/);
+  });
+
   it('extractYaml：优先 yaml 围栏，退回普通围栏/整段', () => {
     expect(extractYaml('前言```yaml\ndomain: a\n```后记')).toBe('domain: a');
     expect(extractYaml('```\ndomain: b\n```')).toBe('domain: b');

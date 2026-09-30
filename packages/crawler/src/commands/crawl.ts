@@ -108,6 +108,8 @@ interface CrawlSummary {
   contentNew: number;
   /** 内容采集（contents 表）：本轮更新条数 */
   contentUpdated: number;
+  /** 仅 dry-run：各栏目解析出的条目合计（全程零写入，新增/更新恒 0，靠它判断解析是否有效） */
+  dryRunParsed?: number;
 }
 
 /**
@@ -235,6 +237,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
             continue;
           }
           if (dryRun) {
+            summary.dryRunParsed = (summary.dryRunParsed ?? 0) + pendingC.length;
             progress.update(`[crawl] (dry-run) ${domain} [${section.key}] 解析内容 ${pendingC.length} 条`);
             continue;
           }
@@ -294,6 +297,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         }
 
         if (opts.dryRun) {
+          summary.dryRunParsed = (summary.dryRunParsed ?? 0) + pending.length;
           progress.update(`[crawl] (dry-run) ${domain} [${section.key}] 解析 ${pending.length} 条`);
           continue;
         }
@@ -356,7 +360,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
 
     summary.companies = companyIds.size;
     progress.done(
-      `[crawl] 完成：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}`,
+      `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
   } catch (e) {
