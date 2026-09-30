@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.4.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.3.0...v1.4.0) (2026-09-30)
+
+
+### ⚡ 性能优化 (Performance)
+
+* **crawler:** 列表进度显示用时速率并避免被详情覆盖 ([2045790](https://github.com/GuoSirius/competitor-crawler/commit/2045790d1df2bcbe678643f2c9da1884e6db6248))
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **sites:** 同步普诺赛中文站手调 YAML 备份（新增字段与选择器定稿） ([0ff4173](https://github.com/GuoSirius/competitor-crawler/commit/0ff4173686cae7d7b0b8b0d973d8cf2632100be5))
+* **sites:** procell 改 pagination-url 并修正选择器与面包屑 ([5dfc020](https://github.com/GuoSirius/competitor-crawler/commit/5dfc020c74308eff457b45f82125cb1e03142f1c))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* **crawl:** 普通轮误跳过已落库详情——仅 --resume 才启用 skipKeys，跳过数可见化 ([e5e4942](https://github.com/GuoSirius/competitor-crawler/commit/e5e49427b412d4099e4480a7b3062ac1a5885bad))
+* **crawler:** genSite 喂模型 HTML 清洗选窗（根因）+ dry-run 汇总可见化 ([42148c3](https://github.com/GuoSirius/competitor-crawler/commit/42148c3c096b50334739296476be5672f34052b7))
+* gen-site 推广化——元信息保护 + 产出回验闭环 ([50983bc](https://github.com/GuoSirius/competitor-crawler/commit/50983bc077fdabe2e5952343a1105bbb3a5e83ad))
+* **progress:** 列表进度状态行独立到顶部，避免被详情覆盖闪烁 ([9ff7cce](https://github.com/GuoSirius/competitor-crawler/commit/9ff7cce1fb2b7cc7c6033f9954c3e9ce2448d4af))
+
+
+### 🚀 新功能 (Features)
+
+* crawl 进度显示重构——详情逐条计数/落库节流/列表页码累计 ([c9e0b51](https://github.com/GuoSirius/competitor-crawler/commit/c9e0b517cf38fe7f8231f635c779df3f9b710a85))
+* **crawl:** 断点续跑——中断存进度可 --resume 恢复，已完成栏目与已落库详情不重跑 ([a38db39](https://github.com/GuoSirius/competitor-crawler/commit/a38db397b5f458c27f0eba120a79cc62dc137672))
+* **crawl:** 列表页抓取失败重试并续翻，缺失页记录告警 ([69e3790](https://github.com/GuoSirius/competitor-crawler/commit/69e37906c9b10fdaaf640f42a2f2ecc3c5a2e236))
+* **crawl:** 流式落库——详情每满一批就地刷库，边抓边写、内存有界 ([059a5f3](https://github.com/GuoSirius/competitor-crawler/commit/059a5f353570b7c4f86c91f0ba0d10b7e10b577b))
+* **crawl:** 三段进度展示——落库数并入详情行实时后缀，收尾定格落库行 ([6f8436c](https://github.com/GuoSirius/competitor-crawler/commit/6f8436c7e058875a84b6326a47cf4afc7caeb9b6))
+* **crawl:** 增量批量落库，价格历史多行写入，生产库整批事务 ([1d9dd02](https://github.com/GuoSirius/competitor-crawler/commit/1d9dd027701c20ecb095f8c644dbc269f696d101))
+* **crawler:** 普诺赛中文站 YAML 落地 + products 新增别称/曾用货号列 ([2f14c08](https://github.com/GuoSirius/competitor-crawler/commit/2f14c08d12e73fbd167e0e46f39c6abde2bd582e))
+* **db:** categories 增加 id_path 物化路径列——改名不动、子树按 id 前缀查询 ([a02ae23](https://github.com/GuoSirius/competitor-crawler/commit/a02ae23d9c05b44b4a8181daf2e73d79a07cedb7))
+* listTraversal 分页/条目分层控制 ([d319c81](https://github.com/GuoSirius/competitor-crawler/commit/d319c8115f449ed00f1d314a335da316b667dc87))
+
 ## [1.3.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.2.0...v1.3.0) (2026-09-30)
 
 
