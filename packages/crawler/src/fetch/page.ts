@@ -136,8 +136,16 @@ async function ssrFetch(
 const SPA_POLL_MS = 400; // 轮询间隔
 const SPA_STABLE_CHECKS = 2; // 连续 N 次签名不变 → 稳定
 const SPA_MIN_WAIT_MS = 800; // 最短观察窗：防初始空壳直接返回
-const SPA_MAX_WAIT_MS = 20000; // 硬上限：长连接/时钟类页面兜底，防无限等
-const SPA_NETWORK_WAIT_MS = 15000; // networkidle 未发生时，至少观察这么久才准提前返回
+// 上限可用 env 放宽（慢站/弱网）：视觉上「还在转圈」多数是图片/字体在拖，
+// DOM+XHR 数据早已就位；但首屏 XHR 特别慢的站确实需要更长观察窗。
+function envMs(name: string, fallback: number): number {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+const SPA_MAX_WAIT_MS = envMs('CRAWL_SPA_MAX_WAIT', 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
+const SPA_NETWORK_WAIT_MS = envMs('CRAWL_SPA_NETWORK_WAIT', 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
+const CHALLENGE_WAIT_ROUNDS = 5; // 挑战页自动放行轮数（CF 5 秒盾通常 3~8s 放行）
+const CHALLENGE_WAIT_MS = 6_000; // 每轮等待
 
 /**
  * 等待页面「网络 + DOM」双稳定，快站 ~2-3s 返回，慢站自动多等。
@@ -185,6 +193,30 @@ function headlessEnv(): boolean {
   return v === 'true' || v === '1';
 }
 
+/**
+ * 挑战页自动放行等待：读到挑战页不立即判死——Cloudflare 5 秒盾 / 阿里云盾
+ * 通常 3~8s 内自动跳转到真页面，摔门走人等于白白送掉一批可过站点。
+ * 轮询重读 DOM，放行成功（挑战特征消失）后按 SPA 稳定检测等渲染完再取 HTML；
+ * 轮次耗尽仍拦截才抛 ChallengeError。
+ */
+async function waitForChallengePass(
+  page: import('playwright').Page,
+  url: string,
+  progress?: Progress,
+): Promise<string> {
+  let html = await page.content();
+  let hit = detectChallenge(html);
+  for (let i = 0; hit && i < CHALLENGE_WAIT_ROUNDS; i++) {
+    progress?.log(`挑战页[${hit.kind}] 等待自动放行 ${i + 1}/${CHALLENGE_WAIT_ROUNDS}（${hit.matched}）`);
+    await page.waitForTimeout(CHALLENGE_WAIT_MS);
+    await waitForSpaSettle(page);
+    html = await page.content();
+    hit = detectChallenge(html);
+  }
+  if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
+  return html;
+}
+
 async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}): Promise<string> {
   progress?.log(`GET ${url} (spa/playwright)`);
   const { chromium } = await import('playwright');
@@ -199,10 +231,7 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await waitForSpaSettle(page);
-    const html = await page.content();
-    const hit = detectChallenge(html);
-    if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
-    return html;
+    return await waitForChallengePass(page, url, progress);
   } finally {
     await browser.close().catch(() => {});
   }
