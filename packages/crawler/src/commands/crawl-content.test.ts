@@ -131,6 +131,60 @@ describe('toPendingContent · NormalizedProduct → PendingContent 映射', () =
     expect(noId?.identityKey).not.toBe(''); // canonical(url) 非空
   });
 
+  it('sourceId 配在 parseList 时：列表阶段抽到的值兜底进 source_id / identity_key（否则恒 null）', () => {
+    // YAML 把 sourceId 写在 parseList（列表页 URL 自带 id），值落在 ListItem.raw 上
+    const item = { ...baseItem, raw: { sourceId: '503' } };
+    const c = toPendingContent(np({ row: {} }), item, item.detailUrl, 1, 'school', 'school');
+    expect(c?.sourceId).toBe('503');
+    expect(c?.identityKey).toBe('503'); // 身份键随之改为幂等 id，不再退 canonical(url)
+
+    // 详情抽到时仍以详情为准（详情优先）
+    const withDetail = toPendingContent(
+      np({ row: { sourceId: 'd-9' } }),
+      { ...baseItem, raw: { sourceId: '503' } },
+      baseItem.detailUrl,
+      1,
+      'school',
+      'school',
+    );
+    expect(withDetail?.sourceId).toBe('d-9');
+
+    // 列表兜底为空（列表没配 sourceId）→ 保持原样退 URL
+    const noRaw = toPendingContent(np({ row: {} }), baseItem, baseItem.detailUrl, 1, 'news', 'news');
+    expect(noRaw?.sourceId).toBeNull();
+    expect(noRaw?.identityKey).not.toBe('503');
+  });
+
+  it('详情没抽到的字段回退列表阶段（详情非空优先、详情空则取列表）', () => {
+    const item = {
+      ...baseItem,
+      raw: { sourceId: '503', summary: '列表摘要', cover: '/img/a.jpg' },
+    };
+    // 详情全空 → 列表兜底
+    const fromList = toPendingContent(np({ row: {} }), item, item.detailUrl, 1, 'school', 'school');
+    expect(fromList?.sourceId).toBe('503');
+    expect(fromList?.summary).toBe('列表摘要');
+
+    // 详情抽到非空 → 详情优先（不被列表覆盖）
+    const fromDetail = toPendingContent(
+      np({ row: { summary: '详情摘要' } }),
+      item,
+      item.detailUrl,
+      1,
+      'school',
+      'school',
+    );
+    expect(fromDetail?.summary).toBe('详情摘要');
+  });
+
+  it('row 快照：详情优先 + 列表独有字段补进来（如列表的 cover）', () => {
+    const item = { ...baseItem, raw: { cover: '/img/a.jpg', sourceId: '503' } };
+    const c = toPendingContent(np({ row: { views: 1024 } }), item, item.detailUrl, 1, 'school', 'school');
+    expect(c?.row.cover).toBe('/img/a.jpg'); // 列表独有 → 补进 row
+    expect(c?.row.views).toBe(1024); // 详情字段保留
+    expect(c?.row.sourceId).toBe('503'); // 详情没抽过 sourceId → 落 row 便于溯源
+  });
+
   it('row 快照保留原始字段 + listTitle', () => {
     const c = toPendingContent(np({ row: { views: 1024 } }), baseItem, baseItem.detailUrl, 1, 'news', 'news');
     expect(c?.row.views).toBe(1024);

@@ -1544,7 +1544,25 @@ export function toPendingContent(
   // → 列表 raw.title（YAML 配 title 的列表抽取；listOnly 等无详情场景的唯一兜底，缺它会被静默丢弃）
   const title = pick(np.name, row.title, it.name, it.raw?.title);
   if (!title) return null; // 无标题丢弃
-  const sourceId = pick(np.sourceProductId, row.sourceId, row.articleId, row.newsId);
+  // 列表阶段抽取快照：详情页常常缺 id/封面/摘要，而列表页有 → 一律「详情非空优先、详情没有就回退列表」。
+  // 典型坑：sourceId 只能配在 parseList（id 藏在列表条目链接里），不回退就是「YAML 配了、库里恒 null」；
+  // 产品管线的 preKey 兜底（列表 it.raw?.sourceProductId）与此处同源，口径统一。
+  const raw = it.raw ?? {};
+  /** 列表阶段同名字段兜底：详情没抽到（或抽到空串）时才用，按 keys 顺序取第一个非空 */
+  const fromList = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = raw[k];
+      if (typeof v === 'string' && v.trim() !== '') return v.trim();
+    }
+    return null;
+  };
+  const sourceId = pick(
+    np.sourceProductId,
+    row.sourceId,
+    row.articleId,
+    row.newsId,
+    fromList('sourceId', 'articleId', 'newsId'),
+  );
   const identityKey = pickIdentityKey(sourceId, detailUrl);
   if (!identityKey) return null;
   return {
@@ -1554,16 +1572,43 @@ export function toPendingContent(
     identityKey,
     sourceId,
     title,
-    summary: pick(row.summary, np.description),
-    body: pick(row.body, row.content, row.text),
+    summary: pick(row.summary, np.description, fromList('summary', 'description')),
+    body: pick(row.body, row.content, row.text, fromList('body', 'content', 'text')),
     // 富文本：YAML 显式配 bodyHtml(html:true) 时才有值；缺省恒 null（不占空间）
-    bodyHtml: pick(row.bodyHtml),
-    author: pick(row.author, row.source),
-    publishedAt: parseDateStr(row.date ?? row.publishedAt ?? row.publishTime ?? row.publishDate ?? row.time),
+    bodyHtml: pick(row.bodyHtml, fromList('bodyHtml')),
+    author: pick(row.author, row.source, fromList('author', 'source')),
+    publishedAt: parseDateStr(
+      row.date ?? row.publishedAt ?? row.publishTime ?? row.publishDate ?? row.time ??
+        fromList('date', 'publishedAt', 'publishTime', 'publishDate', 'time') ??
+        undefined,
+    ),
     detailUrl: detailUrl || null,
     listUrl: it.listUrl ?? null,
-    row: { ...row, listTitle: it.name ?? undefined },
+    // 行 JSON：详情字段为主，列表阶段独有的字段补在后面（详情有同名键则以详情为准）——
+    // 列表常能抽到详情页没有的封面/缩略图/栏目专有字段（如 material 的 cover），不补就白抽了
+    row: { ...mergeListFields(row, raw), listTitle: it.name ?? undefined },
   };
+}
+
+/**
+ * 行 JSON 两阶段合并：详情字段优先，列表阶段独有（详情没有、或详情抽到空值）的字段补进来。
+ * 只补「详情没有的键」——同名的以详情为准，避免列表的脏值覆盖详情抽到的干净值。
+ */
+function mergeListFields(
+  row: Record<string, unknown>,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...row };
+  for (const [k, v] of Object.entries(raw)) {
+    if (k in merged) continue;
+    if (typeof v === 'string') {
+      if (v.trim() === '') continue;
+      merged[k] = v.trim();
+    } else if (v !== null && v !== undefined) {
+      merged[k] = v;
+    }
+  }
+  return merged;
 }
 
 /**
