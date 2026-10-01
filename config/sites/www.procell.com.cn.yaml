@@ -158,6 +158,10 @@ sections:
         name:
           sel: ".article-title"
           text: true
+        sourceId:
+          sel: a
+          attr: href
+          regex: '/(\d+)(?:$|\?|#)'
     parseDetail:
       fields:
         name:
@@ -176,8 +180,13 @@ sections:
           text: true
           regex: "来源：(.*)"
         body:
-          sel: "section:has(h1.fs_24) + section"
+          sel: "section:has(.ryzz) + section"
           text: true
+        # 富文本留存（非必配）：抽同一正文容器的 innerHTML → contents.body_html 列
+        # 不配则不抽，body_html 恒 null；material 等 listOnly 栏目无详情阶段，天然不加
+        bodyHtml:
+          sel: "section:has(.ryzz) + section"
+          html: true
 
   - key: school
     contentType: school # 细胞学堂
@@ -195,11 +204,15 @@ sections:
         name:
           sel: ".article-title"
           text: true
+        sourceId:
+          sel: a
+          attr: href
+          regex: '/(\d+)(?:$|\?|#)'
     parseDetail:
       fields:
         name:
-          sel: 'meta[property="og:title"]'
-          attr: content
+          sel: ".ryzz"
+          text: true
         description:
           sel: 'meta[property="og:description"]'
           attr: content
@@ -212,8 +225,12 @@ sections:
           text: true
           regex: "来源：(.*)"
         body:
-          sel: "section:has(h1.fs_24) + section"
+          sel: "section:has(.ryzz) + section"
           text: true
+        # 富文本留存（非必配）：同一正文容器的 innerHTML → contents.body_html 列；不配则不抽
+        bodyHtml:
+          sel: "section:has(.ryzz) + section"
+          html: true
 
   - key: guide
     contentType: guide # 实验操作指南（列表为 ul.guide-list 简单条目，无摘要/日期）
@@ -231,11 +248,15 @@ sections:
         name:
           sel: span
           attr: title
+        sourceId:
+          sel: a
+          attr: href
+          regex: '/(\d+)(?:$|\?|#)'
     parseDetail:
       fields:
         name:
-          sel: 'meta[property="og:title"]'
-          attr: content
+          sel: ".ryzz"
+          text: true
         description:
           sel: 'meta[property="og:description"]'
           attr: content
@@ -248,8 +269,12 @@ sections:
           text: true
           regex: "来源：(.*)"
         body:
-          sel: "section:has(h1.fs_24) + section"
+          sel: "section:has(.ryzz) + section"
           text: true
+        # 富文本留存（非必配）：同一正文容器的 innerHTML → contents.body_html 列；不配则不抽
+        bodyHtml:
+          sel: "section:has(.ryzz) + section"
+          html: true
 
   - key: video
     contentType: video # 实验视频（卡片标题是第二个 a 的文本；正文区为 B 站 iframe）
@@ -267,11 +292,18 @@ sections:
         name:
           sel: "a.px-2"
           text: true
+        sourceId:
+          sel: a
+          attr: href
+          regex: '/(\d+)(?:$|\?|#)'
+        cover:
+          sel: "a.video-img img.w-100"
+          attr: src
     parseDetail:
       fields:
         name:
-          sel: 'meta[property="og:title"]'
-          attr: content
+          sel: ".ryzz"
+          text: true
         description:
           sel: 'meta[property="og:description"]'
           attr: content
@@ -288,5 +320,9 @@ sections:
           sel: ".vedio-content iframe"
           attr: src
         body:
-          sel: "section:has(h1.fs_24) + section"
+          sel: "section:has(.ryzz) + section"
           text: true
+        # 富文本留存（非必配）：同一正文容器的 innerHTML → contents.body_html 列；不配则不抽
+        bodyHtml:
+          sel: "section:has(.ryzz) + section"
+          html: true
