@@ -12,6 +12,7 @@
     "report": "pnpm --filter @competitor-crawler/crawler report",
     "db:push": "pnpm --filter @competitor-crawler/shared db:push",
     "probe": "pnpm --filter @competitor-crawler/crawler probe",
+    "sweep": "pnpm --filter @competitor-crawler/crawler sweep",
     "gen-site": "pnpm --filter @competitor-crawler/crawler gen-site",
     "gen-site:batch": "pnpm --filter @competitor-crawler/crawler gen-site:batch",
     "gen-site:template": "pnpm --filter @competitor-crawler/crawler gen-site:template",

@@ -10,6 +10,7 @@ import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
 import { report } from './commands/report.js';
 import { runValidate, runFieldDocs } from './commands/validate.js';
+import { sweep } from './commands/sweep.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags, normalizeAliases } from './util/args.js';
 
@@ -117,6 +118,9 @@ async function main() {
   } else if (cmd === 'field-docs') {
     // --domain/--site 指定站点时，额外打印该站点「YAML 字段 → 落库列」对照
     runFieldDocs({ domain: typeof flags.domain === 'string' ? flags.domain : undefined });
+  } else if (cmd === 'sweep') {
+    // 批量反爬复探（docs/14 C 类）：不依赖站点 YAML，只测「可达/挑战页/内容量」
+    await sweep(flags);
   } else if (cmd === 'schedule') {
     const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
     if (flags.daemon === true || flags.daemon === 'true') {
@@ -145,7 +149,7 @@ async function main() {
 function printHelp(cmd?: string): void {
   const known = new Set([
     'seed', 'probe', 'gen-site', 'gen-site-batch', 'gen-site-template',
-    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report',
+    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report', 'sweep',
   ]);
   const all = cmd === undefined || cmd === 'help' || !known.has(cmd);
   if (all) {

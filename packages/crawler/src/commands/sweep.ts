@@ -1,0 +1,159 @@
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { dataDir } from '@competitor-crawler/shared';
+import { fetchPage, ChallengeError } from '../fetch/page.js';
+import { detectChallenge, type ChallengeHit } from '../fetch/antiBot.js';
+import { Progress } from '../util/progress.js';
+
+/**
+ * 批量反爬复探（sweep）：对 docs/14 C 类（WAF 拦截）站点逐个试抓，
+ * 回答「哪种模式能过、过了之后有没有内容」，为把站点从 C 类升级提供证据。
+ *
+ * 与 probe 的区别：probe 依赖站点 YAML 适配器（须先 gen-site）；
+ * sweep 不需要任何配置，只做「可达性 + 挑战页 + 内容量」三件事。
+ *
+ * 用法：
+ *   pnpm sweep --group c                    # 预设 C 类全集（从 crawl-inventory.json 匹配）
+ *   pnpm sweep --domain x --url <u>         # 单站单 URL
+ *   pnpm sweep --group c --mode spa         # 只试 spa（默认 both：ssr → spa 各一轮）
+ *   pnpm sweep --group c --limit 3          # 只跑前 N 个（冒烟）
+ *   pnpm sweep --group c --headless true    # 无头跑（默认有头，更隐蔽）
+ */
+
+export interface SweepTarget {
+  company: string;
+  /** 探测入口（取 crawl-inventory 里记录的问题页/产品页，更能代表抓取目标） */
+  url: string;
+  /** 第二入口（首页），可达性交叉验证 */
+  home: string;
+}
+
+/** docs/14 C 类 + 复探 🔴/⏳ 组的公司名关键词（大小写/中英都收，includes 匹配） */
+const GROUP_KEYWORDS: Record<string, string[]> = {
+  c: [
+    'CST', 'Cell Signaling', 'Miltenyi', '华安', 'Huabio', '索莱宝', 'Solarbio',
+    'Beckman', 'BioLegend', 'Cytion', 'PromoCell', 'MCE', 'MedChem', '义翘', 'Sino',
+    'Leinco', 'Promega', '富衡', '海星', 'Hycyte', 'Fudancell', '赛默飞', 'Thermo',
+    'ScienCell', '默克', 'Merck', '康宁', 'Corning', '四正柏', 'CUSABIO', 'RayBiotech',
+    'Dojindo', 'Bio X Cell', 'BioXCell', 'BD', 'Becton', '美森', 'STEMCELL', 'Capricorn',
+    'Abcam', 'BioAssay',
+  ],
+};
+
+interface InventoryEntry {
+  company: string;
+  website: string;
+  urls: Array<{ url: string; status?: number }>;
+}
+
+function loadInventory(): InventoryEntry[] {
+  const p = join(dataDir, 'seeds', 'crawl-inventory.json');
+  return JSON.parse(readFileSync(p, 'utf-8')) as InventoryEntry[];
+}
+
+function buildTargets(group: string, inventory: InventoryEntry[]): SweepTarget[] {
+  const kws = GROUP_KEYWORDS[group];
+  if (!kws) throw new Error(`未知分组 ${group}（可用：${Object.keys(GROUP_KEYWORDS).join('/')}）`);
+  const out: SweepTarget[] = [];
+  for (const e of inventory) {
+    if (!kws.some((k) => e.company.includes(k))) continue;
+    const productUrl = e.urls[0]?.url ?? e.website;
+    out.push({ company: e.company, url: productUrl, home: e.website });
+  }
+  return out;
+}
+
+export interface SweepRow {
+  company: string;
+  url: string;
+  mode: 'ssr' | 'spa';
+  /** OK / HTTP 403 / CHALLENGED[cloudflare] / ERR:… */
+  result: string;
+  kind?: string;
+  bytes: number;
+  title: string;
+  /** <a href> 锚点总数（过了 WAF 才有意义；0=拿到壳但没内容） */
+  anchors: number;
+  seconds: number;
+}
+
+function classify(html: string): { result: string; hit: ChallengeHit | null } {
+  const hit = detectChallenge(html);
+  if (hit) return { result: `CHALLENGED[${hit.kind}]`, hit };
+  return { result: 'OK', hit: null };
+}
+
+async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean): Promise<SweepRow> {
+  const progress = new Progress();
+  const t0 = Date.now();
+  const base: SweepRow = {
+    company: t.company, url: t.url, mode, result: 'ERR', bytes: 0, title: '', anchors: 0,
+    seconds: 0,
+  };
+  try {
+    const html = await fetchPage(t.url, mode, progress, undefined, { headless });
+    const cls = classify(html);
+    return {
+      ...base,
+      result: cls.result,
+      kind: cls.hit?.kind,
+      bytes: html.length,
+      title: /<title[^>]*>([^<]{0,120})/i.exec(html)?.[1]?.trim() ?? '',
+      anchors: html.match(/<a\s+[^>]*href/gi)?.length ?? 0,
+      seconds: Math.round((Date.now() - t0) / 100) / 10,
+    };
+  } catch (e) {
+    const msg = (e as Error).message.slice(0, 80);
+    return { ...base, result: e instanceof ChallengeError ? `CHALLENGED[${e.kind}]` : `ERR: ${msg}`, seconds: Math.round((Date.now() - t0) / 100) / 10 };
+  }
+}
+
+export async function sweep(flags: Record<string, unknown>): Promise<void> {
+  const group = typeof flags.group === 'string' ? flags.group : '';
+  const domain = typeof flags.domain === 'string' ? flags.domain : undefined;
+  const singleUrl = typeof flags.url === 'string' ? flags.url : undefined;
+  const mode = (typeof flags.mode === 'string' ? flags.mode : 'both') as 'ssr' | 'spa' | 'both';
+  const limit = Number(flags.limit ?? 0) || Number.POSITIVE_INFINITY;
+  const headless = flags.headless === 'true' || flags.headless === true;
+
+  let targets: SweepTarget[];
+  if (domain && singleUrl) {
+    targets = [{ company: domain, url: singleUrl, home: singleUrl }];
+  } else {
+    const inventory = loadInventory();
+    targets = buildTargets(group, inventory);
+  }
+  const shown = targets.slice(0, limit);
+  console.log(`\n[sweep] 目标 ${shown.length}/${targets.length} 站 · 模式 ${mode} · headless=${headless}\n`);
+
+  const modes: Array<'ssr' | 'spa'> = mode === 'both' ? ['ssr', 'spa'] : [mode];
+  const rows: SweepRow[] = [];
+  for (const t of shown) {
+    for (const m of modes) {
+      process.stdout.write(`  → ${t.company} [${m}] ${t.url} … `);
+      const r = await sweepOne(t, m, headless);
+      rows.push(r);
+      console.log(`${r.result} · ${r.bytes}B · ${r.anchors} anchors · ${r.seconds}s`);
+    }
+  }
+
+  // 报告落盘：data/seeds/sweep-<stamp>.md
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const outPath = join(dataDir, 'seeds', `sweep-${stamp}.md`);
+  mkdirSync(join(dataDir, 'seeds'), { recursive: true });
+  const lines = [
+    `# sweep 复探报告 ${stamp}`,
+    '',
+    `模式 ${mode} · headless=${headless} · 目标 ${shown.length} 站`,
+    '',
+    '| 公司 | 模式 | 结果 | 字节 | title | 锚点 | 耗时s |',
+    '|---|---|---|---|---|---|---|',
+    ...rows.map((r) =>
+      `| ${r.company} | ${r.mode} | ${r.result} | ${r.bytes} | ${(r.title || '—').replace(/\|/g, '/')} | ${r.anchors} | ${r.seconds} |`,
+    ),
+    '',
+    '> 判读：OK+锚点多 → 可接；OK+锚点 0 → 过了 WAF 但要下钻/换入口；CHALLENGED → 未过；ERR → 网络/TLS 层。',
+  ];
+  writeFileSync(outPath, lines.join('\n'), 'utf-8');
+  console.log(`\n[sweep] 报告已写入 ${outPath}`);
+}
