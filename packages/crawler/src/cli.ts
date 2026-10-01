@@ -115,7 +115,8 @@ async function main() {
     const errs = runValidate({ domain: typeof flags.domain === 'string' ? flags.domain : undefined });
     if (errs > 0) process.exitCode = 1;
   } else if (cmd === 'field-docs') {
-    runFieldDocs();
+    // --domain/--site 指定站点时，额外打印该站点「YAML 字段 → 落库列」对照
+    runFieldDocs({ domain: typeof flags.domain === 'string' ? flags.domain : undefined });
   } else if (cmd === 'schedule') {
     const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
     if (flags.daemon === true || flags.daemon === 'true') {

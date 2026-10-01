@@ -87,6 +87,26 @@ export const CONTENT_FIELDS: FieldMeta[] = [
   { name: 'listUrl', type: 'string', stage: 'list', desc: '列表页地址（溯源）' },
 ];
 
+/**
+ * `dbColumnOf`：YAML 里 `parseList.fields` / `parseDetail.fields` 的 key → **落库列名**。
+ *
+ * 用来回答「我配了这个字段，数据到底进哪个列」——注册表里只有字段名（camelCase），
+ * 表里是 snake_case，两者不一一对应（如 YAML 的 `bodyHtml` → `body_html`、
+ * contents 管线 YAML 配 `name` → 实际落 `title` 列）。
+ *
+ * @returns `null` = 注册表未登记（站点特有字段），只进 `row` 兜底列，不落独立列；
+ *          `'—'` = 站点级配置（如 currency），不是解析字段、无对应列。
+ */
+export function dbColumnOf(fieldName: string, kind: ContentKind = 'products'): string | null {
+  // contents 管线统一收口到 title 列（YAML 推荐配 `name`，引擎经 np.name → title）
+  if (kind === 'contents' && fieldName === 'name') return 'title';
+  // 按管线查（products 的 englishName 等字段在 contents 表并不存在，不能混查）
+  const hit = (kind === 'contents' ? CONTENT_FIELDS : PRODUCT_FIELDS).find((f) => f.name === fieldName);
+  if (!hit) return null; // 站点特有字段 → row JSON
+  if (hit.stage === 'site') return '—'; // 站点级，非解析字段
+  return fieldName.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+
 /** 全部「可作为 YAML 解析字段」的内建名（不含 site 级 currency） */
 export const BUILTIN_FIELD_NAMES: ReadonlySet<string> = new Set(
   [...PRODUCT_FIELDS, ...CONTENT_FIELDS].filter((f) => f.stage !== 'site').map((f) => f.name),

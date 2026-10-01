@@ -125,12 +125,12 @@ sections:
 
   - key: material
     contentType: material # 宣传资料
+    renderList: spa # 列表数据靠 JS 渲染，必须浏览器模式
+    startUrls: [https://www.procell.com.cn/resource/material]
     listOnly: true # 仅列表模式：条目=文件直链，无详情阶段，列表快照直接入库
     # 局部禁翻页（顶层配置不动，仅本栏目关停）：只抓第一页，不做任何翻页
     listTraversal:
       strategy: none
-    renderList: spa # 列表数据靠 JS 渲染，必须浏览器模式
-    startUrls: [https://www.procell.com.cn/resource/material]
     categoryFromPage:
       itemSelector: ".breadcrumb li"
       strip: ["当前位置", "首页"]
@@ -168,7 +168,9 @@ sections:
         sourceId:
           sel: a
           attr: href
-          regex: '/(\d+)(?:$|\?|#)'
+          # 兼容两种 URL 形态：/school/527（id 独立）与 /school/thp-1-506（slug-id 结尾）
+          # 前缀 [-/] 缺一不可——只写 /(\d+) 时后者斜杠后是字母，会静默抽不到 id → 退化成 canonical(url)
+          regex: '[-/](\d+)(?:$|\?|#)'
     parseDetail:
       fields:
         name:
@@ -214,7 +216,9 @@ sections:
         sourceId:
           sel: a
           attr: href
-          regex: '/(\d+)(?:$|\?|#)'
+          # 兼容两种 URL 形态：/school/527（id 独立）与 /school/thp-1-506（slug-id 结尾）
+          # 前缀 [-/] 缺一不可——只写 /(\d+) 时后者斜杠后是字母，会静默抽不到 id → 退化成 canonical(url)
+          regex: '[-/](\d+)(?:$|\?|#)'
     parseDetail:
       fields:
         name:
@@ -258,7 +262,9 @@ sections:
         sourceId:
           sel: a
           attr: href
-          regex: '/(\d+)(?:$|\?|#)'
+          # 兼容两种 URL 形态：/school/527（id 独立）与 /school/thp-1-506（slug-id 结尾）
+          # 前缀 [-/] 缺一不可——只写 /(\d+) 时后者斜杠后是字母，会静默抽不到 id → 退化成 canonical(url)
+          regex: '[-/](\d+)(?:$|\?|#)'
     parseDetail:
       fields:
         name:
@@ -302,7 +308,9 @@ sections:
         sourceId:
           sel: a
           attr: href
-          regex: '/(\d+)(?:$|\?|#)'
+          # 兼容两种 URL 形态：/school/527（id 独立）与 /school/thp-1-506（slug-id 结尾）
+          # 前缀 [-/] 缺一不可——只写 /(\d+) 时后者斜杠后是字母，会静默抽不到 id → 退化成 canonical(url)
+          regex: '[-/](\d+)(?:$|\?|#)'
         cover:
           sel: "a.video-img img.w-100"
           attr: src
