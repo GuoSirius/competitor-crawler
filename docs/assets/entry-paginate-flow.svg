@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 920" width="1360" height="920"
+     font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+  <!--
+    竞品爬虫 · startUrl / startUrls 入口继承与翻页机制（2026-10-01）
+    要点：
+      · startUrl（顶层字符串）只是单值便利写法，内部转单元素数组
+      · 继承回退：section.startUrls（非空）→ 顶层 startUrl → 跳过栏目并计 failed
+      · 数组语义 = 全部逐个抓取（不是优先取一个）；每个入口各自跑完整翻页
+      · pagination-url 的 urlTemplate 以【当前入口】为 base（buildPageUrl(url, …)）
+      · 同产品出现在多入口靠 (company_id, identity_key, section_key) 去重，只落一次
+    配套：match-routing.svg（listUrlIncludes / detailUrlIncludes 反查路由）
+  -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563EB"/>
+    </marker>
+  </defs>
+
+  <rect width="1360" height="920" fill="#FFFFFF"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0F172A">startUrl / startUrls：入口继承与抓取机制</text>
+  <text x="40" y="80" font-size="14" fill="#64748B">代码事实源：config/loader.ts resolveSections · commands/crawl.ts collectSection · fetch/listTraversal.ts buildPageUrl</text>
+
+  <!-- 第一行：配置层 -->
+  <text x="40" y="124" font-size="15" font-weight="700" fill="#334155">① 配置层（YAML）</text>
+
+  <rect x="40" y="140" width="400" height="120" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="60" y="170" font-size="15" font-weight="700" fill="#1D4ED8">顶层 startUrl（字符串）</text>
+  <text x="60" y="196" font-size="13" fill="#334155">单规则便利写法，仅一个入口</text>
+  <text x="60" y="218" font-size="12.5" fill="#64748B">resolveSections：topStartUrls =</text>
+  <text x="60" y="238" font-size="12.5" fill="#64748B">cfg.startUrl ? [cfg.startUrl] : []</text>
+
+  <rect x="500" y="140" width="420" height="120" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="520" y="170" font-size="15" font-weight="700" fill="#1D4ED8">section.startUrls（字符串数组）</text>
+  <text x="520" y="196" font-size="13" fill="#334155">多规则栏目：一个栏目多个列表入口</text>
+  <text x="520" y="218" font-size="12.5" fill="#64748B">如 [「ELISA试剂盒列表页」, 「抗体列表页」]</text>
+  <text x="520" y="238" font-size="12.5" fill="#64748B">非空才生效，空数组视为未配置</text>
+
+  <rect x="980" y="140" width="340" height="120" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="1000" y="170" font-size="15" font-weight="700" fill="#475569">匹配参数 match（数组）</text>
+  <text x="1000" y="196" font-size="13" fill="#64748B">listUrlIncludes / detailUrlIncludes</text>
+  <text x="1000" y="218" font-size="12.5" fill="#94A3B8">不是抓取入口！只是 URL 反查路由器</text>
+  <text x="1000" y="238" font-size="12.5" fill="#94A3B8">详见 match-routing.svg</text>
+
+  <!-- 第二行：继承回退 -->
+  <text x="40" y="308" font-size="15" font-weight="700" fill="#334155">② 继承回退（resolveSections，逐栏目归一化）</text>
+
+  <rect x="40" y="324" width="1280" height="112" rx="10" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5"/>
+  <text x="70" y="356" font-size="14" font-weight="700" fill="#15803D">section.startUrls 非空</text>
+  <text x="260" y="356" font-size="13" fill="#334155">→ 整组生效（每个元素都是一个入口）</text>
+  <line x1="70" y1="368" x2="1290" y2="368" stroke="#BBF7D0" stroke-width="1"/>
+  <text x="70" y="392" font-size="14" font-weight="700" fill="#15803D">section.startUrls 空 / 未写</text>
+  <text x="260" y="392" font-size="13" fill="#334155">→ 回退顶层 startUrl（单元素）</text>
+  <line x1="70" y1="404" x2="1290" y2="404" stroke="#BBF7D0" stroke-width="1"/>
+  <text x="70" y="426" font-size="14" font-weight="700" fill="#B91C1C">两者都没有</text>
+  <text x="260" y="426" font-size="13" fill="#334155">→ 跳过该栏目：日志「未配置 startUrls」，summary.failed +1（不阻断其它栏目）</text>
+
+  <!-- 第三行：抓取循环 -->
+  <text x="40" y="486" font-size="15" font-weight="700" fill="#334155">③ 抓取循环（collectSection）——数组语义 = 全部逐个抓，不是优先取一个</text>
+
+  <rect x="40" y="502" width="300" height="200" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="60" y="532" font-size="14" font-weight="700" fill="#1D4ED8">入口 1</text>
+  <text x="60" y="558" font-size="12.5" fill="#334155">for (listUrl of startUrls)</text>
+  <text x="60" y="578" font-size="12.5" fill="#334155">traverseList(url = 入口1)</text>
+  <text x="60" y="606" font-size="12.5" fill="#64748B">完整流程：</text>
+  <text x="60" y="626" font-size="12.5" fill="#64748B">翻页 → 解析列表 → 详情 → 落库</text>
+  <text x="60" y="646" font-size="12.5" fill="#64748B">受同一份 listTraversal 约束</text>
+  <text x="60" y="666" font-size="12.5" fill="#64748B">(maxPages / pageEnd / listRetry)</text>
+
+  <rect x="380" y="502" width="300" height="200" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="400" y="532" font-size="14" font-weight="700" fill="#1D4ED8">入口 2</text>
+  <text x="400" y="558" font-size="12.5" fill="#334155">traverseList(url = 入口2)</text>
+  <text x="400" y="584" font-size="12.5" fill="#334155">与入口 1 串行执行，</text>
+  <text x="400" y="606" font-size="12.5" fill="#334155">各自独立翻页、互不干扰</text>
+  <text x="400" y="640" font-size="12.5" fill="#64748B">⚠️ 同一产品在多个入口出现</text>
+  <text x="400" y="660" font-size="12.5" fill="#64748B">不会重复落库（见④去重）</text>
+
+  <rect x="720" y="502" width="300" height="200" rx="10" fill="#EFF6FF" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="740" y="532" font-size="14" font-weight="700" fill="#475569">入口 N…</text>
+  <text x="740" y="558" font-size="12.5" fill="#64748B">数组有几个入口就抓几轮，</text>
+  <text x="740" y="578" font-size="12.5" fill="#64748B">全部抓完才算本栏目完成</text>
+
+  <rect x="1060" y="502" width="260" height="200" rx="10" fill="#FFF7ED" stroke="#D97706" stroke-width="1.5"/>
+  <text x="1080" y="532" font-size="14" font-weight="700" fill="#B45309">pagination-url 的 base</text>
+  <text x="1080" y="558" font-size="12.5" fill="#334155">urlTemplate 以【当前入口】</text>
+  <text x="1080" y="578" font-size="12.5" fill="#334155">为 base 拼页码：</text>
+  <text x="1080" y="604" font-size="12" fill="#64748B">· 完整URL模板：与入口无关，</text>
+  <text x="1080" y="622" font-size="12" fill="#64748B">  多入口会重复翻同一序列</text>
+  <text x="1080" y="646" font-size="12" fill="#64748B">· /绝对路径：origin=当前入口</text>
+  <text x="1080" y="666" font-size="12" fill="#64748B">· ?query：并入当前入口 query</text>
+  <text x="1080" y="690" font-size="12" fill="#B45309">多入口建议逐 section 拆开</text>
+
+  <!-- 箭头：① → ② → ③ -->
+  <line x1="240" y1="260" x2="240" y2="322" stroke="#2563EB" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <line x1="710" y1="260" x2="710" y2="322" stroke="#2563EB" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <line x1="1150" y1="260" x2="1150" y2="480" stroke="#94A3B8" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+  <text x="1162" y="380" font-size="12" fill="#94A3B8">仅反查路由，</text>
+  <text x="1162" y="398" font-size="12" fill="#94A3B8">不产生抓取</text>
+  <line x1="190" y1="436" x2="190" y2="500" stroke="#16A34A" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="530" y1="436" x2="530" y2="500" stroke="#16A34A" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- 第四行：去重 -->
+  <text x="40" y="752" font-size="15" font-weight="700" fill="#334155">④ 去重兜底（多入口重叠时）</text>
+  <rect x="40" y="768" width="1280" height="86" rx="10" fill="#FDF2F8" stroke="#DB2777" stroke-width="1.5"/>
+  <text x="70" y="800" font-size="14" font-weight="700" fill="#BE185D">唯一键 (company_id, identity_key, section_key)</text>
+  <text x="70" y="826" font-size="13" fill="#334155">identity_key = COALESCE(source_product_id, canonical(detail_url))——同一产品被多个入口抓到时，后者走 updated 分支覆盖，不产生重复行；sku 绝不参与去重。</text>
+
+  <text x="40" y="892" font-size="12.5" fill="#94A3B8">配套：match-routing.svg（match 数组 = OR 匹配 + 声明序优先的反查路由，当前生产代码零调用、为断点续跑/钩子场景预留）</text>
+</svg>
