@@ -1469,8 +1469,22 @@ async function collectContentSection(args: {
   const targets = deduped.slice(0, limit);
   const listNotes: string[] = [];
   if (duplicates > 0) listNotes.push(`去重${items.length}→${deduped.length}`);
-  listNotes.push(`详情解析${targets.length}/${deduped.length}`);
+  listNotes.push(section.listOnly ? `仅列表${targets.length}/${deduped.length}` : `详情解析${targets.length}/${deduped.length}`);
   listBar.finish(listNotes.join(' · '));
+
+  // 仅列表模式（listOnly，docs：无详情页的栏目）：条目即终态（文件直链/SPA 单页），
+  // 跳过详情抓取，用列表快照归一化——title=列表 name、identityKey=canonical(detailUrl)、publishedAt/summary 为空。
+  if (section.listOnly) {
+    for (const it of targets) {
+      const c = toPendingContent({ row: {} } as NormalizedProduct, it, it.detailUrl, companyId, section.key, section.contentType);
+      if (c) {
+        pending.push(c);
+        seenSet(companyId, section.key).add(c.identityKey);
+      }
+    }
+    progress.update(`[crawl] [${section.key}] 仅列表模式：${targets.length} 条直接入库（无详情阶段）`);
+    return { detailFailed: 0, missingPages };
+  }
 
   // 详情失败可见化（docs/16 E1，与产品管线同口径）；并发限制同 P5（p-limit）
   const limiter = pLimit(detailConcurrency());
@@ -1524,7 +1538,9 @@ export function toPendingContent(
     }
     return null;
   };
-  const title = pick(np.name, row.title, it.name);
+  // 标题链：详情 np.name（YAML 配 name）→ row.title（YAML 配 title 的详情抽取）→ 列表名（YAML 配 name）
+  // → 列表 raw.title（YAML 配 title 的列表抽取；listOnly 等无详情场景的唯一兜底，缺它会被静默丢弃）
+  const title = pick(np.name, row.title, it.name, it.raw?.title);
   if (!title) return null; // 无标题丢弃
   const sourceId = pick(np.sourceProductId, row.sourceId, row.articleId, row.newsId);
   const identityKey = pickIdentityKey(sourceId, detailUrl);

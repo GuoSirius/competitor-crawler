@@ -57,6 +57,15 @@ describe('toPendingContent · NormalizedProduct → PendingContent 映射', () =
     expect(fromList?.title).toBe('列表标题');
   });
 
+  it('title 兜底：列表 raw.title（listOnly 等无详情场景的唯一兜底，缺它会被静默丢弃）', () => {
+    const item: ListItem = { detailUrl: 'https://x.com/news/3', raw: { title: 'raw标题' }, sectionKey: 'news' };
+    const c = toPendingContent(np({ row: {} }), item, item.detailUrl, 1, 'news', 'news');
+    expect(c?.title).toBe('raw标题');
+    // 前级仍在时优先于 raw.title
+    const c2 = toPendingContent(np({ row: {} }), { ...baseItem, raw: { title: 'raw标题' } }, baseItem.detailUrl, 1, 'news', 'news');
+    expect(c2?.title).toBe('列表标题');
+  });
+
   it('无标题（详情/row/列表全空）→ 丢弃返回 null', () => {
     const item: ListItem = { detailUrl: 'https://x.com/news/2', sectionKey: 'news' };
     expect(toPendingContent(np({ row: {} }), item, item.detailUrl, 1, 'news', 'news')).toBeNull();

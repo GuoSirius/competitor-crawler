@@ -69,7 +69,7 @@ export const PRODUCT_FIELDS: FieldMeta[] = [
 
 /** 内容管线内建字段（写入 contents 表；contentType != 'products' 的栏目） */
 export const CONTENT_FIELDS: FieldMeta[] = [
-  { name: 'title', type: 'string', stage: 'detail', required: true, listFallback: true, auditMismatch: true, desc: '内容标题（必填）' },
+  { name: 'title', type: 'string', stage: 'detail', required: true, listFallback: true, auditMismatch: true, desc: '内容标题（必填）。YAML 里推荐配 name（抽取引擎统一字段：详情 np.name→落库 title、列表 name→it.name→title）；配 title 也可，经 row/列表 raw 兜底生效' },
   { name: 'summary', type: 'string', stage: 'detail', listFallback: true, desc: '摘要' },
   { name: 'body', type: 'string', stage: 'detail', listFallback: true, desc: '正文' },
   { name: 'author', type: 'string', stage: 'detail', listFallback: true, auditMismatch: true, desc: '作者' },

@@ -79,6 +79,21 @@ describe('resolveSections — 多规则写法', () => {
     expect(() => resolveSections(bad)).toThrow(/sections\[0\].*缺少 parseList/);
   });
 
+  it('listOnly 透传到栏目（逐 section 声明，不从顶层继承）', () => {
+    const cfg: SiteConfig = {
+      domain: 'f.com',
+      listOnly: true, // 顶层声明：多规则站点不继承，仅单规则写法生效
+      parseList: { itemSelector: '.i', fields: {} },
+      sections: [
+        { key: 'list', listOnly: true, startUrls: ['https://f.com/list'] },
+        { key: 'full', startUrls: ['https://f.com/full'] },
+      ],
+    };
+    const got = resolveSections(cfg);
+    expect(got[0].listOnly).toBe(true);
+    expect(got[1].listOnly).toBeUndefined();
+  });
+
   it('section.key 缺省补 default', () => {
     const cfg: SiteConfig = {
       domain: 'd.com',

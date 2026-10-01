@@ -209,6 +209,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         // 上面的前置校验保证二者至少有一个存在
         parseList: (s.parseList ?? cfg.parseList)!,
         parseDetail: s.parseDetail ?? topDetail,
+        listOnly: s.listOnly,
         match: s.match,
         // 渲染模式合并：section 显式值优先，否则继承站点级（render 已含站点顶层；renderList/renderDetail 同理）
         render: s.render ?? cfg.render,
@@ -234,6 +235,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       listTraversal: topTraversal,
       parseList: cfg.parseList,
       parseDetail: topDetail,
+      listOnly: cfg.listOnly,
       // 单规则站点：渲染模式直接取站点级（无 section 覆盖）
       render: cfg.render,
       renderList: cfg.renderList,

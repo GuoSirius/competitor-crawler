@@ -204,6 +204,12 @@ export interface SectionConfig {
   /** 该栏目单独的详情页规则；省略则回退顶层 parseDetail */
   parseDetail?: DetailParseConfig;
   /**
+   * 仅列表模式（contents 内容管线专用）：条目本身即终态、无详情页可抓（如文件下载直链、
+   * SPA 单页数据），跳过详情阶段，列表快照（title=列表 name / detailUrl / row）直接入库。
+   * products 产品管线不支持（价格/规格必须有详情阶段）。
+   */
+  listOnly?: boolean;
+  /**
    * 该栏目单独的渲染模式（覆盖站点级 render）：ssr/spa/auto。
    * 用于 Hybrid 站点：同站内不同栏目用不同渲染模式（如产品列表 ssr、新闻列表 spa）。
    * 列表/详情分别指定见 renderList / renderDetail（更细粒度）。
@@ -277,6 +283,11 @@ export interface SiteConfig {
   contentType?: string;
   /** @deprecated 旧名，等价 contentType */
   collects?: string;
+  /**
+   * 仅列表模式（contents 内容管线专用，语义同 SectionConfig.listOnly）。
+   * 单规则写法直接写顶层；多规则站点不继承——需逐 section 显式声明。
+   */
+  listOnly?: boolean;
   /** 列表页入口 URL（单规则写法用；多规则时作为各 section 的默认起点） */
   startUrl?: string;
   /**
@@ -319,6 +330,8 @@ export interface ResolvedSection {
   listTraversal: ListTraversalConfig;
   parseList: ListParseConfig;
   parseDetail: DetailParseConfig;
+  /** 仅列表模式（透传自 SectionConfig.listOnly，contents 管线跳过详情阶段） */
+  listOnly?: boolean;
   match?: SectionConfig['match'];
   /**
    * 该栏目最终生效的渲染模式（已合并顶层 render：section.render ?? 站点 render）。
