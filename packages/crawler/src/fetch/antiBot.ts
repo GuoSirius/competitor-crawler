@@ -74,6 +74,9 @@ export function stealthContextOptions(env: StealthEnv = DEFAULT_STEALTH_ENV) {
     deviceScaleFactor: 1,
     hasTouch: false,
     isMobile: false,
+    // 部分国内站证书链不全（索莱宝 elabox.cn / 美森 ctcc.online 实测 ERR_CERT_AUTHORITY_INVALID）
+    // ——是证书问题不是反爬；抓取场景不涉及支付，忽略之，否则整站误判为不可达
+    ignoreHTTPSErrors: true,
     extraHTTPHeaders: {
       'Accept-Language': `${e.locale},${langOnly(e.locale)};q=0.9`,
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',

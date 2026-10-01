@@ -123,6 +123,10 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
     const inventory = loadInventory();
     targets = buildTargets(group, inventory);
   }
+  // --only <关键词1,关键词2>：只跑命中的站（重跑失败组用，如首轮 CHALLENGED 组）
+  const onlyRaw = typeof flags.only === 'string' ? flags.only : '';
+  const only = onlyRaw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (only.length > 0) targets = targets.filter((t) => only.some((k) => t.company.includes(k)));
   const shown = targets.slice(0, limit);
   console.log(`\n[sweep] 目标 ${shown.length}/${targets.length} 站 · 模式 ${mode} · headless=${headless}\n`);
 
