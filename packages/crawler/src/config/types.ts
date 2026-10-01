@@ -100,11 +100,12 @@ export interface ListTraversalConfig {
   fallbackToUi?: boolean;
   /**
    * URL 模板翻页（strategy='pagination-url' 时必填）。
-   * 基于该 section 的**首个 startUrl** 拼装每页 URL，把 `{page}` 替换为页码。
-   * 支持三种写法（见 docs/05 §5.4）：
-   *   - 完整 URL：`https://x.com/list?page={page}` → 直接用
-   *   - 查询串后缀：`?page={page}` / `&p={page}` → 合并进 base 的 query（覆盖同名参数）
-   *   - 绝对路径：`/c/{page}` → 取 base 的 origin + 该路径
+   * 把 `{page}` 替换为页码；base 是**当前正在翻页的入口 URL**——traverseList 对
+   * startUrls 数组逐个调用，每个入口各自以自己为 base 翻页（并非只用首个 startUrl）。
+   * 按模板开头字符判定三种写法（见 docs/05 §5.4）：
+   *   - 完整 URL：`https://x.com/a/b/{page}?cat=5` → 全局替换占位符，其余（含 ?query）原样保留
+   *   - 绝对路径：`/c/{page}` → 取当前入口的 origin + 替换后的模板串（模板里 ?query 同样保留）
+   *   - 查询串后缀：`?page={page}` / `&p={page}` → 参数并进当前入口的 query（覆盖同名参数，保留其余参数）
    */
   urlTemplate?: string;
   /** 起始页码（默认 1；部分站点从 0 或 2 起算）。仅 pagination-url 支持（UI 点击无法跳页） */

@@ -46,11 +46,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * 拼装第 `page` 页的 URL（pagination-url 策略用）。
  *
- * @param base 该 section 的首个 startUrl
- * @param template 含 `{page}` 占位符的模板，支持三种写法：
- *   - 完整 URL：`https://x.com/list?page={page}` → 直接替换占位符
- *   - 查询串后缀：`?page={page}` / `&p={page}` → 合并进 base 的 query（覆盖同名参数）
- *   - 绝对路径：`/c/{page}` → 取 base 的 origin + 该路径
+ * @param base 当前正在翻页的入口 URL（traverseList 对 startUrls 数组逐个调用，
+ *             每个入口各自以自己为 base 翻页——不是只用首个 startUrl）
+ * @param template 含 `{page}` 占位符的模板，按**模板开头**字符判定写法：
+ *   - 完整 URL（http(s):// 开头）：`https://x.com/a/b/{page}?cat=5` → 全局替换占位符，其余（含 ?query）原样保留
+ *   - 绝对路径（/ 开头）：`/c/{page}` → 取 base 的 origin + 替换后的模板串（模板里的 ?query 同样保留）
+ *   - 查询串后缀（? / & 开头）：`?page={page}` → 参数并进 base 的 query（覆盖同名参数，保留 base 其余参数）
  */
 export function buildPageUrl(base: string, template: string, page: number): string {
   const pageStr = String(page);
