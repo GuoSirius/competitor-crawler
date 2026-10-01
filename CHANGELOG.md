@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.5.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.4.0...v1.5.0) (2026-10-01)
+
+
+### 📚 文档 (Documentation)
+
+* 命令手册补 validate/field-docs;问题清单挂入口与match机制速查图 ([be30939](https://github.com/GuoSirius/competitor-crawler/commit/be30939cc83e500d8f609cd32aa98c4f837b3ed7))
+* 修正 urlTemplate base 注释——当前入口逐个翻页而非首个 startUrl ([ccd3249](https://github.com/GuoSirius/competitor-crawler/commit/ccd324946a3172a8c983f1489400cc408ae94153))
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **sites:** material 移除多余 maxPages——纯列表无翻页控件自然终止，注释修正机制描述 ([06e9fde](https://github.com/GuoSirius/competitor-crawler/commit/06e9fde9a376d0ed01f56d79b03e2b04bb858ff5))
+* **sites:** procell 多规则化并接入技术资源四栏目(alerts/school/guide/video) ([7a4c6c1](https://github.com/GuoSirius/competitor-crawler/commit/7a4c6c19c0fa2bd01bed5e37830e32fb08c76dd1))
+* **sites:** procell 接入 material 宣传资料栏目（listOnly+spa）；资源四栏目 strip 保留技术资源前缀 ([5a1b734](https://github.com/GuoSirius/competitor-crawler/commit/5a1b734e0ee1ae3506608bc9b8bc82ad5eb01541))
+* **sites:** procell 内容四栏目开启 bodyHtml 富文本抽取（material 仅列表不加） ([2ddba67](https://github.com/GuoSirius/competitor-crawler/commit/2ddba67506c872002584ff141e600bac689253b3))
+* **sites:** procell material 显式关闭翻页（一次全量返回，不继承站点级 ?page={page}） ([9b9453f](https://github.com/GuoSirius/competitor-crawler/commit/9b9453f4424cdc70a664587fd7b7eb8f0aacd1c4))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* contents 栏目配 name 等价 title（管线标题链），validate 不再误报缺必填 ([aecaa71](https://github.com/GuoSirius/competitor-crawler/commit/aecaa7179ca4981fc814f38692a2d200932e2876))
+* **contents:** 列表阶段字段兜底——详情没抽到就回退 parseList（sourceId/summary/body/author/date）+ 行 JSON 补列表独有字段 ([d009ac6](https://github.com/GuoSirius/competitor-crawler/commit/d009ac69f7c30c16d25e0ae1ba082668123a93ce))
+* **contents:** 内容条目挂真实面包屑分类（不再只有 <domain>::<key> 锚点） ([4b8e3a5](https://github.com/GuoSirius/competitor-crawler/commit/4b8e3a512b1f16d03c8da4f491118f06e65090ea))
+
+
+### 🚀 新功能 (Features)
+
+* 字段注册表+配置校验(Q1)与两阶段合并注册表驱动+不一致审计(Q2) ([89d2c09](https://github.com/GuoSirius/competitor-crawler/commit/89d2c095ca3714fda4cfdc0b544ac1a7e0ce42a1))
+* **cli:** 参数统一——站点标识 --domain（site 别名）、--max-pages 消 pages/page-start 歧义、help 分组输出 ([87a999e](https://github.com/GuoSirius/competitor-crawler/commit/87a999e8ea28a6be79db1a9dfaba7293ec455074))
+* contents 富文本留存——FieldSpec 加 html 选项 + body_html 列（默认不抽，YAML html:true 才存） ([64c46b5](https://github.com/GuoSirius/competitor-crawler/commit/64c46b5297fd7591d32900cc0dc2b6dddfa3a2db))
+* **contents:** 内容栏目落分类节点——categories 建树 + contents.category_id 回写 ([7c2ecfd](https://github.com/GuoSirius/competitor-crawler/commit/7c2ecfd7727cebc8b94d42dde6c5c7a40f3b42ba))
+* **crawl:** 两阶段字段不一致告警带明细（身份键 + 详情/列表取值） ([d3ff848](https://github.com/GuoSirius/competitor-crawler/commit/d3ff8481b139cfeecfa6012fe9db91c0f6dccda4))
+* **field-docs:** 打印字段名→落库列对照（新增 dbColumnOf + --domain 站点视图） ([1422803](https://github.com/GuoSirius/competitor-crawler/commit/14228030da477ecabc8eebe522fe470e8917c0cb))
+* hash 翻页模板显式报错与校验；match 速查图改为零调用定位叙事 ([084f86b](https://github.com/GuoSirius/competitor-crawler/commit/084f86bc8b9af834541ffbed152d033bfc8f144d))
+* listOnly 仅列表模式（contents 跳过详情直接入库）+ title 链加 it.raw?.title 兜底 ([624b366](https://github.com/GuoSirius/competitor-crawler/commit/624b36670c78b1863201f871fd319bd3dd9b6967))
+* listTraversal 支持 strategy none——不翻页的栏目可局部关停（顶层 pagination-url 照留） ([43e684f](https://github.com/GuoSirius/competitor-crawler/commit/43e684f71d4936bc65e9b9699fcca7894f75a13d))
+
 ## [1.4.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.3.0...v1.4.0) (2026-09-30)
 
 
