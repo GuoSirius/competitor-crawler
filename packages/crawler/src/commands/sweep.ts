@@ -173,10 +173,11 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
     verdicts.push({ company, mode: row.mode, result: row.result, category });
   }
 
-  // 报告落盘：data/seeds/sweep-<stamp>.md
+  // 报告落盘：.tmp/sweep/sweep-<stamp>.md（.tmp 整体 gitignore，临时产物不进仓库）
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-  const outPath = join(dataDir, 'seeds', `sweep-${stamp}.md`);
-  mkdirSync(join(dataDir, 'seeds'), { recursive: true });
+  const outDir = join(dataDir, '..', '.tmp', 'sweep');
+  const outPath = join(outDir, `sweep-${stamp}.md`);
+  mkdirSync(outDir, { recursive: true });
   const lines = [
     `# sweep 复探报告 ${stamp}`,
     '',
