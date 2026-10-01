@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { repoRoot } from '@competitor-crawler/shared';
 import { Progress } from '../util/progress.js';
 import {
   DEFAULT_STEALTH_ENV,
@@ -198,19 +201,35 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
 }
 
 /**
- * 挑战页自动放行等待：读到挑战页不立即判死——但**只有非交互型挑战才等**。
- * sweep 实测教训（2026-10-01，29 站两轮）：CF「Just a moment」非交互盾会自动跳转，
- * 值得等；而 reCAPTCHA / PerimeterX / Imperva / CF IP-ban（Attention Required）是
- * 交互型/封禁型，等多久都不会放行——对它们等待纯属每站浪费 ~150s（三站实测踩过）。
- * 轮次耗尽仍拦截才抛 ChallengeError。
+ * 挑战页处理（三层递进）：
+ * 1. 非交互型挑战（CF「Just a moment」）：轮询等待自动放行（5 轮×6s）——
+ *    sweep 实测教训：reCAPTCHA / PerimeterX / Imperva / IP-ban 属交互型，等多久都不放行；
+ * 2. 交互型挑战 + 有头 + CRAWL_INTERACTIVE≠false：**等待人工过盾**（最长 180s）——
+ *    用户在弹出的浏览器窗口里点一次验证码/滑块，程序检测到挑战消失即通过；
+ * 3. 过盾成功（自动或人工）→ **storageState 持久化**到 `.runtime/state/<host>.json`，
+ *    后续所有轮次自动加载 cookie，不再触发挑战（人工过盾一次、长期复用）。
  */
 function isAutoPassableChallenge(hit: ChallengeHit): boolean {
   if (hit.kind !== 'cloudflare') return false; // 其余类型（captcha/px/imperva/aliyun）均需人工交互
   return /just a moment|checking your browser|enable javascript and cookies/i.test(hit.matched);
 }
 
+function interactive(): boolean {
+  return process.env.CRAWL_INTERACTIVE !== 'false' && process.env.CRAWL_INTERACTIVE !== '0';
+}
+
+/** 会话持久化路径：按站点 host 一档（人工过盾成果长期复用的载体） */
+function statePathOf(url: string): string {
+  const host = new URL(url).hostname;
+  return join(repoRoot, '.runtime', 'state', `${host}.json`);
+}
+
+const HUMAN_WAIT_ROUNDS = 36; // 人工过盾等待：36 × 5s = 180s
+const HUMAN_WAIT_MS = 5_000;
+
 async function waitForChallengePass(
   page: import('playwright').Page,
+  ctx: import('playwright').BrowserContext,
   url: string,
   progress?: Progress,
 ): Promise<string> {
@@ -223,6 +242,25 @@ async function waitForChallengePass(
     html = await page.content();
     hit = detectChallenge(html);
   }
+  // 交互型挑战：有头 + 允许交互时，等用户在浏览器窗口里人工过盾
+  if (hit && interactive() && !headlessEnv()) {
+    const sp = statePathOf(url);
+    progress?.log(`挑战页[${hit.kind}] 请在弹出的浏览器窗口完成人机验证（最长 ${Math.round((HUMAN_WAIT_ROUNDS * HUMAN_WAIT_MS) / 1000)}s），通过后会话将持久化`);
+    for (let i = 0; hit && i < HUMAN_WAIT_ROUNDS; i++) {
+      await page.waitForTimeout(HUMAN_WAIT_MS);
+      html = await page.content();
+      hit = detectChallenge(html);
+    }
+    if (!hit) {
+      try {
+        mkdirSync(dirname(sp), { recursive: true });
+        await ctx.storageState({ path: sp });
+        progress?.log(`人工过盾成功，会话已持久化 → ${sp}（后续轮次自动复用，不再弹盾）`);
+      } catch { /* 持久化失败不影响本次结果 */ }
+      await waitForSpaSettle(page);
+      return await page.content();
+    }
+  }
   if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
   return html;
 }
@@ -234,14 +272,22 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
   const browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   try {
     const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
-    const page = await newStealthPage(browser, undefined, env);
+    // 会话复用：曾人工过盾的站点直接带 cookie 进场（.runtime/state/<host>.json）
+    const sp = statePathOf(url);
+    const ctx = await browser.newContext({
+      ...stealthContextOptions(env),
+      ...(existsSync(sp) ? { storageState: sp } : {}),
+    });
+    const page = await ctx.newPage();
+    const profile = env.profile ?? 'mid';
+    if (profile !== 'none') await page.addInitScript(stealthInitSource(profile));
     // 进站前留一点"读页面"的时间，避免 goto 即操作这种机器节奏
     await humanPause([350, 1200]);
     // 不用 networkidle 等待：ATCC/Coveo 这类站有长连接/埋点轮询，networkidle 永远等不到（超时）。
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
     await waitForSpaSettle(page);
-    return await waitForChallengePass(page, url, progress);
+    return await waitForChallengePass(page, ctx, url, progress);
   } finally {
     await browser.close().catch(() => {});
   }
