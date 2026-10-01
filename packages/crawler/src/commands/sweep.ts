@@ -74,8 +74,14 @@ export interface SweepRow {
   title: string;
   /** <a href> 锚点总数（过了 WAF 才有意义；0=拿到壳但没内容） */
   anchors: number;
+  /** 产品详情锚点数（启发式：href 含 /product /goods /p/ /item /detail /sku）——
+   *  「可配置性」的核心判据：>=10 视为结构明确可解析，1~9 部分明确，0 为壳/需换入口 */
+  productAnchors: number;
   seconds: number;
 }
+
+/** 产品详情链接启发式匹配（宁漏勿误：只认高置信度词根） */
+const PRODUCT_HREF_RE = /href="([^"]*(?:\/product|\/goods|\/p\/|\/item|\/detail|sku)[^"]*)"/gi;
 
 function classify(html: string): { result: string; hit: ChallengeHit | null } {
   const hit = detectChallenge(html);
@@ -88,7 +94,7 @@ async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean):
   const t0 = Date.now();
   const base: SweepRow = {
     company: t.company, url: t.url, mode, result: 'ERR', bytes: 0, title: '', anchors: 0,
-    seconds: 0,
+    productAnchors: 0, seconds: 0,
   };
   try {
     const html = await fetchPage(t.url, mode, progress, undefined, { headless });
@@ -100,6 +106,7 @@ async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean):
       bytes: html.length,
       title: /<title[^>]*>([^<]{0,120})/i.exec(html)?.[1]?.trim() ?? '',
       anchors: html.match(/<a\s+[^>]*href/gi)?.length ?? 0,
+      productAnchors: new Set((html.match(PRODUCT_HREF_RE) ?? []).map((m) => m.replace(/^href="/, '').replace(/"$/, ''))).size,
       seconds: Math.round((Date.now() - t0) / 100) / 10,
     };
   } catch (e) {
@@ -121,7 +128,8 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
     targets = [{ company: domain, url: singleUrl, home: singleUrl }];
   } else {
     const inventory = loadInventory();
-    targets = buildTargets(group, inventory);
+    // --all：全量（inventory 里所有公司）；否则按 group 关键词过滤
+    targets = flags.all ? inventory.map((e) => ({ company: e.company, url: e.urls[0]?.url ?? e.website, home: e.website })) : buildTargets(group, inventory);
   }
   // --only <关键词1,关键词2>：只跑命中的站（重跑失败组用，如首轮 CHALLENGED 组）
   const onlyRaw = typeof flags.only === 'string' ? flags.only : '';
@@ -137,8 +145,32 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
       process.stdout.write(`  → ${t.company} [${m}] ${t.url} … `);
       const r = await sweepOne(t, m, headless);
       rows.push(r);
-      console.log(`${r.result} · ${r.bytes}B · ${r.anchors} anchors · ${r.seconds}s`);
+      console.log(`${r.result} · ${r.bytes}B · ${r.anchors} anchors · 产品${r.productAnchors} · ${r.seconds}s`);
+      // 智能跳过：ssr 已 OK 且产品锚点 ≥10（结构明确可解析），spa 大概率是重复劳动，跳过省一半时间
+      if (m === 'ssr' && mode === 'both' && r.result === 'OK' && r.productAnchors >= 10) break;
     }
+  }
+
+  // ── 站点级四类汇总（用户口径：可成功/不成功/可明确配置/部分明确/完全不明确）──
+  type SiteVerdict = { company: string; mode: 'ssr' | 'spa'; result: string; category: string };
+  const byCompany = new Map<string, SweepRow[]>();
+  for (const r of rows) {
+    const arr = byCompany.get(r.company) ?? [];
+    arr.push(r);
+    byCompany.set(r.company, arr);
+  }
+  const verdicts: SiteVerdict[] = [];
+  for (const [company, rs] of byCompany) {
+    // 取该站最佳一行：OK 优先，产品锚点多者优先，spa 优先于 ssr（同锚点时 spa 内容更全）
+    const okRows = rs.filter((r) => r.result === 'OK');
+    const best = okRows.sort((a, b) => (b.productAnchors - a.productAnchors) || (a.mode === 'spa' ? -1 : 1))[0];
+    const row = best ?? rs[0]!;
+    let category: string;
+    if (row.result !== 'OK') category = `❌ 不成功（${row.result}）`;
+    else if (row.productAnchors >= 10) category = `✅ 可明确配置（${row.mode}，产品锚点 ${row.productAnchors}）`;
+    else if (row.productAnchors >= 1) category = `🔶 部分明确（${row.mode}，产品锚点 ${row.productAnchors}，需换入口/下钻）`;
+    else category = `❓ 结构不明确（${row.mode}，无产品锚点：壳/懒加载/接口形态）`;
+    verdicts.push({ company, mode: row.mode, result: row.result, category });
   }
 
   // 报告落盘：data/seeds/sweep-<stamp>.md
@@ -150,14 +182,29 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
     '',
     `模式 ${mode} · headless=${headless} · 目标 ${shown.length} 站`,
     '',
-    '| 公司 | 模式 | 结果 | 字节 | title | 锚点 | 耗时s |',
-    '|---|---|---|---|---|---|---|',
+    '## 站点级结论（四类清单）',
+    '',
+    '| 公司 | 结论 | 最佳通道 | 原始结果 |',
+    '|---|---|---|---|',
+    ...verdicts.map((v) => `| ${v.company} | ${v.category} | ${v.mode} | ${v.result} |`),
+    '',
+    '## 明细',
+    '',
+    '| 公司 | 模式 | 结果 | 字节 | title | 锚点 | 产品锚点 | 耗时s |',
+    '|---|---|---|---|---|---|---|---|',
     ...rows.map((r) =>
-      `| ${r.company} | ${r.mode} | ${r.result} | ${r.bytes} | ${(r.title || '—').replace(/\|/g, '/')} | ${r.anchors} | ${r.seconds} |`,
+      `| ${r.company} | ${r.mode} | ${r.result} | ${r.bytes} | ${(r.title || '—').replace(/\|/g, '/')} | ${r.anchors} | ${r.productAnchors} | ${r.seconds} |`,
     ),
     '',
-    '> 判读：OK+锚点多 → 可接；OK+锚点 0 → 过了 WAF 但要下钻/换入口；CHALLENGED → 未过；ERR → 网络/TLS 层。',
+    '> 判读：产品锚点 = href 含 /product /goods /p/ /item /detail /sku 的去重链接数（启发式）。',
+    '> ✅ ≥10 结构明确可解析；🔶 1~9 需换入口/下钻；❓ 0 为壳/懒加载/接口形态；❌ CHALLENGED/ERR 未可达。',
   ];
   writeFileSync(outPath, lines.join('\n'), 'utf-8');
   console.log(`\n[sweep] 报告已写入 ${outPath}`);
+  // 控制台也打四类摘要
+  const cat = (s: string) => verdicts.filter((v) => v.category.startsWith(s)).map((v) => v.company);
+  console.log(`\n✅ 可明确配置 ${cat('✅').length} 站：${cat('✅').join('、') || '—'}`);
+  console.log(`🔶 部分明确 ${cat('🔶').length} 站：${cat('🔶').join('、') || '—'}`);
+  console.log(`❓ 结构不明确 ${cat('❓').length} 站：${cat('❓').join('、') || '—'}`);
+  console.log(`❌ 不成功 ${cat('❌').length} 站：${cat('❌').join('、') || '—'}`);
 }
