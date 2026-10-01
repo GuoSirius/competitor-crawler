@@ -11,14 +11,21 @@ import { backfill } from './commands/backfill.js';
 import { report } from './commands/report.js';
 import { runValidate, runFieldDocs } from './commands/validate.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
-import { parseFlags } from './util/args.js';
+import { parseFlags, normalizeAliases } from './util/args.js';
 
 // 路径统一由 shared/src/paths.ts 提供（不再本地上溯算层级）
 const seedsJson = path.join(dataDir, 'seeds', 'seeds.json');
 
 async function main() {
   const cmd = process.argv[2];
-  const flags = parseFlags(process.argv.slice(3));
+  // 别名归一化（--domain/--max-pages/--page-offset/--page-size；旧名仍可用）
+  const flags = normalizeAliases(parseFlags(process.argv.slice(3)));
+
+  // --help / -h：只看用法，不执行
+  if (flags.help === true || flags.h === true) {
+    printHelp(cmd);
+    return;
+  }
 
   if (cmd === 'seed') {
     const out = await xlsxToSeeds();
@@ -78,13 +85,14 @@ async function main() {
       return Number(raw);
     };
     await crawl({
-      site: typeof flags.site === 'string' ? flags.site : undefined,
+      // --domain（--site 别名）统一为站点参数；内部字段名保持 site（断点/CrawlState 语义不变）
+      site: typeof flags.domain === 'string' ? flags.domain : undefined,
       dryRun: flags['dry-run'] === true || flags['dry-run'] === 'true',
-      pages: num('pages'),
+      pages: num('max-pages'),
       pageStart: num('page-start'),
       pageEnd: num('page-end'),
-      offset: num('offset'),
-      perPage: num('per-page'),
+      offset: num('page-offset'),
+      perPage: num('page-size'),
       limit: num('limit'),
       render: typeof flags.render === 'string' ? flags.render : undefined,
       source: typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : undefined,
@@ -104,7 +112,7 @@ async function main() {
     });
   } else if (cmd === 'validate') {
     // 校验全部（或 --site 指定）站点字段配置；存在 error 级问题时退出码置 1（CI 门禁用）
-    const errs = runValidate({ site: typeof flags.site === 'string' ? flags.site : undefined });
+    const errs = runValidate({ domain: typeof flags.domain === 'string' ? flags.domain : undefined });
     if (errs > 0) process.exitCode = 1;
   } else if (cmd === 'field-docs') {
     runFieldDocs();
@@ -125,14 +133,62 @@ async function main() {
       await runScheduledCrawl({ source });
     }
   } else {
-    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|validate|field-docs|schedule|report> [--flags]');
-    console.log('  validate 额外参数: --site <domain>（省略则校验 config/sites 下全部站点）；存在 error 级问题退出码 1');
-    console.log('  field-docs: 打印内建字段字典（products / contents 各字段的类型/阶段/必填/身份键说明）');
-    console.log('  crawl 额外参数: --source config|seeds (默认 config；seeds 为 Excel 初始化导入后的一次性场景) --site <d[,d2..]> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');
-    console.log('  crawl 分页/条数（覆盖 YAML listTraversal，显式传入生效）: --page-start <n> 起始页 / --page-end <n> 终止页(闭区间，仅 pagination-url) / --offset <n> 每页条目偏移 / --per-page <n> 每页最多条数；--pages 与 YAML maxPages 取小（安全护栏）');
-    console.log('  crawl 断点续跑（docs/16 规模化兜底）: --resume [<文件>] 中断后续跑——不带值自动取最新断点；已完成栏目跳过、已落库详情不重抓。运行中断时会打印续跑命令');
-    console.log('  schedule 额外参数: --daemon（常驻守护，按季度首月 1 日 03:00 触发，北京时间口径）');
+    printHelp(cmd);
   }
+}
+
+/**
+ * 用法输出（分组打印，替代原来一长串 usage 行）。
+ * `cli <cmd> --help` 与不带参数、未知命令都会走到这里；已知命令则只打印该命令的参数。
+ */
+function printHelp(cmd?: string): void {
+  const known = new Set([
+    'seed', 'probe', 'gen-site', 'gen-site-batch', 'gen-site-template',
+    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report',
+  ]);
+  const all = cmd === undefined || cmd === 'help' || !known.has(cmd);
+  if (all) {
+    console.log('用法: pnpm <cmd> [--flags]\n');
+    console.log('常用:');
+    console.log('  crawl               抓全站（config/sites/*.yaml 为范围真相源）');
+    console.log('  validate            校验站点字段配置（存在 error 退出码 1，CI 门禁用）');
+    console.log('  probe --domain x    列表/详情结构探针（不落库）');
+    console.log('  gen-site --domain x 生成站点 YAML 草稿');
+    console.log('  report              跑爬取报表（默认控制台；--excel --charts 出文件）');
+    console.log('  schedule            定时抓取（--daemon 常驻；默认跑一次）');
+    console.log('  seed                从 Excel 提取种子并入库');
+    console.log('  field-docs          打印内建字段字典');
+  }
+  console.log('\n通用参数（crawl / probe / validate / gen-site 均支持，站点标识统一 --domain）：');
+  console.log('  --domain <d>        站点域名（等价旧名 --site，仍可用）');
+  console.log('  --section <key>     只跑指定栏目（crawl / probe）');
+  console.log('  --render ssr|spa|auto  渲染模式覆盖（crawl / probe / gen-site）');
+  console.log('  --dry-run           解析不落库（crawl）');
+  if (all || cmd === 'crawl') {
+    console.log('\ncrawl 翻页 / 条数（覆盖 YAML listTraversal，显式传入生效）：');
+    console.log('  --max-pages <n>     最多抓几页（数量护栏，与 YAML maxPages 取小；旧名 --pages 可用）');
+    console.log('  --page-start <n>    从第几页开始（页码起点）');
+    console.log('  --page-end <n>      到第几页（闭区间，仅 pagination-url）');
+    console.log('  --page-offset <n>   每页条目起始偏移（旧名 --offset）');
+    console.log('  --page-size <n>     每页最多条数（旧名 --per-page；与总条数 --limit 不同）');
+    console.log('  --limit <n>         详情阶段总条目上限');
+    console.log('  --resume [<文件>]   断点续跑（不带值取 .crawl-state/ 最新断点）');
+    console.log('  --source config|seeds  爬取范围来源（默认 config）');
+    console.log('  --category <名> / --product-line <线>  按品类/产品线过滤');
+  }
+  if (all || cmd === 'probe') {
+    console.log('\nprobe：--domain <d>（必填） --sample <n> --detail <n> --list-url <url> --section <key> --render <mode>');
+  }
+  if (all || cmd === 'gen-site') {
+    console.log('\ngen-site：--domain <d>（必填） --list-url <url> --detail-url <url> --company-key <k> --competitor-type <t> --role <r> --currency <c> --render <mode> --notes <文本>');
+  }
+  if (all || cmd === 'validate') {
+    console.log('\nvalidate：--domain <d>（省略则校验 config/sites 下全部站点）；存在 error 退出码 1');
+  }
+  if (all || cmd === 'schedule') {
+    console.log('\nschedule：--daemon（常驻守护，按季度首月 1 日 03:00 触发，北京时间口径）');
+  }
+  if (all) console.log('\n提示：`pnpm <cmd> --help` 只打印该命令的参数。');
 }
 
 main().catch((e) => {

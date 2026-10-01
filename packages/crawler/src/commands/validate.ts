@@ -9,14 +9,15 @@ import { validateSiteConfig, formatIssues, hasErrors } from '../config/validate.
 import { PRODUCT_FIELDS, CONTENT_FIELDS, type FieldMeta } from '@competitor-crawler/shared';
 
 export interface ValidateOpts {
-  site?: string;
+  /** 站点域名；省略则校验 config/sites 下全部站点（与 crawl 的 --domain 同义，旧名 --site 已由 CLI 别名归一） */
+  domain?: string;
 }
 
 /** 返回 error 级问题数（>0 即 CI 应失败） */
 export function runValidate(opts: ValidateOpts = {}): number {
-  const domains = opts.site ? [opts.site] : listSiteConfigs();
+  const domains = opts.domain ? [opts.domain] : listSiteConfigs();
   if (domains.length === 0) {
-    console.log('没有可校验的站点配置（config/sites 为空，或 --site 指定的站点不存在）');
+    console.log('没有可校验的站点配置（config/sites 为空，或 --domain 指定的站点不存在）');
     return 0;
   }
   let errorCount = 0;
