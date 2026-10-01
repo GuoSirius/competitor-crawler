@@ -29,19 +29,6 @@ parseList:
     name:
       sel: ".s-list-div:nth-child(1) a"
       attr: data-title
-    # 货号在名称文本的全角括号里：特级胎牛血清（164210）
-    sku:
-      sel: ".s-list-div:nth-child(1) a"
-      text: true
-      regex: "（([A-Za-z0-9-]+)）"
-    specText:
-      sel: ".s-list-div:nth-child(2) p:contains(规格)"
-      text: true
-      regex: '规格：\s*(.*)'
-    priceText:
-      sel: ".s-list-div:nth-child(2) p:contains(价格)"
-      text: true
-      regex: '价格：\s*(.*)'
 
 parseDetail:
   captureRest: true
