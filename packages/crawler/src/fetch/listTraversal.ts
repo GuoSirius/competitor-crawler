@@ -1,5 +1,7 @@
 import type { ListTraversalConfig } from '../config/types.js';
 import { fetchPage, waitForSpaSettle, type RenderMode } from './page.js';
+import { stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
+import { humanClick, humanPause } from './human.js';
 import { Progress } from '../util/progress.js';
 
 export interface TraverseOpts {
@@ -170,7 +172,10 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   let browser: import('playwright').Browser | null = null;
   try {
     const { chromium } = await import('playwright');
-    browser = await chromium.launch();
+    // 与 spaFetch 同口径 stealth：旧实现这里用的是裸 launch（无 initScript、无 timezone/locale），
+    // 「点下一页」比「取 HTML」更像真人操作，反而反检测最弱 —— 补上。
+    const headless = process.env['CRAWL_BROWSER_HEADLESS'] === 'true' || process.env['CRAWL_BROWSER_HEADLESS'] === '1';
+    browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   } catch (e) {
     // Playwright 不可用（未安装内核等）→ 回退单页，保证不整轮失败
     opts.progress?.log(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
@@ -182,7 +187,10 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   let pages = 0;
   let items = 0;
   try {
-    const page = await browser.newPage();
+    const ctx = await browser.newContext(stealthContextOptions());
+    await ctx.addInitScript(stealthInitSource('mid'));
+    const page = await ctx.newPage();
+    await humanPause([400, 1400]);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     // SPA 首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
     // 否则首次 page.content() 拿到空壳 → 解析 0 条直接终止
@@ -232,11 +240,12 @@ async function clickNext(page: import('playwright').Page, nextSelector?: string)
     });
     if (disabled) return false;
 
-    await loc.click({ timeout: 15000 });
-    // 等待重渲染：networkidle 可能不触发，兜底固定短延时
+    // 拟人点击：贝塞尔轨迹 + 元素内随机落点 + 前后随机停顿（替代原生瞬移点击）
+    await humanClick(loc);
+    // 等待重渲染：networkidle 可能不触发，兜底用随机停顿（固定 1200ms 也是机器特征）
     await Promise.race([
       page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {}),
-      sleep(1200),
+      humanPause([900, 2600]),
     ]);
     return true;
   } catch {

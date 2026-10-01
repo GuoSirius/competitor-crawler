@@ -1,4 +1,14 @@
 import { Progress } from '../util/progress.js';
+import {
+  DEFAULT_STEALTH_ENV,
+  detectChallenge,
+  stealthArgs,
+  stealthContextOptions,
+  stealthInitSource,
+  type ChallengeKind,
+  type StealthEnv,
+} from './antiBot.js';
+import { humanPause } from './human.js';
 
 /**
  * 默认 UA：用桌面 Chrome 标识。早期用 `CompetitorCrawler/0.1` Bot UA，
@@ -13,36 +23,34 @@ export const DEFAULT_UA =
 // `navigator.webdriver`、缺失的 sec-ch-ua、非浏览器 UA 等指纹拦截（返回 403/挑战页）。
 // 这里统一加 stealth：禁 AutomationControlled 标志 + 覆盖 webdriver/plugins +
 // 补齐真实浏览器的 UA 与 sec-ch-ua 系列请求头。实测可过绝大多数 WAF。
-const STEALTH_ARGS = [
-  '--no-sandbox',
-  '--disable-blink-features=AutomationControlled',
-  '--disable-dev-shm-usage',
-];
+const STEALTH_ARGS = stealthArgs();
+
+/** 风控/挑战页错误：与「抓取失败（网络/404）」区分开，供上层记 SITE_CHALLENGED。 */
+export class ChallengeError extends Error {
+  kind: ChallengeKind;
+  constructor(kind: ChallengeKind, url: string, matched: string) {
+    super(`CHALLENGED[${kind}] ${matched} @ ${url}`);
+    this.name = 'ChallengeError';
+    this.kind = kind;
+  }
+}
 
 type Browser = import('playwright').Browser;
 type Page = import('playwright').Page;
 
 /** 开一个带 stealth 的页面（复用浏览器实例，跨站点调用降低启动开销）。 */
-async function newStealthPage(browser: Browser, viewport?: { width: number; height: number }): Promise<Page> {
+async function newStealthPage(
+  browser: Browser,
+  viewport?: { width: number; height: number },
+  env: StealthEnv = DEFAULT_STEALTH_ENV,
+): Promise<Page> {
   const ctx = await browser.newContext({
-    userAgent: DEFAULT_UA,
-    locale: 'en-US',
-    viewport,
-    extraHTTPHeaders: {
-      'Accept-Language': 'en-US,en;q=0.9',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'Upgrade-Insecure-Requests': '1',
-    },
+    ...stealthContextOptions(env),
+    ...(viewport ? { viewport } : {}),
   });
   const page = await ctx.newPage();
-  await page.addInitScript(() => {
-    try { Object.defineProperty(navigator, 'webdriver', { get: () => undefined }); } catch {}
-    try { Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] as unknown as PluginArray }); } catch {}
-    try { Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); } catch {}
-  });
+  const profile = env.profile ?? 'mid';
+  if (profile !== 'none') await page.addInitScript(stealthInitSource(profile));
   return page;
 }
 
@@ -58,18 +66,36 @@ export type RenderMode = 'ssr' | 'spa' | 'auto';
  * `headers`：附加请求头（如代码适配器 preflight 拿到的 Cookie，docs/16 🔴-2），
  * 合并进 ssr 默认浏览器头（同名键覆盖）；spa 模式由浏览器自管 Cookie，此参数忽略。
  */
+export interface FetchOpts {
+  /** 隐身/指纹环境（默认 DEFAULT_STEALTH_ENV：mid + Asia/Shanghai + zh-CN） */
+  stealth?: Partial<StealthEnv>;
+  /** 覆盖 headless（默认取 env CRAWL_BROWSER_HEADLESS，未设=有头，本机桌面更隐蔽） */
+  headless?: boolean;
+}
+
 export async function fetchPage(
   url: string,
   mode: RenderMode = 'auto',
   progress?: Progress,
   headers?: Record<string, string>,
+  opts: FetchOpts = {},
 ): Promise<string> {
-  if (mode === 'spa') return spaFetch(url, progress);
-  const html = await ssrFetch(url, progress, headers);
+  if (mode === 'spa') return spaFetch(url, progress, opts);
+  let html: string;
+  try {
+    html = await ssrFetch(url, progress, headers);
+  } catch (e) {
+    // auto：静态被拦（403/挑战页）通常是 WAF 首包拦截，直接上浏览器比重试更划算
+    if (mode === 'auto' && !(e instanceof ChallengeError)) {
+      progress?.log('静态抓取被拦，回退 Playwright 渲染…');
+      return spaFetch(url, progress, opts);
+    }
+    throw e;
+  }
   if (mode === 'ssr') return html;
   if (html.length < 800) {
     progress?.log('静态抓取内容偏少，回退 Playwright 渲染…');
-    return spaFetch(url, progress);
+    return spaFetch(url, progress, opts);
   }
   return html;
 }
@@ -94,7 +120,11 @@ async function ssrFetch(
     },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
-  return res.text();
+  const html = await res.text();
+  // 挑战页常返回 200：不识别就会被当成「正常页但 0 锚点」→ 静默数据缺失
+  const hit = detectChallenge(html);
+  if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
+  return html;
 }
 
 // ── spa 渲染稳定检测（自适应，替代固定延时）─────────────────────────────
@@ -150,19 +180,31 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
   }
 }
 
-async function spaFetch(url: string, progress?: Progress): Promise<string> {
+function headlessEnv(): boolean {
+  const v = process.env['CRAWL_BROWSER_HEADLESS'];
+  return v === 'true' || v === '1';
+}
+
+async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}): Promise<string> {
   progress?.log(`GET ${url} (spa/playwright)`);
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch({ args: STEALTH_ARGS });
+  const headless = opts.headless ?? headlessEnv();
+  const browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   try {
-    const page = await newStealthPage(browser);
+    const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
+    const page = await newStealthPage(browser, undefined, env);
+    // 进站前留一点"读页面"的时间，避免 goto 即操作这种机器节奏
+    await humanPause([350, 1200]);
     // 不用 networkidle 等待：ATCC/Coveo 这类站有长连接/埋点轮询，networkidle 永远等不到（超时）。
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await waitForSpaSettle(page);
-    return await page.content();
+    const html = await page.content();
+    const hit = detectChallenge(html);
+    if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
+    return html;
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }
 
