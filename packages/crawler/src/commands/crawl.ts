@@ -133,6 +133,8 @@ interface CrawlSummary {
    * 非阻断，仅汇总告警，帮助发现「列表/详情解析规则漂移」。
    */
   fieldMismatches: Record<string, number>;
+  /** 不一致明细样例：字段名 → `身份键 · 详情「x」/ 列表「y」`（每字段最多留 5 条，防刷屏） */
+  mismatchSamples?: Record<string, string[]>;
   /** 仅 dry-run：各栏目解析出的条目合计（全程零写入，新增/更新恒 0，靠它判断解析是否有效） */
   dryRunParsed?: number;
 }
@@ -166,6 +168,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     contentUpdated: 0,
     missingPages: [],
     fieldMismatches: {},
+    mismatchSamples: {},
   };
 
   let crawlRow: { id: number };
@@ -395,7 +398,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           return fresh.length;
         };
         try {
-          const { detailFailed, missingPages, fieldMismatches } = await collectSection({
+          const { detailFailed, missingPages, fieldMismatches, samples } = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
             domain, adapter, headers: extraHeaders, skipKeys,
             onBatch: dryRun ? undefined : flushBatch, // dry-run 全程零写入，缓冲全量留给解析计数
@@ -408,6 +411,12 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           // 两阶段字段不一致累计（Q2）：并入 summary，结束前统一告警
           for (const [f, c] of Object.entries(fieldMismatches)) {
             summary.fieldMismatches[f] = (summary.fieldMismatches[f] ?? 0) + c;
+          }
+          for (const [f, sampleList] of Object.entries(samples)) {
+            (summary.mismatchSamples ??= {})[f] = [
+              ...(summary.mismatchSamples?.[f] ?? []),
+              ...sampleList,
+            ].slice(0, 5);
           }
           // 列表页抓取失败被跳过的页码：汇总进 summary，结束前统一告警（docs/16 规模化兜底）
           for (const p of missingPages) summary.missingPages.push(`${domain} [${section.key}] 第${p}页`);
@@ -497,6 +506,12 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         progress.update(`[crawl]   ⚠️ ${f}: ${c} 次`);
       }
       if (mismatchEntries.length > 15) progress.update(`[crawl]   … 其余 ${mismatchEntries.length - 15} 个字段略`);
+      // 明细（每条一个字段限 5 例，避免海量行刷屏）：带上身份键与两边取值，一眼能判断是「站点两种写法」还是「真漂移」
+      for (const [f] of mismatchEntries) {
+        const samples = summary.mismatchSamples?.[f] ?? [];
+        for (const s of samples.slice(0, 5)) progress.update(`[crawl]     · ${s}`);
+        if (samples.length > 5) progress.update(`[crawl]     · … 其余 ${samples.length - 5} 条略`);
+      }
     }
     progress.done(
       `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.missingPages.length ? ` / 缺失页 ${summary.missingPages.length}` : ''}${mismatchEntries.length ? ` / 字段不一致 ${mismatchEntries.reduce((s, [, c]) => s + c, 0)}` : ''}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
@@ -914,7 +929,13 @@ async function collectSection(args: {
    * 不传则维持旧行为「整栏目抓完再落」。刷库失败不吞成详情失败——记录后收尾统一上抛（整栏目失败）。
    */
   onBatch?: (batch: PendingProduct[]) => Promise<number>;
-}): Promise<{ detailFailed: number; missingPages: number[]; fieldMismatches: Record<string, number> }> {
+}): Promise<{
+  detailFailed: number;
+  missingPages: number[];
+  fieldMismatches: Record<string, number>;
+  /** 不一致明细样例（字段名 → `身份键 · 详情「x」/ 列表「y」`） */
+  samples: Record<string, string[]>;
+}> {
   const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers, skipKeys, onBatch } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
@@ -928,6 +949,8 @@ async function collectSection(args: {
   const missingPages: number[] = [];
   // 两阶段字段不一致累计（Q2）：键=字段名，值=次数；随返回结果并入 summary
   const fieldMismatches: Record<string, number> = {};
+  /** 不一致明细样例（字段名 → 例）：汇总行只给次数、看不出「站点两种写法 vs 真漂移」，这里带身份键与两边取值 */
+  const samples: Record<string, string[]> = {};
 
   // 列表翻页进度：页级 ProgressCounter（实时用时/速率）。收尾 commit 成独立行（带 \n），
   // 后续详情进度从新行开始，不会覆盖本行（docs/16 P5-进度：列表进度需保留可见）。
@@ -1015,6 +1038,9 @@ async function collectSection(args: {
       let normalized = merged.product;
       for (const f of merged.mismatches) {
         fieldMismatches[f] = (fieldMismatches[f] ?? 0) + 1;
+        const listVal = (merged.product.row as Record<string, unknown>)[`${f}_list`];
+        const detailVal = (merged.product as unknown as Record<string, unknown>)[f];
+        (samples[f] ??= []).push(`${preKey} · 详情「${String(detailVal ?? '')}」/ 列表「${String(listVal ?? '')}」`);
       }
       // 适配器钩子：详情解析后二次加工（在 api 源 / 模型兜底之前，它们只补空不覆盖）
       if (adapter?.postParseDetail) normalized = await adapter.postParseDetail(normalized, html, ctx);
@@ -1096,7 +1122,7 @@ async function collectSection(args: {
   detailBar.setSuffix(null);
   detailBar.finish(skippedSaved > 0 ? `跳过已落库${skippedSaved}（--resume 续跑）` : undefined);
   if (flushError) throw flushError; // 落库失败按栏目失败上抛（进主循环 catch，不混入详情失败计数）
-  return { detailFailed, missingPages, fieldMismatches };
+  return { detailFailed, missingPages, fieldMismatches, samples };
 }
 
 /**

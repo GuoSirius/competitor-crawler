@@ -193,9 +193,9 @@ sections:
           text: true
         # 富文本留存（非必配）：抽同一正文容器的 innerHTML → contents.body_html 列
         # 不配则不抽，body_html 恒 null；material 等 listOnly 栏目无详情阶段，天然不加
-        bodyHtml:
-          sel: "section:has(.ryzz) + section"
-          html: true
+        # bodyHtml:
+        #   sel: "section:has(.ryzz) + section"
+        #   html: true
 
   - key: school
     contentType: school # 细胞学堂
@@ -239,9 +239,9 @@ sections:
           sel: "section:has(.ryzz) + section"
           text: true
         # 富文本留存（非必配）：同一正文容器的 innerHTML → contents.body_html 列；不配则不抽
-        bodyHtml:
-          sel: "section:has(.ryzz) + section"
-          html: true
+        # bodyHtml:
+        #   sel: "section:has(.ryzz) + section"
+        #   html: true
 
   - key: guide
     contentType: guide # 实验操作指南（列表为 ul.guide-list 简单条目，无摘要/日期）
@@ -285,9 +285,9 @@ sections:
           sel: "section:has(.ryzz) + section"
           text: true
         # 富文本留存（非必配）：同一正文容器的 innerHTML → contents.body_html 列；不配则不抽
-        bodyHtml:
-          sel: "section:has(.ryzz) + section"
-          html: true
+        # bodyHtml:
+        #   sel: "section:has(.ryzz) + section"
+        #   html: true
 
   - key: video
     contentType: video # 实验视频（卡片标题是第二个 a 的文本；正文区为 B 站 iframe）
@@ -338,6 +338,6 @@ sections:
           sel: "section:has(.ryzz) + section"
           text: true
         # 富文本留存（非必配）：同一正文容器的 innerHTML → contents.body_html 列；不配则不抽
-        bodyHtml:
-          sel: "section:has(.ryzz) + section"
-          html: true
+        # bodyHtml:
+        #   sel: "section:has(.ryzz) + section"
+        #   html: true
