@@ -12,7 +12,7 @@ import {
   type ChallengeHit,
   type StealthEnv,
 } from './antiBot.js';
-import { humanPause } from './human.js';
+import { humanPause, humanScroll } from './human.js';
 
 /**
  * 默认 UA：用桌面 Chrome 标识。早期用 `CompetitorCrawler/0.1` Bot UA，
@@ -286,6 +286,10 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
     // 不用 networkidle 等待：ATCC/Coveo 这类站有长连接/埋点轮询，networkidle 永远等不到（超时）。
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
+    await waitForSpaSettle(page);
+    // 懒加载兜底：华安这类站产品卡 loading=lazy，首屏稳定≠内容齐——滚一轮触发 lazyload，
+    // 再等一次稳定（内容未增长时第二次 settle 很快，~1s 即放行）
+    await humanScroll(page, 4);
     await waitForSpaSettle(page);
     return await waitForChallengePass(page, ctx, url, progress);
   } finally {

@@ -1,0 +1,38 @@
+# 站点适配器：华安生物（HUABIO）huabio.cn
+# 结构：Shopify + 自定义主题（usf/product-card 系）
+#   - 列表页 ssr 只有导航/分类聚合壳（锚点全是 collections），产品卡**懒加载** → 必须渲染
+#   - 产品卡 div.product-card.js-product（SPA 渲染后每页 ~28 个）
+#   - 卡内 a.product-card-link：href=/collections/<c>/products/<slug>，title 属性=全名（含 [克隆号] (货号)）
+#   - 详情页 h1=名称（不含货号）；价格 .product-single__price-number：
+#       #discount-price=现价（特惠价 880）、#price=原价（1500，display:none）→ 逗号选择器取先命中者
+#   - 翻页：Shopify 标准 ?page=N
+# 抓取命令：pnpm crawl --domain huabio.cn
+# 扩展：分类聚合页 huabio.cn/collections 共 97 个子分类，逐个加 section（或脚本枚举）
+domain: huabio.cn
+company: 华安生物（HUABIO）
+currency: CNY
+render: spa # 产品卡懒加载；ssr 只有导航壳
+
+# antiBot 不配：默认档（mid stealth + Asia/Shanghai + zh-CN + 有头）已验证可过
+
+parseList:
+  itemSelector: "div.product-card.js-product"
+  fields:
+    detailUrl: { sel: "a.product-card-link", attr: href }
+    # title 属性=「VISTA Recombinant Rabbit Monoclonal Antibody [PSH0-64] (HA721452)」
+    name: { sel: "a.product-card-link", attr: title }
+    # 货号=全名尾部括号（HA 七位数字）
+    sku: { sel: "a.product-card-link", attr: title, regex: '\(([A-Z]{2,4}[0-9]{4,7})\)\s*$' }
+
+parseDetail:
+  # name 不配：详情 h1 不含货号，保留列表全名（含克隆号+货号）
+  fields:
+    price: { sel: "#discount-price, #price", number: true } # 现价优先，无特惠回退原价
+    priceText: { sel: ".product-single__price-text", text: true }
+
+sections:
+  - key: primary-antibodies
+    category: 一抗
+    startUrls: ["https://huabio.cn/collections/primary-antibodies"]
+    match: { detailUrlIncludes: ["huabio.cn/products/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?page={page}", maxPages: 100 }
