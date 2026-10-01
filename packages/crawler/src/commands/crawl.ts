@@ -1391,6 +1391,8 @@ interface PendingContent {
   title: string;
   summary: string | null;
   body: string | null;
+  /** 正文富文本（contents.body_html 列）；仅 YAML 显式配 html: true 的栏有值，默认 null */
+  bodyHtml: string | null;
   author: string | null;
   publishedAt: number | null;
   detailUrl: string | null;
@@ -1554,6 +1556,8 @@ export function toPendingContent(
     title,
     summary: pick(row.summary, np.description),
     body: pick(row.body, row.content, row.text),
+    // 富文本：YAML 显式配 bodyHtml(html:true) 时才有值；缺省恒 null（不占空间）
+    bodyHtml: pick(row.bodyHtml),
     author: pick(row.author, row.source),
     publishedAt: parseDateStr(row.date ?? row.publishedAt ?? row.publishTime ?? row.publishDate ?? row.time),
     detailUrl: detailUrl || null,
@@ -1619,6 +1623,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       title: c.title,
       summary: c.summary,
       body: c.body,
+      bodyHtml: c.bodyHtml,
       author: c.author,
       publishedAt: c.publishedAt,
       detailUrl: c.detailUrl,
@@ -1639,6 +1644,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
         title: c.title,
         summary: c.summary,
         body: c.body,
+      bodyHtml: c.bodyHtml,
         author: c.author,
         publishedAt: c.publishedAt,
         detailUrl: c.detailUrl,

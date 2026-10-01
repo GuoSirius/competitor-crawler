@@ -19,6 +19,12 @@ export interface FieldSpec {
   attr?: string;
   /** 显式声明取文本（与「无 attr」等价，仅提升可读性） */
   text?: boolean;
+  /**
+   * true=取**节点 innerHTML**（保留标签结构），与 text 互斥（attr > html > text 优先级）。
+   * 用于富文本留存（contents.bodyHtml 列）：只给想要存 HTML 的栏目显式加 `html: true`，
+   * 不配就走纯文本，避免无谓地把整站体积翻倍。
+   */
+  html?: boolean;
   /** 对原始串（文本或属性值）做正则；优先第 1 捕获组，否则全匹配 */
   regex?: string;
   /**
@@ -50,6 +56,8 @@ export interface DomRead {
   text(sel?: string): string | null;
   /** 取属性；不传 sel 则取当前节点自身属性 */
   attr(name: string, sel?: string): string | null;
+  /** 取 innerHTML（保留标签结构，富文本留存用）；不传 sel 则取当前节点自身 */
+  html(sel?: string): string | null;
   /** 在当前上下文内按 sel 列出所有匹配，返回子 DomRead */
   list(sel: string): DomRead[];
   /** 当前上下文内是否存在 sel 匹配 */

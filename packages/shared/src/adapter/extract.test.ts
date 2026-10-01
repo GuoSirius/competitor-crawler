@@ -28,6 +28,20 @@ describe('FieldSpec 三种取值方式', () => {
     });
   });
 
+  it('取 innerHTML（富文本留存，保留标签结构）', () => {
+    const rich = `<article><p>第一段</p><img src="/a.png"><p>第二段</p></article>`;
+    expect(extract(rich, { bodyHtml: { sel: 'article', html: true } })).toEqual({
+      bodyHtml: '<p>第一段</p><img src="/a.png"><p>第二段</p>',
+    });
+  });
+
+  it('取值优先级：attr > html > text', () => {
+    const mixed = `<div class="box" data-v="attr值"><b>粗体</b>文本</div>`;
+    expect(extract(mixed, { f: { sel: '.box', html: true, text: true } })).toEqual({ f: '<b>粗体</b>文本' });
+    expect(extract(mixed, { f: { sel: '.box', html: true, attr: 'data-v' } })).toEqual({ f: 'attr值' });
+    expect(extract(mixed, { f: { sel: '.box', text: true } })).toEqual({ f: '粗体文本' });
+  });
+
   it('regex 优先第 1 捕获组', () => {
     expect(extract(html, { pid: { sel: 'a.pd-link', attr: 'href', regex: '/product/(\\d+)' } })).toEqual({
       pid: '12345',

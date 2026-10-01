@@ -71,7 +71,15 @@ export const PRODUCT_FIELDS: FieldMeta[] = [
 export const CONTENT_FIELDS: FieldMeta[] = [
   { name: 'title', type: 'string', stage: 'detail', required: true, listFallback: true, auditMismatch: true, desc: '内容标题（必填）。YAML 里推荐配 name（抽取引擎统一字段：详情 np.name→落库 title、列表 name→it.name→title）；配 title 也可，经 row/列表 raw 兜底生效' },
   { name: 'summary', type: 'string', stage: 'detail', listFallback: true, desc: '摘要' },
-  { name: 'body', type: 'string', stage: 'detail', listFallback: true, desc: '正文' },
+  { name: 'body', type: 'string', stage: 'detail', listFallback: true, desc: '正文（纯文本）' },
+  {
+    name: 'bodyHtml',
+    type: 'string',
+    stage: 'detail',
+    desc:
+      '正文富文本（innerHTML，存 contents.body_html 列）。非必填、默认不抽——只有 YAML 里显式加 ' +
+      "`bodyHtml: { sel: <正文容器>, html: true }` 才抽取落库；不配则 body_html 恒为 null，不浪费存储。",
+  },
   { name: 'author', type: 'string', stage: 'detail', listFallback: true, auditMismatch: true, desc: '作者' },
   { name: 'publishedAt', type: 'number', stage: 'detail', listFallback: true, auditMismatch: true, desc: '发布时间（Unix 秒；YAML 须 number: true）' },
   { name: 'detailUrl', type: 'string', stage: 'list', identity: true, desc: '详情页 URL（列表抽取，身份键之一）' },

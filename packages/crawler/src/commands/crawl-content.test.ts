@@ -106,6 +106,22 @@ describe('toPendingContent · NormalizedProduct → PendingContent 映射', () =
     expect(c3?.body).toBe('text 正文');
   });
 
+  it('bodyHtml：YAML 配 html:true 抽的富文本（row.bodyHtml），缺省 null 不占空间', () => {
+    const withHtml = toPendingContent(
+      np({ row: { bodyHtml: '<p>富文本正文</p>' } }),
+      baseItem,
+      baseItem.detailUrl,
+      1,
+      'news',
+      'news',
+    );
+    expect(withHtml?.bodyHtml).toBe('<p>富文本正文</p>');
+
+    // 未配 bodyHtml 的栏目：恒 null（不误把纯文本 body 塞进富文本列）
+    const plain = toPendingContent(np({ row: { body: '纯文本正文' } }), baseItem, baseItem.detailUrl, 1, 'news', 'news');
+    expect(plain?.bodyHtml).toBeNull();
+  });
+
   it('identityKey：sourceId 优先，缺省退 canonical(detailUrl)', () => {
     const withId = toPendingContent(np({ sourceProductId: 'a-001', row: {} }), baseItem, baseItem.detailUrl, 1, 'news', 'news');
     expect(withId?.identityKey).toBe('a-001');

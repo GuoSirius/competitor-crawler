@@ -135,6 +135,7 @@ export const contents = mysqlTable('contents', {
   title: varchar('title', { length: 512 }).notNull(),
   summary: text('summary'),
   body: text('body'),
+  bodyHtml: text('body_html'), // 正文富文本（innerHTML）；仅 YAML 显式配 html: true 的栏才有值，默认 null
   author: varchar('author', { length: 255 }),
   publishedAt: int('published_at'),
   detailUrl: varchar('detail_url', { length: 1024 }),

@@ -22,6 +22,12 @@ export class CheerioDomRead implements DomRead {
     return v ?? null;
   }
 
+  html(sel?: string): string | null {
+    const ctx = sel ? this.$(sel, this.el) : this.$(this.el);
+    const h = ctx.html();
+    return h && h.length ? h.trim() : null;
+  }
+
   list(sel: string): DomRead[] {
     return this.$(sel, this.el)
       .toArray()

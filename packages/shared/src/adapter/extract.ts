@@ -72,7 +72,9 @@ export function extractObject(node: DomRead, map: Record<string, FieldSpec>): Re
 
 function readRaw(n: DomRead, spec: FieldSpec): string | null {
   // sel 已在 node.list(spec.sel) 中应用，这里 n 是匹配到的子节点
+  // 取值优先级：attr（显式属性）> html（富文本）> text（缺省纯文本）
   if (spec.attr) return n.attr(spec.attr);
+  if (spec.html) return n.html();
   return n.text();
 }
 
