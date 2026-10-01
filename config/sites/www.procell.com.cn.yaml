@@ -116,15 +116,14 @@ sections:
   #
   # resource/material（宣传资料）：Vue SPA（#app 空壳，数据走 /api/resource/material XHR），
   # 条目直接是文件下载直链、无详情页 → listOnly 仅列表模式 + renderList: spa 浏览器渲染。
-  # 一次拉全量数据（无服务端翻页），maxPages 压到 2 防重复翻页（重复条目由列表去重兜底）。
+  # 纯列表无翻页控件：不配 listTraversal，pagination-html 无 nextSelector 点击失败自然终止在第 1 页
+  #（数据一次 XHR 全量返回）；即便重复抓取，seenSet + upsert 幂等双兜底，不会产生重复行。
 
   - key: material
     contentType: material # 宣传资料
     listOnly: true # 仅列表模式：条目=文件直链，无详情阶段，列表快照直接入库
     renderList: spa # 列表数据靠 JS 渲染，必须浏览器模式
     startUrls: [https://www.procell.com.cn/resource/material]
-    listTraversal:
-      maxPages: 2 # 数据一次全量返回，第二页起为重复内容，去重后无新增；防翻页失控
     categoryFromPage:
       itemSelector: ".breadcrumb li"
       strip: ["当前位置", "首页"]
