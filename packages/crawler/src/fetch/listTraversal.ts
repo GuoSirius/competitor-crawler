@@ -54,6 +54,15 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *   - 查询串后缀（? / & 开头）：`?page={page}` → 参数并进 base 的 query（覆盖同名参数，保留 base 其余参数）
  */
 export function buildPageUrl(base: string, template: string, page: number): string {
+  // hash/fragment 翻页防御：HTTP 协议不发送 # 之后的部分，服务器永远只收到第一页 URL，
+  // 表现为「每页内容相同/0 条」的静默失败。早失败优于静默翻不动。
+  if (template.includes('#')) {
+    throw new Error(
+      `urlTemplate 含 '#'（hash 翻页不被支持）：${template}` +
+        ` —— HTTP 请求不发送 # 之后的部分，逐页 fetch 拿到的永远是第一页。` +
+        `hash 路由站点请改用 render spa + pagination-html（UI 点击翻页），或改用等效的 ?query 翻页参数。`,
+    );
+  }
   const pageStr = String(page);
   // 1) 完整 URL：直接替换占位符
   if (/^https?:\/\//i.test(template)) {

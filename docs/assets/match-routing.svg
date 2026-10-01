@@ -1,86 +1,88 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 780" width="1360" height="780"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 1000" width="1360" height="1000"
      font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
   <!--
-    竞品爬虫 · match.listUrlIncludes / detailUrlIncludes 反查路由机制（2026-10-01）
-    要点：
-      · match 不是抓取入口，是「拿到一个没打 sectionKey 的 URL」时的反查路由器（pickSectionByUrl）
-      · 数组内多值 = OR：url.includes(frag) 任一命中即匹配
-      · 多个 section 都命中 → Array.find 取声明顺序第一个（先写的赢）；无命中 → undefined 调用方兜底
-      · 现状：主流程零依赖——列表阶段已给每条打 sectionKey，详情阶段按 key 精确选规则（零歧义）；
-        pickSectionByUrl 当前生产代码零调用，为断点续跑 / 适配器钩子等反查场景预留
-    配套：entry-paginate-flow.svg（startUrl / startUrls 抓取机制）
+    match（listUrlIncludes / detailUrlIncludes）v2 —— 换一种讲法：
+    ① 先说它不是什么 / 与入库的关系（毫无关系）
+    ② 再讲主流程正常怎么走（sectionKey 正向路由，不需要它）
+    ③ 它什么时候才登场（URL 反查兜底，当前零调用）
+    ④ 路由算法（OR 匹配 / 声明序优先 / 无命中 undefined）
+    配套：entry-paginate-flow.svg
   -->
   <defs>
-    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
     </marker>
-    <marker id="arr-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#16A34A"/>
-    </marker>
-    <marker id="arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#B91C1C"/>
     </marker>
   </defs>
 
-  <rect width="1360" height="780" fill="#FFFFFF"/>
-  <text x="40" y="52" font-size="26" font-weight="700" fill="#0F172A">match（listUrlIncludes / detailUrlIncludes）：URL 反查路由器</text>
-  <text x="40" y="80" font-size="14" fill="#64748B">代码事实源：config/loader.ts pickSectionByUrl · config/types.ts SectionConfig.match</text>
+  <rect width="1360" height="1000" fill="#FFFFFF"/>
+  <text x="40" y="52" font-size="26" font-weight="700" fill="#0F172A">match：listUrlIncludes / detailUrlIncludes 是干嘛的</text>
+  <text x="40" y="80" font-size="14" fill="#64748B">代码事实源：config/loader.ts pickSectionByUrl · config/types.ts SectionConfig.match · commands/crawl.ts collectSection</text>
 
-  <!-- 输入 -->
-  <rect x="40" y="120" width="330" height="130" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
-  <text x="60" y="150" font-size="15" font-weight="700" fill="#1D4ED8">一个待归属的 URL</text>
-  <text x="60" y="176" font-size="12.5" fill="#334155">场景：适配器钩子返回的链接、</text>
-  <text x="60" y="196" font-size="12.5" fill="#334155">backfill、或未来断点恢复反查——</text>
-  <text x="60" y="216" font-size="12.5" fill="#334155">即「没打 sectionKey 标」的 URL</text>
+  <!-- ① 不是什么 -->
+  <text x="40" y="124" font-size="15" font-weight="700" fill="#B91C1C">① 先说它不是什么</text>
+  <rect x="40" y="140" width="1280" height="96" rx="10" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.5"/>
+  <text x="70" y="170" font-size="14" fill="#334155">❌ 不是抓取入口（抓哪些页面由 startUrl/startUrls 决定，跟它无关）</text>
+  <text x="70" y="196" font-size="14" fill="#334155">❌ 不参与数据入库、不参与去重（入库键里根本没有它；正常爬取时它一行代码都不会被执行——生产代码零调用）</text>
+  <text x="70" y="222" font-size="14" fill="#334155">❌ 不配也完全不影响正常爬取（它是「可选项里的可选项」，纯预留）</text>
 
-  <!-- 路由器 -->
-  <rect x="440" y="110" width="420" height="150" rx="10" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5"/>
-  <text x="460" y="140" font-size="15" font-weight="700" fill="#15803D">pickSectionByUrl(sections, url, kind)</text>
-  <text x="460" y="166" font-size="12.5" fill="#334155">kind='list'  → 看 listUrlIncludes</text>
-  <text x="460" y="186" font-size="12.5" fill="#334155">kind='detail' → 看 detailUrlIncludes</text>
-  <text x="460" y="216" font-size="12.5" fill="#64748B">数组 OR 匹配：some(frag =&gt; url.includes(frag))</text>
-  <text x="460" y="236" font-size="12.5" fill="#64748B">多 section 命中 → find() 取声明顺序第一个</text>
+  <!-- ② 主流程 -->
+  <text x="40" y="284" font-size="15" font-weight="700" fill="#15803D">② 数据是怎么入库的（主流程，完全不经过 match）</text>
 
-  <!-- sections 候选 -->
-  <rect x="930" y="100" width="390" height="180" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
-  <text x="950" y="128" font-size="14" font-weight="700" fill="#475569">sections 声明顺序（即优先级）</text>
-  <rect x="950" y="142" width="350" height="36" rx="6" fill="#E0F2FE" stroke="#0284C7"/>
-  <text x="964" y="166" font-size="12.5" fill="#0C4A6E">antibody：match.detailUrlIncludes = ['/ab/', 'antibody']</text>
-  <rect x="950" y="184" width="350" height="36" rx="6" fill="#E0F2FE" stroke="#0284C7"/>
-  <text x="964" y="208" font-size="12.5" fill="#0C4A6E">elisa：match.detailUrlIncludes = ['/elisa/']</text>
-  <rect x="950" y="226" width="350" height="36" rx="6" fill="#FEF2F2" stroke="#DC2626" stroke-dasharray="5 4"/>
-  <text x="964" y="250" font-size="12.5" fill="#991B1B">无 match 的栏目：永不命中（只能靠 sectionKey 正向路由）</text>
+  <rect x="40" y="300" width="290" height="150" rx="10" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5"/>
+  <text x="60" y="328" font-size="13.5" font-weight="700" fill="#15803D">列表阶段</text>
+  <text x="60" y="352" font-size="12.5" fill="#334155">抓列表页 → 每个产品条目</text>
+  <text x="60" y="372" font-size="12.5" fill="#334155">解析出 detailUrl 时，</text>
+  <text x="60" y="392" font-size="12.5" fill="#334155">直接打上本栏目的</text>
+  <text x="60" y="412" font-size="13" font-weight="700" fill="#15803D">sectionKey 标签</text>
+  <text x="60" y="436" font-size="11.5" fill="#64748B">（谁抓到的就标谁，零猜测）</text>
 
-  <line x1="370" y1="185" x2="438" y2="185" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
-  <line x1="860" y1="185" x2="928" y2="185" stroke="#475569" stroke-width="2" marker-end="url(#arr)"/>
+  <rect x="370" y="300" width="290" height="150" rx="10" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5"/>
+  <text x="390" y="328" font-size="13.5" font-weight="700" fill="#15803D">详情阶段</text>
+  <text x="390" y="352" font-size="12.5" fill="#334155">拿到标签后按 sectionKey</text>
+  <text x="390" y="372" font-size="12.5" fill="#334155">直接选对应栏目自己的</text>
+  <text x="390" y="392" font-size="12.5" fill="#334155">parseDetail 解析规则</text>
+  <text x="390" y="424" font-size="11.5" fill="#64748B">（标签对上号就行，无需反查）</text>
 
-  <!-- 结果 -->
-  <rect x="40" y="320" width="620" height="130" rx="10" fill="#F0FDF4" stroke="#16A34A" stroke-width="1.5"/>
-  <text x="60" y="350" font-size="15" font-weight="700" fill="#15803D">命中 → 返回该 section</text>
-  <text x="60" y="376" font-size="12.5" fill="#334155">例：url 含 '/ab/' → 命中 antibody（第一个声明且匹配者赢）；</text>
-  <text x="60" y="396" font-size="12.5" fill="#334155">url 只含 '/elisa/' → 命中 elisa。</text>
-  <text x="60" y="424" font-size="12.5" fill="#64748B">数组内是 OR：命中任一子串即可，与顺序无关；</text>
-  <text x="60" y="444" font-size="12.5" fill="#64748B">section 之间才是优先级（声明顺序）。</text>
+  <rect x="700" y="300" width="620" height="150" rx="10" fill="#FDF2F8" stroke="#DB2777" stroke-width="1.5"/>
+  <text x="720" y="328" font-size="13.5" font-weight="700" fill="#BE185D">入库</text>
+  <text x="720" y="354" font-size="13" fill="#334155">唯一键 = (company_id, identity_key, section_key)</text>
+  <text x="720" y="378" font-size="12.5" fill="#64748B">identity_key = COALESCE(source_product_id, canonical(detail_url))</text>
+  <text x="720" y="404" font-size="12.5" fill="#64748B">注意：这里的 section_key 就是 ①列表阶段打的那个标签 ——</text>
+  <text x="720" y="424" font-size="12.5" fill="#64748B">全程没有 listUrlIncludes 什么事。</text>
 
-  <rect x="700" y="320" width="620" height="130" rx="10" fill="#FFF7ED" stroke="#D97706" stroke-width="1.5"/>
-  <text x="720" y="350" font-size="15" font-weight="700" fill="#B45309">无命中 / 未配置 match → 返回 undefined</text>
-  <text x="720" y="376" font-size="12.5" fill="#334155">调用方自行兜底（如回退 default 栏目或跳过）；</text>
-  <text x="720" y="396" font-size="12.5" fill="#334155">match 是可选项，不配置不影响正常爬取主流程。</text>
-  <text x="720" y="424" font-size="12.5" fill="#64748B">⚠️ 无 match 的栏目不会被反查命中——它们只能通过</text>
-  <text x="720" y="444" font-size="12.5" fill="#64748B">列表阶段写入的 sectionKey 被正向路由。</text>
+  <line x1="330" y1="375" x2="368" y2="375" stroke="#16A34A" stroke-width="2" marker-end="url(#ag)"/>
+  <line x1="660" y1="375" x2="698" y2="375" stroke="#16A34A" stroke-width="2" marker-end="url(#ag)"/>
 
-  <line x1="350" y1="262" x2="350" y2="318" stroke="#16A34A" stroke-width="2" marker-end="url(#arr-g)"/>
-  <line x1="1010" y1="262" x2="1010" y2="318" stroke="#B91C1C" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arr-r)"/>
+  <!-- ③ 什么时候登场 -->
+  <text x="40" y="498" font-size="15" font-weight="700" fill="#B45309">③ 它什么时候才登场（为「手里只有一个裸 URL」的场景预留）</text>
+  <rect x="40" y="514" width="1280" height="112" rx="10" fill="#FFF7ED" stroke="#D97706" stroke-width="1.5"/>
+  <text x="70" y="544" font-size="13.5" fill="#334155">场景：代码适配器钩子返回了一个新 URL、断点续跑恢复、backfill…… 这时手里有个 URL，但**没有标签**，</text>
+  <text x="70" y="568" font-size="13.5" fill="#334155">必须回答「这个 URL 属于哪个栏目」才能选对解析规则 —— <tspan font-weight="700">match 就是这张「URL → 栏目归属」速查表</tspan>。</text>
+  <text x="70" y="596" font-size="12.5" fill="#64748B">现状：生产主流程目前零调用（正常爬取用不到），属于「配上不亏、不配不响」的保险配置。</text>
 
-  <!-- 现状说明 -->
-  <text x="40" y="500" font-size="15" font-weight="700" fill="#334155">现状与定位：主流程零依赖，纯预留</text>
-  <rect x="40" y="516" width="1280" height="170" rx="10" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5"/>
-  <text x="70" y="548" font-size="13.5" font-weight="700" fill="#334155">为什么正常爬取不经过它？</text>
-  <text x="70" y="572" font-size="12.5" fill="#475569">列表阶段解析每条时已写入 sectionKey（多规则站点零歧义）→ 详情阶段按 sectionKey 直接选对应 parseDetail 规则，不需要猜 URL 归属。</text>
-  <line x1="70" y1="586" x2="1290" y2="586" stroke="#E2E8F0" stroke-width="1"/>
-  <text x="70" y="612" font-size="13.5" font-weight="700" fill="#334155">预留场景（当前生产代码零调用）</text>
-  <text x="70" y="636" font-size="12.5" fill="#475569">· 断点续跑 --resume 恢复时反查 URL 归属　· 代码适配器钩子产出的新列表/详情 URL 归属判定　· backfill 按 URL 找栏目</text>
-  <text x="70" y="662" font-size="12.5" fill="#64748B">结论：给多规则站点配 match 是低成本保险——不会改变现有行为，只在反查发生时提供正确的栏目路由；数组按「子串包含」写宽一点即可（OR 语义）。</text>
+  <!-- ④ 路由算法 -->
+  <text x="40" y="672" font-size="15" font-weight="700" fill="#334155">④ 路由算法（pickSectionByUrl）：拿 URL 对着表查</text>
 
-  <text x="40" y="736" font-size="12.5" fill="#94A3B8">配套：entry-paginate-flow.svg（startUrl / startUrls 入口继承与抓取机制）</text>
+  <rect x="40" y="688" width="620" height="176" rx="10" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="60" y="716" font-size="13.5" font-weight="700" fill="#1D4ED8">查表规则</text>
+  <text x="60" y="742" font-size="12.5" fill="#334155">· 数组内多值 = <tspan font-weight="700">OR</tspan>：URL 包含任一子串（url.includes）即命中</text>
+  <text x="60" y="766" font-size="12.5" fill="#334155">· 多个栏目都命中 → <tspan font-weight="700">按 sections 声明顺序取第一个</tspan>（先写的赢）</text>
+  <text x="60" y="790" font-size="12.5" fill="#334155">· listUrlIncludes 查列表页归属；detailUrlIncludes 查详情页归属</text>
+  <text x="60" y="814" font-size="12.5" fill="#334155">· 无命中 / 没配 match → 返回 undefined，调用方自行兜底</text>
+  <text x="60" y="844" font-size="12" fill="#64748B">例：detailUrlIncludes: ['/ab/', 'antibody'] → 含 /ab/ 或含 antibody 都算</text>
+
+  <rect x="700" y="688" width="620" height="176" rx="10" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="720" y="716" font-size="13.5" font-weight="700" fill="#475569">配置示例（多规则站点）</text>
+  <text x="720" y="742" font-size="12" fill="#334155" font-family="Consolas,monospace">sections:</text>
+  <text x="720" y="764" font-size="12" fill="#334155" font-family="Consolas,monospace">  - key: antibody</text>
+  <text x="720" y="786" font-size="12" fill="#334155" font-family="Consolas,monospace">    match: { detailUrlIncludes: ['/ab/'] }</text>
+  <text x="720" y="808" font-size="12" fill="#334155" font-family="Consolas,monospace">  - key: elisa</text>
+  <text x="720" y="830" font-size="12" fill="#334155" font-family="Consolas,monospace">    match: { detailUrlIncludes: ['/elisa/'] }</text>
+  <text x="720" y="856" font-size="12" fill="#64748B">子串写宽一点即可（OR 语义）；没配 match 的栏目反查永远查不到它。</text>
+
+  <text x="40" y="912" font-size="13.5" fill="#334155">一句话总结：<tspan font-weight="700">match 不决定抓什么、不决定存哪里，只负责在「URL 没带标签」时回答它属于哪个栏目。</tspan>正常爬取永远用不到它。</text>
+  <text x="40" y="948" font-size="12.5" fill="#94A3B8">配套：entry-paginate-flow.svg（startUrl / startUrls 入口继承与翻页机制）</text>
 </svg>

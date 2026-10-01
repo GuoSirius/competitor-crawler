@@ -126,6 +126,19 @@ describe('validateSiteConfig', () => {
     expect(issues.some((i) => i.code === 'MISSING_IDENTITY')).toBe(false);
   });
 
+  it('hash 翻页模板（#page={page}）→ error 级 HASH_PAGINATION_UNSUPPORTED', () => {
+    const cfg = baseCfg({
+      startUrl: 'https://x.com/list',
+      listTraversal: { strategy: 'pagination-url', urlTemplate: '#page={page}' },
+      parseList: { itemSelector: '.item', fields: { detailUrl: { sel: 'a', attr: 'href' } } },
+      parseDetail: { fields: { name: { sel: 'h1' } } },
+    });
+    const issues = validateSiteConfig(cfg);
+    const h = issues.find((i) => i.code === 'HASH_PAGINATION_UNSUPPORTED');
+    expect(h?.level).toBe('error');
+    expect(h?.message).toContain('pagination-html');
+  });
+
   it('配置桩（无 parseList）→ 只给 info 引导，不报缺 name/身份键', () => {
     const cfg = baseCfg({ company: '某公司', role: 'competitor', currency: 'CNY' });
     const issues = validateSiteConfig(cfg);

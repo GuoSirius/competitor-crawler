@@ -36,6 +36,13 @@ describe('buildPageUrl', () => {
       'https://a.com/list?page=7',
     );
   });
+
+  it('hash 模板（#page={page}）→ 显式报错（HTTP 不发送 fragment，静默翻不动优于晚发现）', () => {
+    expect(() => buildPageUrl('https://a.com/list', '#page={page}', 2)).toThrow(/hash 翻页不被支持/);
+    expect(() => buildPageUrl('https://a.com/list', 'https://a.com/list#page={page}', 2)).toThrow(
+      /hash 翻页不被支持/,
+    );
+  });
 });
 
 describe('traverseList — pagination-url', () => {

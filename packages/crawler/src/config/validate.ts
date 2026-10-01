@@ -23,7 +23,8 @@ export type IssueCode =
   | 'MISSING_IDENTITY'
   | 'UNKNOWN_FIELD_TYPO'
   | 'STAGE_MISMATCH'
-  | 'NUMERIC_NOT_NUMBER';
+  | 'NUMERIC_NOT_NUMBER'
+  | 'HASH_PAGINATION_UNSUPPORTED';
 
 export interface ConfigIssue {
   level: IssueLevel;
@@ -41,6 +42,7 @@ interface SectionLike {
   contentType?: string;
   parseList?: { fields?: Record<string, FieldSpec> };
   parseDetail?: { fields?: Record<string, FieldSpec> };
+  listTraversal?: { strategy?: string; urlTemplate?: string };
 }
 
 function toSections(cfg: SiteConfig): SectionLike[] {
@@ -52,6 +54,7 @@ function toSections(cfg: SiteConfig): SectionLike[] {
       contentType: s.contentType ?? s.collects,
       parseList: s.parseList ?? cfg.parseList,
       parseDetail: s.parseDetail ?? cfg.parseDetail,
+      listTraversal: s.listTraversal ?? cfg.listTraversal,
     }));
   }
   return [
@@ -60,6 +63,7 @@ function toSections(cfg: SiteConfig): SectionLike[] {
       contentType: cfg.contentType ?? cfg.collects,
       parseList: cfg.parseList,
       parseDetail: cfg.parseDetail,
+      listTraversal: cfg.listTraversal,
     },
   ];
 }
@@ -118,6 +122,17 @@ export function validateSiteConfig(cfg: SiteConfig): ConfigIssue[] {
           sectionKey: sec.key,
         });
       }
+    }
+
+    // 2b) hash 翻页防御：HTTP 不发送 # 之后的部分，逐页 fetch 永远拿第一页 → 静默重复/0 条
+    const tv = sec.listTraversal;
+    if (tv?.strategy === 'pagination-url' && tv.urlTemplate?.includes('#')) {
+      issues.push({
+        level: 'error',
+        code: 'HASH_PAGINATION_UNSUPPORTED',
+        message: `栏目 [${sec.key}] 的 urlTemplate 含 '#'（如 #page={page}）——hash 翻页不被支持：HTTP 请求不发送 fragment，逐页抓取拿到的永远是第一页。hash 路由站点请改用 render spa + pagination-html（UI 点击翻页），或改用等效的 ?query 翻页参数。`,
+        sectionKey: sec.key,
+      });
     }
 
     // 3) 逐字段检查
