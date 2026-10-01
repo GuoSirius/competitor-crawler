@@ -302,6 +302,27 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
             progress.update(`[crawl] (dry-run) ${domain} [${section.key}] 解析内容 ${pendingC.length} 条`);
             continue;
           }
+          // 面包屑动态分类（与产品管线同口径）：详情页面包屑抽「技术资源 > 细胞学堂」这类真路径并建树，
+          // 让 contents.category_id 挂在真实叶子上；抽不到才回落栏目锚点 `<domain>::<key>`。
+          // 此前内容条目一律挂锚点 → 分类表里只剩下干瘪的 `<domain>::<key>`，看不到层级。
+          if (categoryIdC !== null || pendingC.some((c) => c.breadcrumb && c.breadcrumb.length > 0)) {
+            const catCacheC = new Map<string, number>();
+            for (const c of pendingC) {
+              const bc = c.breadcrumb && c.breadcrumb.length > 0 ? c.breadcrumb : null;
+              if (!bc) continue;
+              const key = bc.join(' > ');
+              if (!catCacheC.has(key)) {
+                catCacheC.set(
+                  key,
+                  await upsertCategoryPath(
+                    db, companyId, bc, null, section.productLine ?? null, dryRun, progress, section.contentType,
+                  ),
+                );
+              }
+              const cid = catCacheC.get(key) ?? 0;
+              if (cid > 0) c.categoryId = cid; // dry-run 哨兵 0 → 保留null，不写悬空FK
+            }
+          }
           const existedC = await loadExistingContents(db, companyId, section.key);
           // 同一栏目内 identityKey 唯一化（与产品管线同口径）
           const uniqueC = uniqueBy(pendingC, (c) => c.identityKey);
@@ -1393,6 +1414,10 @@ interface PendingContent {
   sourceId: string | null;
   /** 栏目绑定分类 id（categories 表，content_type 同本行）；null = 不挂 */
   categoryId: number | null;
+  /** 详情页面包屑分类路径（= section.categoryFromPage 的解析结果）；null = 回落栏目锚点。
+   *  注意：面包屑只从**详情页面包屑**取（与产品管线同口径），列表页面包屑引擎不解析；
+   *  因此 keepLast 决定末段是「真分类」还是「文章标题」（keepLast:false 才对）。 */
+  breadcrumb: string[] | null;
   title: string;
   summary: string | null;
   body: string | null;
@@ -1510,7 +1535,10 @@ async function collectContentSection(args: {
       if (adapter?.postParseDetail) np = await adapter.postParseDetail(np, html, ctx);
       const c = toPendingContent(np, it, it.detailUrl, companyId, section.key, section.contentType);
       if (c) {
-        c.categoryId = categoryId; // 栏目绑定分类（建树在 buildTargets）
+        c.categoryId = categoryId; // 栏目绑定分类（锚点，建树在 buildTargets）
+        // 详情页面包屑动态分类（与产品管线同口径）：抽不到则回落栏目锚点
+        c.breadcrumb = section.categoryFromPage ? parseBreadcrumb(html, section.categoryFromPage) : null;
+        if (c.breadcrumb && c.breadcrumb.length === 0) c.breadcrumb = null;
         pending.push(c);
         seenSet(companyId, section.key).add(c.identityKey);
       }
@@ -1581,6 +1609,7 @@ export function toPendingContent(
     identityKey,
     sourceId,
     categoryId: null, // 由调用方按栏目建树结果赋值（buildTargets → 本管线 categoryId）
+    breadcrumb: null, // 详情页面包屑动态分类；null → 调用方回落栏目锚点
     title,
     summary: pick(row.summary, np.description, fromList('summary', 'description')),
     body: pick(row.body, row.content, row.text, fromList('body', 'content', 'text')),
