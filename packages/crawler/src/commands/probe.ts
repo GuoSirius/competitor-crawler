@@ -116,7 +116,7 @@ export async function probe(opts: ProbeOpts): Promise<void> {
     const sectionItems: Array<{ detailUrl: string; name?: string; sectionKey?: string }> = [];
     for (const listUrl of listUrls) {
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 抓取列表页 ${listUrl}`);
-      const html = await fetchPage(listUrl, listMode, progress);
+      const html = await fetchPage(listUrl, listMode, progress, undefined, { stealth: section.antiBot, headless: section.antiBot?.headless });
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 解析列表页…`);
       const items = parseListWithConfig(html, section.parseList, section.key);
 
@@ -150,7 +150,7 @@ export async function probe(opts: ProbeOpts): Promise<void> {
       for (const it of targets) {
         console.log(`\n[section=${section.key}] 详情页探测：${it.detailUrl}`);
         try {
-          const html = await fetchPage(it.detailUrl, detailMode, progress);
+          const html = await fetchPage(it.detailUrl, detailMode, progress, undefined, { stealth: section.antiBot, headless: section.antiBot?.headless });
           const np = parseDetailWithConfig(html, section.parseDetail.fields);
           printProductSample(it.name, np);
 

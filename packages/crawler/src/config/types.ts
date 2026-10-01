@@ -222,6 +222,34 @@ export interface SectionConfig {
   renderList?: RenderMode;
   /** 该栏目详情页单独渲染模式（覆盖本栏目 render）；省略回退逻辑同 renderList */
   renderDetail?: RenderMode;
+  /**
+   * 该栏目单独的反爬/指纹配置（覆盖站点级 antiBot）。默认能过则**不必配**——
+   * 引擎默认即 mid 档 stealth + Asia/Shanghai + zh-CN；只有个别站需要特调
+   * （如时区/语言随站点地域、UI 翻页需更伪装）才写。
+   */
+  antiBot?: AntiBotConfig;
+}
+
+/**
+ * 反爬/指纹配置（fetch/antiBot.ts 的 YAML 投影）。
+ * 字段全部可选；省略 = 引擎默认（profile mid / Asia/Shanghai / zh-CN / 1920×1080 / 有头）。
+ */
+export interface AntiBotConfig {
+  /** 隐身档位：none（调试裸浏览器）/ low / mid（默认）/ high（加确定性 Canvas/WebGL 噪声） */
+  profile?: 'none' | 'low' | 'mid' | 'high';
+  /** 时区（默认 Asia/Shanghai）；用境外代理时应与 IP 属地一致 */
+  timezone?: string;
+  /** 语言（默认 zh-CN），同时决定 Accept-Language */
+  locale?: string;
+  viewport?: { width: number; height: number };
+  /** screen 必须不小于 viewport，否则易被判异常环境 */
+  screen?: { width: number; height: number };
+  /** 覆盖默认 UA（一般不动；动了必须与 sec-ch-ua-platform 自洽） */
+  userAgent?: string;
+  /** Canvas/WebGL 噪声种子（默认固定值；同站点不要随机换，回访指纹要稳定） */
+  seed?: number;
+  /** 无头开关（默认 false=有头；本机桌面有头更隐蔽，CI/服务器设 true） */
+  headless?: boolean;
 }
 
 /**
@@ -275,6 +303,8 @@ export interface SiteConfig {
    * 回退链同 renderList，仅作用于详情页。
    */
   renderDetail?: RenderMode;
+  /** 站点级反爬/指纹配置（section 可覆盖）；字段与默认值见 AntiBotConfig */
+  antiBot?: AntiBotConfig;
   /**
    * 站点级默认采集类型（section 未指定 contentType 时继承）。缺省 'products'。
    * 整站只做资讯采集的站点可直接在顶层写 contentType: news，sections 无需逐个声明。
@@ -342,4 +372,6 @@ export interface ResolvedSection {
   renderList?: RenderMode;
   /** 该栏目详情页渲染模式（已合并顶层 renderDetail）；回退链 renderDetail → render → auto */
   renderDetail?: RenderMode;
+  /** 该栏目最终生效的反爬/指纹配置（section.antiBot ?? 站点 antiBot） */
+  antiBot?: AntiBotConfig;
 }

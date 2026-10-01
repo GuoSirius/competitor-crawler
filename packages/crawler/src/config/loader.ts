@@ -232,6 +232,8 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         render: s.render ?? cfg.render,
         renderList: s.renderList ?? cfg.renderList,
         renderDetail: s.renderDetail ?? cfg.renderDetail,
+        // 反爬/指纹：section 覆盖站点级（整体覆盖，不做字段级深合并——配置本来就该成套写）
+        antiBot: s.antiBot ?? cfg.antiBot,
       };
     });
   }
@@ -257,6 +259,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       render: cfg.render,
       renderList: cfg.renderList,
       renderDetail: cfg.renderDetail,
+      antiBot: cfg.antiBot,
     },
   ];
 }

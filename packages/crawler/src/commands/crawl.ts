@@ -972,6 +972,7 @@ async function collectSection(args: {
       progress,
       // 适配器钩子（docs/16 🔴-2）：preflight 附加头 + 自定义翻页拼装
       headers,
+      antiBot: section.antiBot,
       buildPageUrlFn: adapter?.buildPageUrl
         ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
         : undefined,
@@ -1033,7 +1034,7 @@ async function collectSection(args: {
         skippedSaved++;
         return;
       }
-      const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
+      const html = await fetchPage(it.detailUrl, detailMode, undefined, headers, { stealth: section.antiBot, headless: section.antiBot?.headless });
       const merged = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
       let normalized = merged.product;
       for (const f of merged.mismatches) {
@@ -1506,6 +1507,7 @@ async function collectContentSection(args: {
       pageEnd: tv.pageEnd,
       progress,
       headers,
+      antiBot: section.antiBot,
       buildPageUrlFn: adapter?.buildPageUrl
         ? (base, template, page) => adapter.buildPageUrl!(base, template, page, ctx)
         : undefined,
@@ -1555,7 +1557,7 @@ async function collectContentSection(args: {
     let ok = true;
     let errMsg = '';
     try {
-      const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
+      const html = await fetchPage(it.detailUrl, detailMode, undefined, headers, { stealth: section.antiBot, headless: section.antiBot?.headless });
       let np = parseDetailWithConfig(html, section.parseDetail.fields);
       // 适配器钩子：详情解析后二次加工（与产品管线同口径）
       if (adapter?.postParseDetail) np = await adapter.postParseDetail(np, html, ctx);

@@ -1,4 +1,4 @@
-import type { ListTraversalConfig } from '../config/types.js';
+import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
 import { fetchPage, waitForSpaSettle, type RenderMode } from './page.js';
 import { stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
 import { humanClick, humanPause } from './human.js';
@@ -34,6 +34,8 @@ export interface TraverseOpts {
    * 走默认 buildPageUrl 逻辑。仅 pagination-url 策略生效。
    */
   buildPageUrlFn?: (base: string, template: string, page: number) => string | null | undefined;
+  /** 反爬/指纹配置（YAML antiBot，section 已合并站点级）；undefined = 引擎默认 */
+  antiBot?: AntiBotConfig;
 }
 
 export interface TraverseResult {
@@ -130,7 +132,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
       let lastErr = '';
       for (let attempt = 0; attempt <= listRetry; attempt++) {
         try {
-          html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers);
+          html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
           break;
         } catch (e) {
           lastErr = (e as Error).message;
@@ -157,29 +159,30 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   // none：显式禁用翻页 —— 只抓第一页（按 listMode 渲染：spa 走浏览器、ssr 直接 fetch），
   // 不进入任何翻页循环。用于「站点级配了 pagination-url，但本栏目一次请求全量返回」的局部关停。
   if (traversal.strategy === 'none') {
-    const html = await fetchPage(url, listMode, opts.progress, opts.headers);
+    const html = await fetchPage(url, listMode, opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n, missingPages: [] };
   }
 
   // ssr：无浏览器，单页
   if (listMode === 'ssr') {
-    const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
+    const html = await fetchPage(url, 'ssr', opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n, missingPages: [] };
   }
 
   let browser: import('playwright').Browser | null = null;
+  const ab = opts.antiBot;
   try {
     const { chromium } = await import('playwright');
     // 与 spaFetch 同口径 stealth：旧实现这里用的是裸 launch（无 initScript、无 timezone/locale），
     // 「点下一页」比「取 HTML」更像真人操作，反而反检测最弱 —— 补上。
-    const headless = process.env['CRAWL_BROWSER_HEADLESS'] === 'true' || process.env['CRAWL_BROWSER_HEADLESS'] === '1';
+    const headless = ab?.headless ?? (process.env['CRAWL_BROWSER_HEADLESS'] === 'true' || process.env['CRAWL_BROWSER_HEADLESS'] === '1');
     browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   } catch (e) {
     // Playwright 不可用（未安装内核等）→ 回退单页，保证不整轮失败
     opts.progress?.log(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
-    const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);
+    const html = await fetchPage(url, 'ssr', opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n, missingPages: [] };
   }
@@ -187,8 +190,16 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   let pages = 0;
   let items = 0;
   try {
-    const ctx = await browser.newContext(stealthContextOptions());
-    await ctx.addInitScript(stealthInitSource('mid'));
+    const ctx = await browser.newContext(stealthContextOptions({
+      profile: ab?.profile,
+      timezone: ab?.timezone,
+      locale: ab?.locale,
+      viewport: ab?.viewport,
+      screen: ab?.screen,
+      userAgent: ab?.userAgent,
+      seed: ab?.seed,
+    }));
+    await ctx.addInitScript(stealthInitSource(ab?.profile ?? 'mid'));
     const page = await ctx.newPage();
     await humanPause([400, 1400]);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
