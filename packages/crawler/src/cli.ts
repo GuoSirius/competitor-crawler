@@ -9,6 +9,7 @@ import { genSiteTemplate } from './commands/genSiteTemplate.js';
 import { crawl } from './commands/crawl.js';
 import { backfill } from './commands/backfill.js';
 import { report } from './commands/report.js';
+import { runValidate, runFieldDocs } from './commands/validate.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags } from './util/args.js';
 
@@ -101,6 +102,12 @@ async function main() {
       category: typeof flags.category === 'string' ? flags.category : undefined,
       out: typeof flags.out === 'string' ? flags.out : undefined,
     });
+  } else if (cmd === 'validate') {
+    // 校验全部（或 --site 指定）站点字段配置；存在 error 级问题时退出码置 1（CI 门禁用）
+    const errs = runValidate({ site: typeof flags.site === 'string' ? flags.site : undefined });
+    if (errs > 0) process.exitCode = 1;
+  } else if (cmd === 'field-docs') {
+    runFieldDocs();
   } else if (cmd === 'schedule') {
     const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
     if (flags.daemon === true || flags.daemon === 'true') {
@@ -118,7 +125,9 @@ async function main() {
       await runScheduledCrawl({ source });
     }
   } else {
-    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|schedule|report> [--flags]');
+    console.log('用法: tsx src/cli.ts <seed|probe|gen-site|gen-site-batch|gen-site-template|backfill|crawl|validate|field-docs|schedule|report> [--flags]');
+    console.log('  validate 额外参数: --site <domain>（省略则校验 config/sites 下全部站点）；存在 error 级问题退出码 1');
+    console.log('  field-docs: 打印内建字段字典（products / contents 各字段的类型/阶段/必填/身份键说明）');
     console.log('  crawl 额外参数: --source config|seeds (默认 config；seeds 为 Excel 初始化导入后的一次性场景) --site <d[,d2..]> --section <key> --category <名> --product-line <线> --pages <n> --limit <n> --render ssr|spa|auto --dry-run');
     console.log('  crawl 分页/条数（覆盖 YAML listTraversal，显式传入生效）: --page-start <n> 起始页 / --page-end <n> 终止页(闭区间，仅 pagination-url) / --offset <n> 每页条目偏移 / --per-page <n> 每页最多条数；--pages 与 YAML maxPages 取小（安全护栏）');
     console.log('  crawl 断点续跑（docs/16 规模化兜底）: --resume [<文件>] 中断后续跑——不带值自动取最新断点；已完成栏目跳过、已落库详情不重抓。运行中断时会打印续跑命令');

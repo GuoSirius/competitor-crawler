@@ -13,7 +13,9 @@
     "gen-site:batch": "tsx src/cli.ts gen-site-batch",
     "gen-site:template": "tsx src/cli.ts gen-site-template",
     "backfill": "tsx src/cli.ts backfill",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate": "tsx src/cli.ts validate",
+    "field-docs": "tsx src/cli.ts field-docs"
   },
   "dependencies": {
     "@competitor-crawler/shared": "workspace:*",

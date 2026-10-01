@@ -34,6 +34,7 @@ function makeSummary() {
     contentNew: 0,
     contentUpdated: 0,
     missingPages: [],
+    fieldMismatches: {},
   };
 }
 

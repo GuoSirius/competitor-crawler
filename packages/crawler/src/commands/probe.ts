@@ -1,6 +1,7 @@
 import { like } from 'drizzle-orm';
 import { absoluteUrl, categories, createDb } from '@competitor-crawler/shared';
 import { resolveSections, loadSiteConfig, listRenderMode, detailRenderMode } from '../config/loader.js';
+import { validateSiteConfig, formatIssues } from '../config/validate.js';
 import type { SiteConfig, ResolvedSection } from '../config/types.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
@@ -70,6 +71,15 @@ export async function probe(opts: ProbeOpts): Promise<void> {
       console.error(`   请检查并补全 config/sites/${opts.domain}.yaml 后重试。`);
     }
     return;
+  }
+
+  // 字段校验（Q1）：正式跑之前先把「疑似拼写错误 / 缺必填 / 缺身份键」暴露出来，
+  // 但不阻断——只打印提示，仍继续 probe。
+  const issues = validateSiteConfig(cfg);
+  if (issues.length > 0) {
+    console.error(`\n🔎 配置字段校验（${opts.domain}）：${issues.length} 条提示`);
+    for (const l of formatIssues(opts.domain, issues)) console.error(`   ${l}`);
+    console.error('   （以上仅为提示，不影响本次 probe；确认无误可忽略）');
   }
 
   if (opts.section) {

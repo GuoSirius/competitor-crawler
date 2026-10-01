@@ -17,8 +17,10 @@ import {
   type ListItem,
   type NormalizedProduct,
   type DbDialect,
+  PRODUCT_FIELDS,
 } from '@competitor-crawler/shared';
 import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode, resolveTraversalLimits, slicePageItems } from '../config/loader.js';
+import { validateSiteConfig, formatIssues } from '../config/validate.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { parseBreadcrumb } from '../adapter/breadcrumb.js';
 import { loadCodeAdapter } from '../adapter/adapterLoader.js';
@@ -125,6 +127,12 @@ interface CrawlSummary {
   contentUpdated: number;
   /** 列表页抓取失败被跳过（重试耗尽）的页码清单（docs/16 规模化兜底）："domain [sectionKey] 第N页" */
   missingPages: string[];
+  /**
+   * 两阶段字段不一致统计（Q2）：键=字段名，值=出现次数。
+   * 列表与详情都抽到且归一后不同 → 计一次（列表值已存 row[<field>_list]，详情值落库）。
+   * 非阻断，仅汇总告警，帮助发现「列表/详情解析规则漂移」。
+   */
+  fieldMismatches: Record<string, number>;
   /** 仅 dry-run：各栏目解析出的条目合计（全程零写入，新增/更新恒 0，靠它判断解析是否有效） */
   dryRunParsed?: number;
 }
@@ -157,6 +165,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     contentNew: 0,
     contentUpdated: 0,
     missingPages: [],
+    fieldMismatches: {},
   };
 
   let crawlRow: { id: number };
@@ -229,6 +238,16 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
 
     for (const [domain, target] of targets) {
       summary.sections += target.sections.length;
+
+      // 字段校验（Q1）：每站加载配置后先跑一次，把疑似拼写错误 / 缺必填 / 缺身份键
+      // 暴露给用户——仅提示、不阻断（error 级也照常继续爬）。无问题则静默。
+      try {
+        const cfg = loadSiteConfig(domain);
+        const lines = formatIssues(domain, validateSiteConfig(cfg));
+        for (const l of lines) progress.update(`[crawl] ${l}`);
+      } catch {
+        // 配置缺失不应在此中断整轮（buildTargets 已确保存在；极端情况下兜底跳过校验）
+      }
       const companyId = target.companyId;
       companyIds.add(companyId);
       // 渲染模式：CLI --render > YAML render > 'auto'（buildTargets 已解析并存入 target.mode）
@@ -353,7 +372,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           return fresh.length;
         };
         try {
-          const { detailFailed, missingPages } = await collectSection({
+          const { detailFailed, missingPages, fieldMismatches } = await collectSection({
             progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat,
             domain, adapter, headers: extraHeaders, skipKeys,
             onBatch: dryRun ? undefined : flushBatch, // dry-run 全程零写入，缓冲全量留给解析计数
@@ -362,6 +381,10 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           summary.failed += detailFailed;
           if (detailFailed > 0) {
             progress.update(`[crawl] ${domain} [${section.key}] 详情失败 ${detailFailed} 条（已计入 summary.failed）`);
+          }
+          // 两阶段字段不一致累计（Q2）：并入 summary，结束前统一告警
+          for (const [f, c] of Object.entries(fieldMismatches)) {
+            summary.fieldMismatches[f] = (summary.fieldMismatches[f] ?? 0) + c;
           }
           // 列表页抓取失败被跳过的页码：汇总进 summary，结束前统一告警（docs/16 规模化兜底）
           for (const p of missingPages) summary.missingPages.push(`${domain} [${section.key}] 第${p}页`);
@@ -442,8 +465,18 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         });
       }
     }
+    // 两阶段字段不一致汇总告警（Q2）：非阻断，提示「列表/详情解析规则可能漂移」
+    const mismatchEntries = Object.entries(summary.fieldMismatches).sort((a, b) => b[1] - a[1]);
+    if (mismatchEntries.length > 0) {
+      const total = mismatchEntries.reduce((s, [, c]) => s + c, 0);
+      progress.update(`[crawl] ⚠️ 两阶段字段不一致 ${total} 次（列表值已存 row[<字段>_list]，详情值落库）：`);
+      for (const [f, c] of mismatchEntries.slice(0, 15)) {
+        progress.update(`[crawl]   ⚠️ ${f}: ${c} 次`);
+      }
+      if (mismatchEntries.length > 15) progress.update(`[crawl]   … 其余 ${mismatchEntries.length - 15} 个字段略`);
+    }
     progress.done(
-      `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.missingPages.length ? ` / 缺失页 ${summary.missingPages.length}` : ''}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
+      `${dryRun ? '[crawl] (dry-run) 完成（全程零写入）' : '[crawl] 完成'}：公司 ${summary.companies} / 品类 ${summary.categories} / 栏目 ${summary.sections} / 新增 ${summary.new} / 更新 ${summary.updated} / 下架 ${summary.delisted} / 价格点 ${summary.pricePoints}${summary.contentNew + summary.contentUpdated > 0 ? ` / 内容新增 ${summary.contentNew} / 内容更新 ${summary.contentUpdated}` : ''} / 失败 ${summary.failed}${summary.missingPages.length ? ` / 缺失页 ${summary.missingPages.length}` : ''}${mismatchEntries.length ? ` / 字段不一致 ${mismatchEntries.reduce((s, [, c]) => s + c, 0)}` : ''}${summary.adapterSites ? ` / 代码适配器 ${summary.adapterSites}` : ''}${dryRun ? ` / 解析 ${summary.dryRunParsed ?? 0} 条` : ''}`,
     );
     await finalize(db, crawlRow.id, summary.failed > 0 ? 'partial' : 'success', summary, dryRun);
     // 整轮成功（含 partial：栏目级失败已计 summary.failed，下轮全量重跑即可）→ 清理断点文件
@@ -857,7 +890,7 @@ async function collectSection(args: {
    * 不传则维持旧行为「整栏目抓完再落」。刷库失败不吞成详情失败——记录后收尾统一上抛（整栏目失败）。
    */
   onBatch?: (batch: PendingProduct[]) => Promise<number>;
-}): Promise<{ detailFailed: number; missingPages: number[] }> {
+}): Promise<{ detailFailed: number; missingPages: number[]; fieldMismatches: Record<string, number> }> {
   const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, modelStat, domain, adapter, headers, skipKeys, onBatch } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
@@ -869,6 +902,8 @@ async function collectSection(args: {
   const ctx: CodeAdapterCtx = { domain, sectionKey: section.key, contentType: section.contentType };
   // 列表抓取失败被跳过的页码（重试耗尽仍失败），汇总后由主循环落告警（docs/16 规模化兜底）
   const missingPages: number[] = [];
+  // 两阶段字段不一致累计（Q2）：键=字段名，值=次数；随返回结果并入 summary
+  const fieldMismatches: Record<string, number> = {};
 
   // 列表翻页进度：页级 ProgressCounter（实时用时/速率）。收尾 commit 成独立行（带 \n），
   // 后续详情进度从新行开始，不会覆盖本行（docs/16 P5-进度：列表进度需保留可见）。
@@ -952,7 +987,11 @@ async function collectSection(args: {
         return;
       }
       const html = await fetchPage(it.detailUrl, detailMode, undefined, headers);
-      let normalized = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
+      const merged = mergeListFallback(parseDetailWithConfig(html, section.parseDetail.fields), it.raw);
+      let normalized = merged.product;
+      for (const f of merged.mismatches) {
+        fieldMismatches[f] = (fieldMismatches[f] ?? 0) + 1;
+      }
       // 适配器钩子：详情解析后二次加工（在 api 源 / 模型兜底之前，它们只补空不覆盖）
       if (adapter?.postParseDetail) normalized = await adapter.postParseDetail(normalized, html, ctx);
       const detailUrl = normalized.detailUrl ?? it.detailUrl;
@@ -1033,35 +1072,53 @@ async function collectSection(args: {
   detailBar.setSuffix(null);
   detailBar.finish(skippedSaved > 0 ? `跳过已落库${skippedSaved}（--resume 续跑）` : undefined);
   if (flushError) throw flushError; // 落库失败按栏目失败上抛（进主循环 catch，不混入详情失败计数）
-  return { detailFailed, missingPages };
+  return { detailFailed, missingPages, fieldMismatches };
 }
 
 /**
- * 详情优先、列表兜底：列表页常常有货号/价格/规格，而详情页反而缺 → 用列表值补空。
- * 只合并「一等公民」标量字段；不覆盖详情已有值。
+ * 详情优先、列表兜底合并（Q2，由字段注册表驱动，去掉硬编码 12 字段）：
+ * 列表页常有货号/价格/规格而详情页反而缺 → 用列表值补空（不覆盖详情已有值）。
+ * 仅合并 registry 中 `listFallback=true` 的标量/数值字段；数组字段（specs 等）不动。
+ * 两阶段都抽到且「归一后不一致」的字段（`auditMismatch=true`）计入 mismatches，
+ * 并把列表值存入 `row[<field>_list]` 供溯源；汇总进 summary.fieldMismatches（非阻断告警）。
  */
-function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>): NormalizedProduct {
-  if (!raw) return np;
-  const pick = (a: unknown, b: unknown): string | null => {
-    if (typeof a === 'string' && a !== '') return a;
-    return typeof b === 'string' && b !== '' ? b : null;
-  };
-  return {
-    ...np,
-    name: pick(np.name, raw.name),
-    sourceProductId: pick(np.sourceProductId, raw.sourceProductId),
-    sku: pick(np.sku, raw.sku),
-    englishName: pick(np.englishName, raw.englishName),
-    aliases: pick(np.aliases, raw.aliases),
-    oldSkus: pick(np.oldSkus, raw.oldSkus),
-    brand: pick(np.brand, raw.brand),
-    priceText: pick(np.priceText, raw.priceText),
-    specText: pick(np.specText, raw.specText),
-    description: pick(np.description, raw.description),
-    cloneNumber: pick(np.cloneNumber, raw.cloneNumber),
-    // 价格为数值：详情非数值时用列表值（列表 YAML 建议写 number: true；这里再兜一层字符串）
-    price: typeof np.price === 'number' ? np.price : toNumberOrNull(raw.price),
-  };
+function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>): {
+  product: NormalizedProduct;
+  mismatches: string[];
+} {
+  const mismatches: string[] = [];
+  if (!raw) return { product: np, mismatches };
+  const target = np as unknown as Record<string, unknown>;
+  for (const meta of PRODUCT_FIELDS) {
+    if (!meta.listFallback) continue;
+    const detailVal = target[meta.name];
+    const listVal = raw[meta.name];
+    if (meta.type === 'number') {
+      const d = toNumberOrNull(detailVal);
+      const l = toNumberOrNull(listVal);
+      if (d === null) {
+        if (l !== null) target[meta.name] = l;
+      } else if (meta.auditMismatch && l !== null && d !== l) {
+        (np.row as Record<string, unknown>)[`${meta.name}_list`] = listVal;
+        mismatches.push(meta.name);
+      }
+    } else {
+      const dStr = typeof detailVal === 'string' ? detailVal : '';
+      const lStr = typeof listVal === 'string' ? listVal : '';
+      if (dStr === '' && lStr !== '') target[meta.name] = lStr;
+      else if (meta.auditMismatch && dStr !== '' && lStr !== '' && !normEqual(dStr, lStr)) {
+        (np.row as Record<string, unknown>)[`${meta.name}_list`] = listVal;
+        mismatches.push(meta.name);
+      }
+    }
+  }
+  return { product: np, mismatches };
+}
+
+/** 归一比较：去首尾空白、压缩内部空白、转小写后相等则视为一致（避免大小写/空格造成的噪音告警） */
+function normEqual(a: string, b: string): boolean {
+  const n = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+  return n(a) === n(b);
 }
 
 /** 把 number | string | null 归一为 number | null */
