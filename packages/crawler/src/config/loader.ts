@@ -80,6 +80,19 @@ export const DEFAULT_MAX_PAGES = 1000;
 
 const DEFAULT_TRAVERSAL: ListTraversalConfig = { strategy: 'pagination-html', maxPages: DEFAULT_MAX_PAGES, fallbackToUi: true };
 
+/**
+ * listOnly 栏目（无详情阶段、条目直接入库）的默认翻页策略 = **只取第一页**。
+ *
+ * 为什么不是「继承站点级」：站点级常配 pagination-url + `?page={page}`（给真正分页的栏目用）。
+ * 若 listOnly 栏目一并继承，而它的数据其实是**一次 XHR 全量返回**（每页都返回同样全量），
+ * 则 `onPage` 每页都 >0 条、永不触发「本页无条目 → 终止」，会一路翻到 maxPages 上限，
+ * 白抓站点上千个页面（表现为「明明没配翻页却在疯狂翻页」）。
+ *
+ * 语义上：listOnly = 快照式列表，够用即止。确实要翻页的栏目，在 section 里显式写
+ * `listTraversal:`（哪怕只写 `strategy: pagination-url` + urlTemplate）即覆盖本默认。
+ */
+export const LIST_ONLY_TRAVERSAL: ListTraversalConfig = { strategy: 'pagination-html' };
+
 /** 站点币种缺省值 */
 const DEFAULT_CURRENCY = 'CNY';
 
@@ -149,7 +162,8 @@ export function resolveTraversalLimits(t: ListTraversalConfig, cli?: CliTraversa
   return {
     pageStart: cli?.pageStart ?? t.pageStart ?? 1,
     pageEnd: cli?.pageEnd ?? t.pageEnd,
-    maxPages: cli?.pages !== undefined ? Math.min(cli.pages, yamlMax) : yamlMax,
+    // strategy=none（显式禁翻页）只抓一页，数量护栏无意义 → 直接按单页算，别被 CLI/YAML 数值误导
+    maxPages: t.strategy === 'none' ? 1 : cli?.pages !== undefined ? Math.min(cli.pages, yamlMax) : yamlMax,
     offset: Math.max(0, cli?.offset ?? t.offset ?? 0),
     perPage: cli?.perPage ?? t.limit,
     listRetry: Math.max(0, t.listRetry ?? 1),
@@ -205,7 +219,10 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         productLine: s.productLine ?? cfg.productLine,
         currency,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
-        listTraversal: mergeTraversal(s.listTraversal, topTraversal),
+        // listOnly 栏目默认单页：见 LIST_ONLY_TRAVERSAL 注释（防「全量返回」栏目被站点级
+        // pagination-url 按 ?page=N 翻到上限）。显式写了 listTraversal 则以显式为准。
+        listTraversal:
+          s.listOnly && !s.listTraversal ? LIST_ONLY_TRAVERSAL : mergeTraversal(s.listTraversal, topTraversal),
         // 上面的前置校验保证二者至少有一个存在
         parseList: (s.parseList ?? cfg.parseList)!,
         parseDetail: s.parseDetail ?? topDetail,

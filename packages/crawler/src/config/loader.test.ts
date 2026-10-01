@@ -6,6 +6,7 @@ import {
   detailRenderMode,
   resolveTraversalLimits,
   slicePageItems,
+  LIST_ONLY_TRAVERSAL,
 } from './loader.js';
 import type { SiteConfig } from './types.js';
 
@@ -92,6 +93,28 @@ describe('resolveSections — 多规则写法', () => {
     const got = resolveSections(cfg);
     expect(got[0].listOnly).toBe(true);
     expect(got[1].listOnly).toBeUndefined();
+  });
+
+  it('listOnly 栏目默认只抓第一页（不被站点级 pagination-url/urlTemplate 带着翻页）', () => {
+    const cfg: SiteConfig = {
+      domain: 'g.com',
+      listTraversal: { strategy: 'pagination-url', urlTemplate: '?page={page}', maxPages: 1000 },
+      parseList: { itemSelector: '.i', fields: {} },
+      sections: [
+        // 显式声明 listTraversal 的栏目：尊重显式配置（仍然翻页）
+        { key: 'explicit', listOnly: true, startUrls: ['https://g.com/a'], listTraversal: { strategy: 'pagination-html' } },
+        // 未声明的 listOnly 栏目：默认单页，且不再继承站点级 urlTemplate
+        { key: 'snapshot', listOnly: true, startUrls: ['https://g.com/b'] },
+        { key: 'normal', startUrls: ['https://g.com/c'] },
+      ],
+    };
+    const got = resolveSections(cfg);
+    expect(got[0].listTraversal.strategy).toBe('pagination-html');
+    expect(got[1].listTraversal).toEqual(LIST_ONLY_TRAVERSAL);
+    expect(got[1].listTraversal.urlTemplate).toBeUndefined();
+    // 普通栏目仍走原字段级合并（继承站点级模板）
+    expect(got[2].listTraversal.strategy).toBe('pagination-url');
+    expect(got[2].listTraversal.urlTemplate).toBe('?page={page}');
   });
 
   it('section.key 缺省补 default', () => {
@@ -205,6 +228,11 @@ describe('resolveTraversalLimits / slicePageItems — 分页条目控制', () =>
     expect(resolveTraversalLimits({ strategy: 'pagination-html', maxPages: 3 }, { pages: 50 }).maxPages).toBe(3);
     // 双方都没显式写 maxPages → 硬兜底 1000
     expect(resolveTraversalLimits({ strategy: 'pagination-html' }, { pages: 5000 }).maxPages).toBe(1000);
+  });
+
+  it('resolveTraversalLimits：strategy=none（局部禁翻页）→ maxPages 恒 1，不受 CLI/YAML 数值影响', () => {
+    expect(resolveTraversalLimits({ strategy: 'none' }).maxPages).toBe(1);
+    expect(resolveTraversalLimits({ strategy: 'none', maxPages: 99 }, { pages: 50 }).maxPages).toBe(1);
   });
 
   it('slicePageItems：offset 起连取 perPage 条；无需截取时原样返回', () => {

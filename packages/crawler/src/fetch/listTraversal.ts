@@ -152,6 +152,14 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     return { pages, items, missingPages };
   }
 
+  // none：显式禁用翻页 —— 只抓第一页（按 listMode 渲染：spa 走浏览器、ssr 直接 fetch），
+  // 不进入任何翻页循环。用于「站点级配了 pagination-url，但本栏目一次请求全量返回」的局部关停。
+  if (traversal.strategy === 'none') {
+    const html = await fetchPage(url, listMode, opts.progress, opts.headers);
+    const n = await opts.onPage(html, 1, url);
+    return { pages: 1, items: n, missingPages: [] };
+  }
+
   // ssr：无浏览器，单页
   if (listMode === 'ssr') {
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers);

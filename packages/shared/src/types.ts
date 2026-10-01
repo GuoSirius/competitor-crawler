@@ -33,7 +33,16 @@ export type ListStrategy =
   | 'pagination-api'
   | 'scroll-api'
   | 'model-generic'
-  | 'pagination-url';
+  | 'pagination-url'
+  /**
+   * 显式禁用翻页：只抓第一页（按 listMode 渲染后入库），不做任何翻页。
+   *
+   * 用途：站点级配了 `pagination-url` + `urlTemplate`（给真正分页的栏目共用），
+   * 而个别栏目是「一次请求全量返回」——若继承站点级模板，每页都返回全量、
+   * onPage 恒 >0，会一路翻到 maxPages 上限白抓上千页。此时在该 section 里写
+   * `listTraversal: { strategy: none }` 即可**局部**关掉翻页，顶层配置不用动。
+   */
+  | 'none';
 
 export interface SpecItem {
   spec?: string | null;

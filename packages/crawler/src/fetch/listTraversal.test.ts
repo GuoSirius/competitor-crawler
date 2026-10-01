@@ -250,3 +250,48 @@ describe('traverseList — pagination-url', () => {
     expect(res.pages).toBe(2);
   });
 });
+
+describe('traverseList — strategy: none（局部禁翻页）', () => {
+  it('只抓第一页：不拼 ?page、不进翻页循环，onPage 收到的页码恒为 1', async () => {
+    const urls: string[] = [];
+    mockFetch.mockImplementation(async (url: string) => {
+      urls.push(url);
+      return '<html></html>';
+    });
+    const pageNos: number[] = [];
+    const onPage = vi.fn(async (_html: string, pageNo: number) => {
+      pageNos.push(pageNo);
+      return 5; // 恒 >0：若是 pagination-url 策略这里就会一路翻到 maxPages
+    });
+
+    const res = await traverseList({
+      url: 'https://x.com/resource/material',
+      traversal: { strategy: 'none' },
+      listMode: 'ssr',
+      maxPages: 10000,
+      onPage,
+    });
+
+    expect(urls).toEqual(['https://x.com/resource/material']);
+    expect(pageNos).toEqual([1]);
+    expect(res).toEqual({ pages: 1, items: 5, missingPages: [] });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('spa 模式也只走一次 fetch（仍然渲染，不点下一页）', async () => {
+    mockFetch.mockResolvedValue('<html></html>');
+    const onPage = vi.fn(async () => 3);
+
+    const res = await traverseList({
+      url: 'https://x.com/resource/material',
+      traversal: { strategy: 'none' },
+      listMode: 'spa',
+      maxPages: 10,
+      onPage,
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(res.pages).toBe(1);
+    expect(res.items).toBe(3);
+  });
+});
