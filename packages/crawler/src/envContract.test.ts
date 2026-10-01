@@ -64,11 +64,15 @@ function declaredKeys(): Set<string> {
 
 /**
  * 去掉注释后再扫描：避免**文档注释里的示例**（如 `process.env.XXX`）被误判成真实读取。
- * 块注释用等量空白/newline 替换以保持行号不变；行注释的 `//` 前若是 `:`（http://）则不动。
+ * 块注释用等量空白/newline 替换以保持行号不变；行注释的双斜杠前若是冒号（http:/-/-x）则不动。
+ * 块注释开头要求斜杠星号前不是星号（lookbehind）：否则 Accept 头字符串里的 MIME 通配符
+ * 「星、斜杠、星、分号 q=0.8」会被当成块注释开头，吞掉后面一整段真实代码（实测踩过）。
  */
 function stripComments(src: string): string {
+  const SLASH_STAR = '/' + '*'; // 防止本注释被自身匹配
+  const blockRe = new RegExp('(?<!\\*)' + SLASH_STAR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s\\S]*?\\*/', 'g');
   return src
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(blockRe, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/(^|[^:])\/\/[^\n]*/gm, '$1');
 }
 

@@ -1,7 +1,6 @@
 import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
-import { fetchPage, waitForSpaSettle, type RenderMode } from './page.js';
+import { fetchPage, waitForSpaSettle, headlessEnv, GOTO_TIMEOUT_MS, type RenderMode } from './page.js';
 import { stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
-import { GOTO_TIMEOUT_MS } from './page.js';
 import { humanClick, humanPause } from './human.js';
 import { Progress } from '../util/progress.js';
 
@@ -178,7 +177,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     const { chromium } = await import('playwright');
     // 与 spaFetch 同口径 stealth：旧实现这里用的是裸 launch（无 initScript、无 timezone/locale），
     // 「点下一页」比「取 HTML」更像真人操作，反而反检测最弱 —— 补上。
-    const headless = ab?.headless ?? (process.env['CRAWL_BROWSER_HEADLESS'] === 'true' || process.env['CRAWL_BROWSER_HEADLESS'] === '1');
+    const headless = ab?.headless ?? headlessEnv();
     browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   } catch (e) {
     // Playwright 不可用（未安装内核等）→ 回退单页，保证不整轮失败

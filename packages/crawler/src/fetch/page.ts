@@ -139,16 +139,22 @@ const SPA_STABLE_CHECKS = 2; // 连续 N 次签名不变 → 稳定
 const SPA_MIN_WAIT_MS = 800; // 最短观察窗：防初始空壳直接返回
 // 上限可用 env 放宽（慢站/弱网）：视觉上「还在转圈」多数是图片/字体在拖，
 // DOM+XHR 数据早已就位；但首屏 XHR 特别慢的站确实需要更长观察窗。
-function envMs(name: string, fallback: number): number {
-  const v = Number(process.env[name]);
+// 注意：必须以 process.env.X 点号访问（envContract 契约测试静态扫描此形态）。
+function envMs(raw: string | undefined, fallback: number): number {
+  const v = Number(raw);
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
-const SPA_MAX_WAIT_MS = envMs('CRAWL_SPA_MAX_WAIT', 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
-const SPA_NETWORK_WAIT_MS = envMs('CRAWL_SPA_NETWORK_WAIT', 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
+const SPA_MAX_WAIT_MS = envMs(process.env.CRAWL_SPA_MAX_WAIT, 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
+const SPA_NETWORK_WAIT_MS = envMs(process.env.CRAWL_SPA_NETWORK_WAIT, 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
 const CHALLENGE_WAIT_ROUNDS = 5; // 挑战页自动放行轮数（CF 5 秒盾通常 3~8s 放行）
 const CHALLENGE_WAIT_MS = 6_000; // 每轮等待
 /** goto 超时可调（跨境慢站 45s 可能不够）：CRAWL_GOTO_TIMEOUT */
-export const GOTO_TIMEOUT_MS = envMs('CRAWL_GOTO_TIMEOUT', 45_000);
+export const GOTO_TIMEOUT_MS = envMs(process.env.CRAWL_GOTO_TIMEOUT, 45_000);
+
+/** 无头开关（默认有头：本机桌面更隐蔽、过盾率高；CI/无显示环境 CRAWL_BROWSER_HEADLESS=true） */
+export function headlessEnv(): boolean {
+  return process.env.CRAWL_BROWSER_HEADLESS === 'true' || process.env.CRAWL_BROWSER_HEADLESS === '1';
+}
 
 /**
  * 等待页面「网络 + DOM」双稳定，快站 ~2-3s 返回，慢站自动多等。
@@ -189,11 +195,6 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
 
     await page.waitForTimeout(SPA_POLL_MS);
   }
-}
-
-function headlessEnv(): boolean {
-  const v = process.env['CRAWL_BROWSER_HEADLESS'];
-  return v === 'true' || v === '1';
 }
 
 /**
