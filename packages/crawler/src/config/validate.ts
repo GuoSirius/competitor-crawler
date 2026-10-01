@@ -99,7 +99,10 @@ export function validateSiteConfig(cfg: SiteConfig): ConfigIssue[] {
     // 1) 必填字段缺失
     for (const f of registry) {
       if (!f.required) continue;
-      if (!allKeys.has(f.name)) {
+      // contents 管线特判：标题来源链是 np.name → row.title → 列表名（toPendingContent.pick），
+      // YAML 配 'name' 即等价于 'title'（name 会提升到 NormalizedProduct.name），不算缺失。
+      const satisfied = allKeys.has(f.name) || (kind === 'contents' && f.name === 'title' && allKeys.has('name'));
+      if (!satisfied) {
         issues.push({
           level: 'error',
           code: 'MISSING_REQUIRED',

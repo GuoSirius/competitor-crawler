@@ -126,6 +126,17 @@ describe('validateSiteConfig', () => {
     expect(issues.some((i) => i.code === 'MISSING_IDENTITY')).toBe(false);
   });
 
+  it('contents 栏目配 name 等价于 title（管线标题链 np.name→row.title→列表名），不报缺必填', () => {
+    const cfg = baseCfg({
+      contentType: 'news',
+      startUrl: 'https://x.com/news',
+      parseList: { itemSelector: '.i', fields: { detailUrl: { sel: 'a', attr: 'href' }, name: { sel: '.t' } } },
+      parseDetail: { fields: { name: { sel: 'meta[property="og:title"]', attr: 'content' } } },
+    });
+    const issues = validateSiteConfig(cfg);
+    expect(issues.some((i) => i.code === 'MISSING_REQUIRED')).toBe(false);
+  });
+
   it('hash 翻页模板（#page={page}）→ error 级 HASH_PAGINATION_UNSUPPORTED', () => {
     const cfg = baseCfg({
       startUrl: 'https://x.com/list',
