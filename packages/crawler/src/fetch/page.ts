@@ -6,6 +6,7 @@ import {
   stealthContextOptions,
   stealthInitSource,
   type ChallengeKind,
+  type ChallengeHit,
   type StealthEnv,
 } from './antiBot.js';
 import { humanPause } from './human.js';
@@ -146,6 +147,8 @@ const SPA_MAX_WAIT_MS = envMs('CRAWL_SPA_MAX_WAIT', 30_000); // 硬上限：长�
 const SPA_NETWORK_WAIT_MS = envMs('CRAWL_SPA_NETWORK_WAIT', 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
 const CHALLENGE_WAIT_ROUNDS = 5; // 挑战页自动放行轮数（CF 5 秒盾通常 3~8s 放行）
 const CHALLENGE_WAIT_MS = 6_000; // 每轮等待
+/** goto 超时可调（跨境慢站 45s 可能不够）：CRAWL_GOTO_TIMEOUT */
+export const GOTO_TIMEOUT_MS = envMs('CRAWL_GOTO_TIMEOUT', 45_000);
 
 /**
  * 等待页面「网络 + DOM」双稳定，快站 ~2-3s 返回，慢站自动多等。
@@ -194,11 +197,17 @@ function headlessEnv(): boolean {
 }
 
 /**
- * 挑战页自动放行等待：读到挑战页不立即判死——Cloudflare 5 秒盾 / 阿里云盾
- * 通常 3~8s 内自动跳转到真页面，摔门走人等于白白送掉一批可过站点。
- * 轮询重读 DOM，放行成功（挑战特征消失）后按 SPA 稳定检测等渲染完再取 HTML；
+ * 挑战页自动放行等待：读到挑战页不立即判死——但**只有非交互型挑战才等**。
+ * sweep 实测教训（2026-10-01，29 站两轮）：CF「Just a moment」非交互盾会自动跳转，
+ * 值得等；而 reCAPTCHA / PerimeterX / Imperva / CF IP-ban（Attention Required）是
+ * 交互型/封禁型，等多久都不会放行——对它们等待纯属每站浪费 ~150s（三站实测踩过）。
  * 轮次耗尽仍拦截才抛 ChallengeError。
  */
+function isAutoPassableChallenge(hit: ChallengeHit): boolean {
+  if (hit.kind !== 'cloudflare') return false; // 其余类型（captcha/px/imperva/aliyun）均需人工交互
+  return /just a moment|checking your browser|enable javascript and cookies/i.test(hit.matched);
+}
+
 async function waitForChallengePass(
   page: import('playwright').Page,
   url: string,
@@ -206,7 +215,7 @@ async function waitForChallengePass(
 ): Promise<string> {
   let html = await page.content();
   let hit = detectChallenge(html);
-  for (let i = 0; hit && i < CHALLENGE_WAIT_ROUNDS; i++) {
+  for (let i = 0; hit && isAutoPassableChallenge(hit) && i < CHALLENGE_WAIT_ROUNDS; i++) {
     progress?.log(`挑战页[${hit.kind}] 等待自动放行 ${i + 1}/${CHALLENGE_WAIT_ROUNDS}（${hit.matched}）`);
     await page.waitForTimeout(CHALLENGE_WAIT_MS);
     await waitForSpaSettle(page);
@@ -229,7 +238,7 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
     await humanPause([350, 1200]);
     // 不用 networkidle 等待：ATCC/Coveo 这类站有长连接/埋点轮询，networkidle 永远等不到（超时）。
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
     await waitForSpaSettle(page);
     return await waitForChallengePass(page, url, progress);
   } finally {
@@ -250,7 +259,7 @@ export async function fetchScreenshot(url: string, progress?: Progress): Promise
   try {
     const page = await newStealthPage(browser, { width: 1440, height: 900 });
     // SPA 站截图同样需要等渲染完成，否则截到的是空壳（与 spaFetch 同一套稳定检测）
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
     await waitForSpaSettle(page);
     return await page.screenshot({ fullPage: true, type: 'jpeg', quality: 70 });
   } finally {

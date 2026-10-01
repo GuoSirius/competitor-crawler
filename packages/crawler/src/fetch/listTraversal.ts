@@ -1,6 +1,7 @@
 import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
 import { fetchPage, waitForSpaSettle, type RenderMode } from './page.js';
 import { stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
+import { GOTO_TIMEOUT_MS } from './page.js';
 import { humanClick, humanPause } from './human.js';
 import { Progress } from '../util/progress.js';
 
@@ -202,7 +203,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     await ctx.addInitScript(stealthInitSource(ab?.profile ?? 'mid'));
     const page = await ctx.newPage();
     await humanPause([400, 1400]);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.max(60_000, GOTO_TIMEOUT_MS) });
     // SPA 首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
     // 否则首次 page.content() 拿到空壳 → 解析 0 条直接终止
     await waitForSpaSettle(page);

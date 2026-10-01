@@ -99,9 +99,12 @@ async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean):
   try {
     const html = await fetchPage(t.url, mode, progress, undefined, { headless });
     const cls = classify(html);
+    // 伪放行标记（sweep 实测教训：MCE spa 返回 39B 空壳却被判 OK）——
+    // 通过了挑战检测但内容量异常小，大概率是 JS 指纹检测后吐的空响应
+    const suspect = cls.result === 'OK' && html.length < 500;
     return {
       ...base,
-      result: cls.result,
+      result: suspect ? 'SUSPECT(伪放行?)' : cls.result,
       kind: cls.hit?.kind,
       bytes: html.length,
       title: /<title[^>]*>([^<]{0,120})/i.exec(html)?.[1]?.trim() ?? '',
