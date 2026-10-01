@@ -285,8 +285,10 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         // ── 非产品内容采集（section.contentType !== 'products'）→ contents 表管线 ──
         if (section.contentType !== 'products') {
           const pendingC: PendingContent[] = [];
+          // 栏目绑定分类（buildTargets 已建树）：dry-run 哨兵 0 → 保留 null，别写不存在的 FK
+          const categoryIdC = (ts.categoryId ?? 0) > 0 ? ts.categoryId : null;
           try {
-            const { detailFailed: detailFailedC, missingPages: missingPagesC } = await collectContentSection({ progress, mode, opts, section, companyId, pending: pendingC, seenSet, domain, adapter, headers: extraHeaders });
+            const { detailFailed: detailFailedC, missingPages: missingPagesC } = await collectContentSection({ progress, mode, opts, section, companyId, categoryId: categoryIdC, pending: pendingC, seenSet, domain, adapter, headers: extraHeaders });
             // 详情级失败计入 summary.failed（docs/16 E1：报告不再恒显「失败 0」）
             summary.failed += detailFailedC;
             for (const p of missingPagesC) summary.missingPages.push(`${domain} [${section.key}] 内容第${p}页`);
@@ -580,19 +582,20 @@ async function buildTargets(
         if (opts.productLine && section.productLine !== opts.productLine) continue;
         const categoryName = section.category ?? `${domain}::${section.key}`;
         const breadcrumb = section.categoryPath ?? [categoryName];
-        // 内容栏目（contentType !== 'products'）不绑品类：categories 是产品维度
-        const categoryId =
-          section.contentType !== 'products'
-            ? null
-            : await upsertCategoryPath(
-              db,
-              companyId,
-              breadcrumb,
-              section.startUrls[0] ?? cfg.startUrl ?? '',
-              section.productLine ?? null,
-              dryRun,
-              progress,
-            );
+        // 内容栏目（contentType !== 'products'）同样在分类表建节点，但 content_type 用**内容类型**（school/video…），
+        // 与产品的 'products' 分域互不干扰（categories 表按 (company,content_type,path) 判重）。
+        // 此前内容栏目恒不建树、contents.category_id 恒 null → 分类表里看不到内容栏目，
+        // 前端「按内容分类筛选」无锚点；表设计本就支持（categories.content_type / contents.category_id）。
+        const categoryId = await upsertCategoryPath(
+          db,
+          companyId,
+          breadcrumb,
+          section.startUrls[0] ?? cfg.startUrl ?? '',
+          section.productLine ?? null,
+          dryRun,
+          progress,
+          section.contentType,
+        );
         targetSections.push({ section, categoryId, categoryName });
       }
       targets.set(domain, { domain, companyId, sections: targetSections, mode });
@@ -1388,6 +1391,8 @@ interface PendingContent {
   sectionKey: string;
   identityKey: string;
   sourceId: string | null;
+  /** 栏目绑定分类 id（categories 表，content_type 同本行）；null = 不挂 */
+  categoryId: number | null;
   title: string;
   summary: string | null;
   body: string | null;
@@ -1410,6 +1415,8 @@ async function collectContentSection(args: {
   opts: CrawlOpts;
   section: ResolvedSection;
   companyId: number;
+  /** 栏目绑定分类 id（buildTargets 中的 ts.categoryId）；null = 不挂分类（如 dry-run 哨兵） */
+  categoryId: number | null;
   pending: PendingContent[];
   seenSet: (cid: number, sectionKey: string) => Set<string>;
   /** 站点域名（供适配器钩子 ctx 使用） */
@@ -1419,7 +1426,7 @@ async function collectContentSection(args: {
   /** preflight 产出的附加请求头（如 Cookie） */
   headers: Record<string, string>;
 }): Promise<{ detailFailed: number; missingPages: number[] }> {
-  const { progress, mode, opts, section, companyId, pending, seenSet, domain, adapter, headers } = args;
+  const { progress, mode, opts, section, companyId, categoryId, pending, seenSet, domain, adapter, headers } = args;
   // 渲染模式回退链（Hybrid 站点）：列表页 renderList → render → 站点 mode；详情页 renderDetail → render → 站点 mode
   const listMode = listRenderMode(section, mode);
   const detailMode = detailRenderMode(section, mode);
@@ -1480,6 +1487,7 @@ async function collectContentSection(args: {
     for (const it of targets) {
       const c = toPendingContent({ row: {} } as NormalizedProduct, it, it.detailUrl, companyId, section.key, section.contentType);
       if (c) {
+        c.categoryId = categoryId; // 栏目绑定分类（建树在 buildTargets）
         pending.push(c);
         seenSet(companyId, section.key).add(c.identityKey);
       }
@@ -1502,6 +1510,7 @@ async function collectContentSection(args: {
       if (adapter?.postParseDetail) np = await adapter.postParseDetail(np, html, ctx);
       const c = toPendingContent(np, it, it.detailUrl, companyId, section.key, section.contentType);
       if (c) {
+        c.categoryId = categoryId; // 栏目绑定分类（建树在 buildTargets）
         pending.push(c);
         seenSet(companyId, section.key).add(c.identityKey);
       }
@@ -1571,6 +1580,7 @@ export function toPendingContent(
     sectionKey,
     identityKey,
     sourceId,
+    categoryId: null, // 由调用方按栏目建树结果赋值（buildTargets → 本管线 categoryId）
     title,
     summary: pick(row.summary, np.description, fromList('summary', 'description')),
     body: pick(row.body, row.content, row.text, fromList('body', 'content', 'text')),
@@ -1665,6 +1675,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       sectionKey: c.sectionKey,
       identityKey: c.identityKey,
       sourceId: c.sourceId,
+      categoryId: c.categoryId, // 栏目绑定分类（内容栏目建树在 buildTargets）
       title: c.title,
       summary: c.summary,
       body: c.body,
@@ -1686,6 +1697,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       set: {
         contentType: c.contentType,
         sourceId: c.sourceId,
+        categoryId: c.categoryId, // 冲突时一并回写（重跑即回填历史行的 category_id）
         title: c.title,
         summary: c.summary,
         body: c.body,

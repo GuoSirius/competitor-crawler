@@ -7,7 +7,7 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 const { createTestDb } = await import('../testing/testDb.js');
 await createTestDb('smoke-contents');
 
-const { createDb, companies, contents, eq, nowSeconds } = await import('@competitor-crawler/shared');
+const { createDb, companies, contents, categories, eq, nowSeconds } = await import('@competitor-crawler/shared');
 const { upsertContent, softDeleteMissingContents } = await import('./crawl.js');
 
 const { db } = createDb();
@@ -41,6 +41,7 @@ function content(overrides: Record<string, unknown> = {}) {
 
 afterAll(async () => {
   await db.delete(contents).where(eq(contents.companyId, company.id));
+  await db.delete(categories).where(eq(categories.companyId, company.id));
   await db.delete(companies).where(eq(companies.id, company.id));
 });
 
@@ -54,6 +55,30 @@ describe('contents 表集成冒烟（真实 SQLite）', () => {
     expect(rows[0].title).toBe('标题一（更新）');
     expect(rows[0].lastSeenAt).toBe(now + 5);
     expect(rows[0].contentType).toBe('news');
+  });
+
+  it('categoryId 挂到栏目绑定分类（内容栏目也能进分类表）', async () => {
+    const now = nowSeconds();
+    const [cat] = await db
+      .insert(categories)
+      .values({
+        companyId: company.id, contentType: 'school', parentId: null, path: 'www.procell.cn::school',
+        name: 'www.procell.cn::school', level: 0, productLine: null, url: null,
+        removedAt: null, createdAt: now, updatedAt: now,
+      })
+      .returning();
+    await upsertContent(db, content({ sectionKey: 'school', identityKey: 'k-5', categoryId: cat.id }), now);
+    let [r] = await db.select().from(contents).where(eq(contents.identityKey, 'k-5'));
+    expect(r.categoryId).toBe(cat.id);
+    // 冲突回填：另一条不带分类的旧行，重跑后 category_id 也补上
+    await upsertContent(db, content({ sectionKey: 'school', identityKey: 'k-6', categoryId: null }), now);
+    await upsertContent(db, content({ sectionKey: 'school', identityKey: 'k-6', categoryId: cat.id }), now + 1);
+    [r] = await db.select().from(contents).where(eq(contents.identityKey, 'k-6'));
+    expect(r.categoryId).toBe(cat.id);
+    // 先清引用（contents.category_id 外键），再删分类节点
+    await db.delete(contents).where(eq(contents.identityKey, 'k-5'));
+    await db.delete(contents).where(eq(contents.identityKey, 'k-6'));
+    await db.delete(categories).where(eq(categories.id, cat.id));
   });
 
   it('contentType 原样落库（公告不再误存为 news）', async () => {
