@@ -41,6 +41,8 @@ export interface ChallengeInput {
   innerText?: string;
   /** 正文字符数（innerText 长度），用于「有内容 = 放行」判断；缺省用 innerText/html 长度 */
   contentChars?: number;
+  /** DOM 里是否存在真实验证控件（reCAPTCHA anchor/PX/Turnstile iframe 等）——宽泛文案的裁决证据 */
+  domWidget?: boolean;
 }
 
 export interface Assessment {
@@ -67,15 +69,30 @@ const HEADER_RULES: Array<[ChallengeKind, RegExp]> = [
   ['captcha', /^x-captcha-sitekey|^x-recaptcha/i],
 ];
 
-/** 强文案：只会出现在真正的挑战页（可见文本） */
-const STRONG_TEXT: Array<[ChallengeKind, RegExp]> = [
+/**
+ * 特异文案：出现在**可见文本**里即判挑战（正常产品页不会写这些词）。
+ * 实测教训（2026-10-02 重试 20 站）：`security check`/`unusual traffic`/`perimeterx` 这类词
+ * 在正常页（BD 130 产品、赛业 876 产品、ScienCell 145 产品）也会出现——它们进了**宽泛组**，
+ * 必须叠加「页面无实质内容 或 DOM 有验证控件」才算挑战。
+ */
+const SPECIFIC_TEXT: Array<[ChallengeKind, RegExp]> = [
   ['cloudflare', /just a moment\.\.\.|checking your browser|enable javascript and cookies to continue|attention required!\s*\|\s*cloudflare/i],
-  ['imperva', /request unsuccessful\.{3}|_incapsula_resource|incapsula/i],
-  ['perimeterx', /perimeterx/i],
-  ['aliyun', /请完成安全验证|滑动验证|请进行滑动验证|security check|nc_wrapper/i],
-  ['captcha', /verify you are (a|the) human|are you a robot|complete the security check|人机验证|请完成验证/i],
-  ['traffic', /unusual traffic|too many requests/i],
+  ['imperva', /request unsuccessful\.{3}|_incapsula_resource/i],
+  ['aliyun', /请完成安全验证|滑动验证|请进行滑动验证|nc_wrapper/i],
+  ['captcha', /verify you are (a|the) human|are you a robot|人机验证|请完成验证/i],
 ];
+
+/** 宽泛文案：正常页也可能带（组件文案/帮助文档），需 DOM 控件或「无内容」佐证 */
+const BROAD_TEXT: Array<[ChallengeKind, RegExp]> = [
+  ['perimeterx', /perimeterx|press & hold/i],
+  ['imperva', /incapsula/i],
+  ['aliyun', /security check/i],
+  ['captcha', /complete the security check|完成验证码|g-recaptcha/i],
+  ['traffic', /unusual traffic|too many requests|请稍后再试|try again later/i],
+];
+
+/** 兼容旧引用：强文案 = 特异 + 宽泛 */
+const STRONG_TEXT = [...SPECIFIC_TEXT, ...BROAD_TEXT];
 
 /** 中文案：挑战页常见但正常页偶尔带的边角词（等自动放行，别直接判死） */
 const MEDIUM_TEXT: Array<[ChallengeKind, RegExp]> = [
@@ -118,13 +135,13 @@ export function assessChallenge(i: ChallengeInput): Assessment {
   }
   if (hdr) notes.push(`响应头命中 ${hdr.kind}（${hdr.matched}）`);
 
-  // 2) 文本：spa 通道的 innerText（已排除 script/style）才是可信信号；
-  //    ssr 只能给整页 HTML（含 script），强文案降级为「中」信号，避免 Payload/白名单 JSON 误判。
-  const strong = i.innerText ? matchFirst(STRONG_TEXT, i.innerText) : null;
-  const weak =
-    strong ??
-    (i.innerText ? matchFirst(MEDIUM_TEXT, i.innerText) : matchFirst(STRONG_TEXT, i.html ?? '') ?? matchFirst(MEDIUM_TEXT, i.html ?? ''));
-  const textHit = strong ?? weak;
+  // 2) 文本（spa 通道 innerText 可信；ssr 通道整页 HTML 只配 medium）：
+  //    specific=特异文案（出现即挑战）；broad=宽泛文案（需 DOM 控件或「无内容」佐证）
+  const specific = i.innerText ? matchFirst(SPECIFIC_TEXT, i.innerText) : null;
+  const broad = !specific && i.innerText ? matchFirst(BROAD_TEXT, i.innerText) : null;
+  const htmlHit = !i.innerText ? matchFirst(STRONG_TEXT, i.html ?? '') ?? matchFirst(MEDIUM_TEXT, i.html ?? '') : null;
+  const medium = !specific && !broad && i.innerText ? matchFirst(MEDIUM_TEXT, i.innerText) : null;
+  const textHit = specific ?? broad ?? medium ?? htmlHit;
   if (textHit) notes.push(`文本命中 ${textHit.kind}（${textHit.matched}）`);
 
   // 3) 状态码兜底
@@ -143,21 +160,38 @@ export function assessChallenge(i: ChallengeInput): Assessment {
     };
   }
 
-  // ── 反向放行：仅 spa 通道（有 innerText）；中/弱信号 + 页面有实质内容 → 误报放行 ──
-  //    （ssr 通道只有整页 HTML，命中词可能来自 script/JSON，此时不反向放行，走正向 medium 判定）
-  if (i.innerText && hdr === null && weak && !strong && hasRealContent) {
+  // ── 确定拦截 ──
+  if (hdr) return { hit: hdr, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
+  if (specific) {
+    return { hit: specific, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
+  }
+  // 宽泛文案：有实质内容且 DOM 无验证控件 → 误报放行（BD/赛业/ScienCell 这类自带组件文案的正常页）
+  if (broad) {
+    if (hasRealContent && !i.domWidget) {
+      return {
+        hit: null,
+        confidence: 'none',
+        falseAlarm: true,
+        suspicious: false,
+        reason: `宽泛特征「${broad.kind}：${broad.matched}」但正文 ${len} 字符且无验证控件，判定误报放行`,
+      };
+    }
+    return { hit: broad, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
+  }
+
+  // ── 反向放行：spa 通道命中中/弱词 + 有实质内容 → 误报放行 ──
+  if (medium && hasRealContent) {
     return {
       hit: null,
       confidence: 'none',
       falseAlarm: true,
       suspicious: false,
-      reason: `仅命中弱特征「${weak.kind}：${weak.matched}」但正文 ${len} 字符，判定误报放行`,
+      reason: `仅命中弱特征「${medium.kind}：${medium.matched}」但正文 ${len} 字符，判定误报放行`,
     };
   }
 
   // ── 软拦伪放行：无信号但内容极短 ──
   if (!hdr && !textHit && len > 0 && len < 200) {
-
     return {
       hit: null,
       confidence: 'medium',
@@ -167,17 +201,10 @@ export function assessChallenge(i: ChallengeInput): Assessment {
     };
   }
 
-  // ── 确定拦截 ──
-  if (hdr) return { hit: hdr, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
-  if (statusBlock) {
-    const kind: ChallengeKind = textHit?.kind ?? 'unknown';
-    return { hit: { kind, matched: `HTTP ${status}` }, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
-  }
-  if (textHit) {
+  if (medium || htmlHit) {
     return {
       hit: textHit,
-      // strong = spa 通道在可见文本里命中的挑战文案；ssr 通道的 HTML 命中一律 medium
-      confidence: !!strong ? 'high' : 'medium',
+      confidence: 'medium',
       falseAlarm: false,
       suspicious: false,
       reason: notes.join('；'),

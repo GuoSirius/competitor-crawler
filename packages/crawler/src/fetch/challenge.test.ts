@@ -89,3 +89,49 @@ describe('assessChallenge — 兼容与边界', () => {
     expect(r.confidence).toBe('none');
   });
 });
+
+describe('assessChallenge — 宽泛文案须 DOM 裁决（BD/赛业/ScienCell 实测回归）', () => {
+  it('BD：1.6MB 正常页带「unusual traffic」文案、无控件 → 误报放行', () => {
+    const r = assessChallenge({
+      status: 200,
+      innerText: 'BD Biosciences flow cytometry reagents ' + '产品'.repeat(400) + ' unusual traffic',
+      contentChars: 8000,
+      domWidget: false,
+    });
+    expect(r.hit).toBeNull();
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('赛业：876 产品锚点的正常页命中 security check → 误报放行', () => {
+    const r = assessChallenge({
+      status: 200,
+      innerText: 'Origincell 干细胞 培养基 security check ' + '产品'.repeat(300),
+      contentChars: 5000,
+      domWidget: false,
+    });
+    expect(r.hit).toBeNull();
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('同款宽泛文案但 DOM 有验证控件 → high（真盾）', () => {
+    const r = assessChallenge({
+      status: 200,
+      innerText: 'unusual traffic from your computer network',
+      contentChars: 60,
+      domWidget: true,
+    });
+    expect(r.hit?.kind).toBe('traffic');
+    expect(r.confidence).toBe('high');
+  });
+
+  it('特异文案（just a moment）即使有内容也 high', () => {
+    const r = assessChallenge({
+      status: 200,
+      innerText: 'Just a moment...',
+      contentChars: 900,
+      domWidget: false,
+    });
+    expect(r.hit?.kind).toBe('cloudflare');
+    expect(r.confidence).toBe('high');
+  });
+});

@@ -242,6 +242,8 @@ async function hasCaptchaWidget(page: import('playwright').Page): Promise<boolea
           'iframe[src*="recaptcha/anchor"]',
           'iframe[src*="recaptcha/frames"]',
           'iframe[src*="hcaptcha.com"]',
+          '#px-captcha',
+          'iframe[src*="perimeterx"]',
           '#h-captcha',
           'iframe[src*="turnstile"]',
         ].join(', '),
@@ -271,7 +273,7 @@ async function waitForChallengePass(
 ): Promise<string> {
   let html = await page.content();
   let text = await pageInnerText(page);
-  let hit = assessChallenge({ ...resp, html, innerText: text }).hit;
+  let hit = assessChallenge({ ...resp, html, innerText: text, domWidget: await hasCaptchaWidget(page) }).hit;
   // 兜底：正则可能命中「页面里存在的 reCAPTCHA 组件名」（如富文本编辑器白名单配置）。
   // 浏览器侧再查一次真实控件——页面里没有可点的验证控件就当正常页放行，别干等人工过盾。
   if (hit?.kind === 'captcha' && !(await hasCaptchaWidget(page))) {
@@ -284,7 +286,7 @@ async function waitForChallengePass(
     await waitForSpaSettle(page);
     html = await page.content();
     text = await pageInnerText(page);
-    hit = assessChallenge({ ...resp, html, innerText: text }).hit;
+    hit = assessChallenge({ ...resp, html, innerText: text, domWidget: await hasCaptchaWidget(page) }).hit;
   }
   // 交互型挑战：有头 + 允许交互时，等用户在浏览器窗口里人工过盾
   let waitedHuman = false;
@@ -296,7 +298,7 @@ async function waitForChallengePass(
       await page.waitForTimeout(HUMAN_WAIT_MS);
       html = await page.content();
       text = await pageInnerText(page);
-      hit = assessChallenge({ ...resp, html, innerText: text }).hit;
+      hit = assessChallenge({ ...resp, html, innerText: text, domWidget: await hasCaptchaWidget(page) }).hit;
       // 每 30s 复述一次剩余时间：sweep 批量跑时长时间静默会被误认成卡死
       if (hit && (i + 1) % 6 === 0) {
         const left = (HUMAN_WAIT_ROUNDS - i - 1) * HUMAN_WAIT_MS / 1000;
