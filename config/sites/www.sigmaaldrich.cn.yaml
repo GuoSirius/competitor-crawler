@@ -1,0 +1,23 @@
+# 站点适配器：默克生命科学（Sigma-Aldrich 中国）www.sigmaaldrich.cn
+# 结构：Adobe AEM + MUI + emotion（css-hash 类，但带语义后缀 -productNumber/-productName）
+#   - 产品行 [class*="tBodyRow"]（表头行为 tHeadRow，已排除）
+#   - 货号 [class*="productNumber"] a（D2650），名称 [class*="productName"] a
+#   - render: spa（ssr 只有壳）
+# 抓取命令：pnpm crawl --domain www.sigmaaldrich.cn
+domain: www.sigmaaldrich.cn
+company: 默克（Merck）
+currency: CNY
+render: spa
+
+parseList:
+  itemSelector: '[class*="tBodyRow"]'
+  fields:
+    detailUrl: { sel: '[class*="productNumber"] a', attr: href }
+    sku: { sel: '[class*="productNumber"] a', text: true }
+    name: { sel: '[class*="productName"] a', text: true }
+
+sections:
+  - key: cell-culture-and-analysis
+    category: 细胞培养与分析
+    startUrls: ["https://www.sigmaaldrich.cn/CN/zh/products/cell-culture-and-analysis"]
+    match: { detailUrlIncludes: ["/CN/zh/product/"] }
