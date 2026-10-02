@@ -1,0 +1,50 @@
+# 站点适配器：浙江美森细胞科技 ctcc.online
+# 结构：.aspx 自研站（证书链有问题 → ssr 通道握手失败，必须 spa；playwright ignoreHTTPSErrors 可过）
+#   - 产品卡 div.TextList003149 ul.ul > li：div.tit a（/CellLines/info.aspx?itemid=N&lcid=N）
+#   - dl dd：第一个=货号、第二个=规格；翻页 &page=N（数字页码，站点脚本注入）
+#   - 入口=各产品分类列表页（导航产品中心下钻，落地页即列表页）
+# 抓取命令：pnpm crawl --domain ctcc.online
+domain: ctcc.online
+company: 浙江美森细胞科技有限公司
+currency: CNY
+render: spa
+
+parseList:
+  itemSelector: "div.TextList003149 ul.ul > li"
+  fields:
+    detailUrl: { sel: "div.tit a", attr: href }
+    name: { sel: "div.tit a", text: true }
+    sku: { sel: "dl dd:nth-of-type(1)", text: true, regex: '货号：(.+)' }
+    specText: { sel: "dl dd:nth-of-type(2)", text: true, regex: '规格：(.+)' }
+
+sections:
+  - key: cell-lines
+    category: 细胞系
+    startUrls: ["https://ctcc.online/CellLines/index.aspx?lcid=30"]
+    match: { detailUrlIncludes: ["/CellLines/info.aspx"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&page={page}", maxPages: 100 }
+  - key: primary-cells
+    category: 原代细胞
+    startUrls: ["https://ctcc.online/PrimaryCells/index.aspx?lcid=26"]
+    match: { detailUrlIncludes: ["/PrimaryCells/info.aspx"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&page={page}", maxPages: 100 }
+  - key: drug-resistant-strains
+    category: 耐药株
+    startUrls: ["https://ctcc.online/Drug-resistantStrains/index.aspx?lcid=14"]
+    match: { detailUrlIncludes: ["/Drug-resistantStrains/info.aspx"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&page={page}", maxPages: 100 }
+  - key: live-imaging-cells
+    category: 活体成像细胞
+    startUrls: ["https://ctcc.online/LiveImagingCells/index.aspx?lcid=43"]
+    match: { detailUrlIncludes: ["/LiveImagingCells/info.aspx"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&page={page}", maxPages: 100 }
+  - key: cas9
+    category: Cas9
+    startUrls: ["https://ctcc.online/Cas9/index.aspx?lcid=10"]
+    match: { detailUrlIncludes: ["/Cas9/info.aspx"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&page={page}", maxPages: 100 }
+  - key: cell-culture-reagents
+    category: 细胞培养试剂
+    startUrls: ["https://ctcc.online/CellCultureReagents/index.aspx?lcid=40"]
+    match: { detailUrlIncludes: ["/CellCultureReagents/info.aspx"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&page={page}", maxPages: 100 }
