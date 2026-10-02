@@ -250,6 +250,11 @@ async function waitForChallengePass(
       await page.waitForTimeout(HUMAN_WAIT_MS);
       html = await page.content();
       hit = detectChallenge(html);
+      // 每 30s 复述一次剩余时间：sweep 批量跑时长时间静默会被误认成卡死
+      if (hit && (i + 1) % 6 === 0) {
+        const left = (HUMAN_WAIT_ROUNDS - i - 1) * HUMAN_WAIT_MS / 1000;
+        progress?.log(`  仍在等待人工过盾（剩余 ${left}s）：请在最前面的浏览器窗口点验证/划滑块`);
+      }
     }
     if (!hit) {
       try {
@@ -261,7 +266,11 @@ async function waitForChallengePass(
       return await page.content();
     }
   }
-  if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
+  if (hit) {
+    // 没进人工过盾分支（headless 或 CRAWL_INTERACTIVE=false）时，说清「为什么不给机会」
+    progress?.log(`挑战页[${hit.kind}] 未进入人工过盾（headless=${headlessEnv()} / CRAWL_INTERACTIVE=${process.env.CRAWL_INTERACTIVE ?? '默认true'}）；如需过盾请 CRAWL_BROWSER_HEADLESS=false 重跑`);
+    throw new ChallengeError(hit.kind, url, hit.matched);
+  }
   return html;
 }
 

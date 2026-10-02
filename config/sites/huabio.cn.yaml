@@ -25,10 +25,15 @@ parseList:
     sku: { sel: "a.product-card-link", attr: title, regex: '\(([A-Z]{2,4}[0-9]{4,7})\)\s*$' }
 
 parseDetail:
-  # name 不配：详情 h1 不含货号，保留列表全名（含克隆号+货号）
+  # name 不配：详情 h1=「名称 [克隆号]」不含货号，保留列表全名（含克隆号+货号 HA721452）
+  # sku 不配：详情源码只见于 PDF 文件名（storage.huabio.cn/.../HA721452.pdf），非结构化字段
   fields:
-    price: { sel: "#discount-price, #price", number: true } # 现价优先，无特惠回退原价
-    priceText: { sel: ".product-single__price-text", text: true }
+    # 价格：#discount-price=现价（880）、#price=原价（1500，display:none）→ 逗号选择器取先命中者
+    price: { sel: "#discount-price, #price", number: true }
+    # priceText 只取 #discount-price 文本（避免整段 h2 带「Rmb: 特惠 1500」脏串）
+    priceText: { sel: "#discount-price", text: true }
+    # 规格：swatch 项 .product-form__swatch__item[data-value] → 首项即当前选中规格（50μl）
+    specText: { sel: ".product-form__swatch__item[data-value] .product-form__swatch__label", text: true }
 
 sections:
   - key: primary-antibodies
