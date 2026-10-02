@@ -1,0 +1,41 @@
+# 站点适配器：Bio X Cell（bioxcell.com，Magento + Algolia instant search）
+# 结构（2026-10-02 实测）：
+#   - 列表页产品卡由 Algolia 前端渲染 li.ais-InfiniteHits-item（每页 10 条），必须 spa；
+#     URL 参数 ?page=N 翻页；`{{url}}` 只是 algolia autocomplete 的 text/template 脚本，非未挂载模板
+#   - 卡片字段：a.result 链接 + span.result-title 名称 + .prd-item.Catalog p 货号（BE0146）
+#     + .prd-item.Clone p 克隆号；价格在卡内 select option data-price（规格×多价，详情页为准）
+#   - 详情页是 Magento 标准页（/invivomab-anti-mouse-pd-1-cd279-be0146 形态）
+# 抓取命令：pnpm crawl --domain bioxcell.com
+domain: bioxcell.com
+company: Bio X Cell
+currency: USD
+render: spa # Algolia instant search 前端渲染
+
+parseList:
+  itemSelector: "li.ais-InfiniteHits-item"
+  fields:
+    detailUrl: { sel: "a.result", attr: href }
+    name: { sel: "span.result-title", text: true }
+    sku: { sel: ".prd-item.Catalog p", text: true }
+    cloneNumber: { sel: ".prd-item.Clone p", text: true }
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku:
+      sel: ".catalog-no"
+      text: true
+      regex: '#\s*([A-Za-z0-9]+)' # Catalog #BE0146 → BE0146
+    price:
+      sel: "h2.product-price span.price"
+      text: true
+      regex: '([\d,]+\.?\d*)'
+      number: true # 首个 span = 最低规格价 $178.00
+    priceText: { sel: "h2.product-price", text: true } # "$178.00 - $4,841.50"
+
+sections:
+  - key: in-vivo-antibodies
+    category: 体内抗体
+    startUrls: ["https://bioxcell.com/in-vivo-antibodies"]
+    match: { detailUrlIncludes: ["bioxcell.com/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?page={page}", maxPages: 50 }
