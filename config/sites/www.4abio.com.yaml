@@ -1,0 +1,22 @@
+# 站点适配器：四正柏（4A Biotech）www.4abio.com
+# 结构：自研站（ssr 直出）
+#   - 产品卡 ul.Notice > li.zz：div.title > a.aa（href=/Products/<货号>，href 未加引号但解析器可容错）
+#   - sku=Cat. No、size=Size，列表直出；无翻页（单页全量）
+# 抓取命令：pnpm crawl --domain www.4abio.com
+domain: www.4abio.com
+company: 四正柏（4A Biotech）
+currency: CNY
+
+parseList:
+  itemSelector: "ul.Notice > li.zz"
+  fields:
+    detailUrl: { sel: "div.title a.aa", attr: href }
+    name: { sel: "div.title a.aa", text: true }
+    sku: { sel: "div.Cat-right p", text: true }
+    specText: { sel: "div.Conjugation-right p", text: true }
+
+sections:
+  - key: fc-kits
+    category: 流式试剂盒
+    startUrls: ["http://www.4abio.com/Product/ELISAkits-and-reagents/FC-kits"]
+    match: { detailUrlIncludes: ["/Products/"] }
