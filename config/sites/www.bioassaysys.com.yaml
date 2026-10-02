@@ -1,0 +1,23 @@
+# 站点适配器：BioAssay Systems www.bioassaysys.com
+# 结构：WordPress + WooCommerce（ssr 直出）
+#   - 产品卡 .astra-shop-summary-wrap：a.ast-loop-product__link → /<slug>/，h2.woocommerce-loop-product__title
+#   - 价格 span.price .amount（USD，含 $ 符号，number 归一化）
+#   - 翻页 WooCommerce 标准 /products/page/N/
+# 抓取命令：pnpm crawl --domain www.bioassaysys.com
+domain: www.bioassaysys.com
+company: BioAssay Systems
+currency: USD
+
+parseList:
+  itemSelector: "div.astra-shop-summary-wrap"
+  fields:
+    detailUrl: { sel: "a.ast-loop-product__link", attr: href }
+    name: { sel: "h2.woocommerce-loop-product__title", text: true }
+    price: { sel: "span.price .amount", text: true, number: true }
+
+sections:
+  - key: products
+    category: 检测试剂盒
+    startUrls: ["https://bioassaysys.com/products/"]
+    match: { detailUrlIncludes: ["bioassaysys.com/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "page/{page}/", maxPages: 30 }
