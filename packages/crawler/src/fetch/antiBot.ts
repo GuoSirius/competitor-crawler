@@ -215,7 +215,11 @@ const CHALLENGE_PATTERNS: Array<[ChallengeKind, RegExp]> = [
   ['imperva', /incapsula|request unsuccessful\.{3}|_incapsula_resource|nx-?domain|access to this page has been denied/i],
   ['perimeterx', /perimeterx|_px|captcha\.px|perimeterx\.com/i],
   ['aliyun', /滑动验证|请完成安全验证|阿里云|security check|nc_wrapper|slider-verify|输入验证码|please verify/i],
-  ['captcha', /g-recaptcha|recaptcha\.net|h-captcha|hcaptcha\.com|_hcaptcha|data-sitekey/i],
+  // captcha 必须匹配「真实验证控件/挑战脚本」，不能只命中组件名——
+  // 实测坑：Promega 正常页把 .g-recaptcha / [data-sitekey] 写进富文本编辑器白名单
+  // （{"allowlist":[".g-recaptcha","[data-sitekey]"]}），裸匹配 `g-recaptcha` 会 100% 误报，
+  // 导致脚本干等 180s 人工过盾一个根本不存在的盾。
+  ['captcha', /recaptcha\/anchor|recaptcha\/frames|rc-anchor|rc-anti-bot|g-recaptcha-response|grecaptcha\.(render|execute|verify)|grecaptcha\.api|hcaptcha\.com\/|#h-captcha|turnstile[^\s"';]{0,40}challenge|cf-turnstile/i],
   ['traffic', /unusual traffic|too many requests|请稍后再试|try again later|access denied|please enable cookies/i],
   ['unknown', /页面正在|redirecting\.\.\.|verify\b.*\bhuman/i],
 ];

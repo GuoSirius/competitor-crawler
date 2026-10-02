@@ -218,6 +218,27 @@ function interactive(): boolean {
   return process.env.CRAWL_INTERACTIVE !== 'false' && process.env.CRAWL_INTERACTIVE !== '0';
 }
 
+/** 页面里是否存在**真实可交互**的人机验证控件（DOM 侧判定，补正则之不足） */
+async function hasCaptchaWidget(page: import('playwright').Page): Promise<boolean> {
+  try {
+    const n = await page
+      .locator(
+        [
+          '#rc-anchor', // reCAPTCHA v2 checkbox
+          'iframe[src*="recaptcha/anchor"]',
+          'iframe[src*="recaptcha/frames"]',
+          'iframe[src*="hcaptcha.com"]',
+          '#h-captcha',
+          'iframe[src*="turnstile"]',
+        ].join(', '),
+      )
+      .count();
+    return n > 0;
+  } catch {
+    return false; // DOM 查询失败（页面已关等）时不要硬判为误报
+  }
+}
+
 /** 会话持久化路径：按站点 host 一档（人工过盾成果长期复用的载体） */
 function statePathOf(url: string): string {
   const host = new URL(url).hostname;
@@ -235,6 +256,12 @@ async function waitForChallengePass(
 ): Promise<string> {
   let html = await page.content();
   let hit = detectChallenge(html);
+  // 兜底：正则可能命中「页面里存在的 reCAPTCHA 组件名」（如富文本编辑器白名单配置）。
+  // 浏览器侧再查一次真实控件——页面里没有可点的验证控件就当正常页放行，别干等人工过盾。
+  if (hit?.kind === 'captcha' && !(await hasCaptchaWidget(page))) {
+    progress?.log(`挑战页[${hit.kind}] 疑似误报（匹配「${hit.matched}」但页面无验证控件），按正常页放行`);
+    return html;
+  }
   for (let i = 0; hit && isAutoPassableChallenge(hit) && i < CHALLENGE_WAIT_ROUNDS; i++) {
     progress?.log(`挑战页[${hit.kind}] 等待自动放行 ${i + 1}/${CHALLENGE_WAIT_ROUNDS}（${hit.matched}）`);
     await page.waitForTimeout(CHALLENGE_WAIT_MS);

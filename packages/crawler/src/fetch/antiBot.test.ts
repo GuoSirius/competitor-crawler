@@ -18,7 +18,10 @@ describe('detectChallenge — 挑战页/风控页识别', () => {
   });
 
   it('reCAPTCHA / hCaptcha', () => {
-    expect(detectChallenge('<div class="g-recaptcha" data-sitekey="x"></div>' + 'x'.repeat(300))?.kind).toBe('captcha');
+    // 真实挑战页：reCAPTCHA v2 挑战控件 + 挑战脚本
+    expect(detectChallenge('<div class="g-recaptcha" data-sitekey="x"></div><iframe src="https://www.google.com/recaptcha/anchor?ar=1"></iframe>' + 'x'.repeat(300))?.kind).toBe('captcha');
+    // 反误报：站点富文本编辑器白名单里出现 .g-recaptcha / [data-sitekey] 属正常页
+    expect(detectChallenge('<script id="rtm-style-config" type="application/json">{"allowlist":[".g-recaptcha","[data-sitekey]"]}</script>' + 'x'.repeat(300))).toBeNull();
   });
 
   it('正常页面返回 null', () => {
