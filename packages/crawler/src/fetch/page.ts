@@ -13,6 +13,7 @@ import {
   type StealthEnv,
 } from './antiBot.js';
 import { humanPause, humanScroll } from './human.js';
+import { assessChallenge } from './challenge.js';
 
 /**
  * 默认 UA：用桌面 Chrome 标识。早期用 `CompetitorCrawler/0.1` Bot UA，
@@ -123,11 +124,15 @@ async function ssrFetch(
       ...headers,
     },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
-  const html = await res.text();
+  const hdrs: Record<string, string> = {};
+  res.headers.forEach((v, k) => {
+    hdrs[k] = v;
+  });
+  // 非 2xx 也要读 body：403/412 页面本身常常就是 WAF 挑战页，只看状态码会漏判
+  const html = res.ok ? await res.text() : ((await res.text().catch(() => '')) || '');
   // 挑战页常返回 200：不识别就会被当成「正常页但 0 锚点」→ 静默数据缺失
-  const hit = detectChallenge(html);
-  if (hit) throw new ChallengeError(hit.kind, url, hit.matched);
+  const a = assessChallenge({ status: res.status, headers: hdrs, html });
+  if (a.hit && a.confidence !== 'none') throw new ChallengeError(a.hit.kind, url, a.hit.matched);
   return html;
 }
 
@@ -218,6 +223,15 @@ function interactive(): boolean {
   return process.env.CRAWL_INTERACTIVE !== 'false' && process.env.CRAWL_INTERACTIVE !== '0';
 }
 
+/** 可见文本（排除 script/style）——检测挑战文案的干净信号源，比整页 HTML 准得多 */
+async function pageInnerText(page: import('playwright').Page): Promise<string> {
+  try {
+    return await page.evaluate(() => document.body?.innerText ?? '');
+  } catch {
+    return ''; // 页面已跳转/关闭时退回整页 HTML 判定
+  }
+}
+
 /** 页面里是否存在**真实可交互**的人机验证控件（DOM 侧判定，补正则之不足） */
 async function hasCaptchaWidget(page: import('playwright').Page): Promise<boolean> {
   try {
@@ -253,9 +267,11 @@ async function waitForChallengePass(
   ctx: import('playwright').BrowserContext,
   url: string,
   progress?: Progress,
+  resp?: { status?: number; headers?: Record<string, string> },
 ): Promise<string> {
   let html = await page.content();
-  let hit = detectChallenge(html);
+  let text = await pageInnerText(page);
+  let hit = assessChallenge({ ...resp, html, innerText: text }).hit;
   // 兜底：正则可能命中「页面里存在的 reCAPTCHA 组件名」（如富文本编辑器白名单配置）。
   // 浏览器侧再查一次真实控件——页面里没有可点的验证控件就当正常页放行，别干等人工过盾。
   if (hit?.kind === 'captcha' && !(await hasCaptchaWidget(page))) {
@@ -267,7 +283,8 @@ async function waitForChallengePass(
     await page.waitForTimeout(CHALLENGE_WAIT_MS);
     await waitForSpaSettle(page);
     html = await page.content();
-    hit = detectChallenge(html);
+    text = await pageInnerText(page);
+    hit = assessChallenge({ ...resp, html, innerText: text }).hit;
   }
   // 交互型挑战：有头 + 允许交互时，等用户在浏览器窗口里人工过盾
   let waitedHuman = false;
@@ -278,7 +295,8 @@ async function waitForChallengePass(
     for (let i = 0; hit && i < HUMAN_WAIT_ROUNDS; i++) {
       await page.waitForTimeout(HUMAN_WAIT_MS);
       html = await page.content();
-      hit = detectChallenge(html);
+      text = await pageInnerText(page);
+      hit = assessChallenge({ ...resp, html, innerText: text }).hit;
       // 每 30s 复述一次剩余时间：sweep 批量跑时长时间静默会被误认成卡死
       if (hit && (i + 1) % 6 === 0) {
         const left = (HUMAN_WAIT_ROUNDS - i - 1) * HUMAN_WAIT_MS / 1000;
@@ -327,13 +345,22 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
     await humanPause([350, 1200]);
     // 不用 networkidle 等待：ATCC/Coveo 这类站有长连接/埋点轮询，networkidle 永远等不到（超时）。
     // domcontentloaded + DOM 稳定检测即可覆盖「异步挂载后内容不再变化」的判定。
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
+    const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
+    // 只取检测要用的几个头（playwright 的 headers() 返回标准 Headers，逐个 headerValue 更省事）
+    const hdrs: Record<string, string> = {};
+    if (resp) {
+      for (const n of ['cf-mitigated', 'cf-chl-lb', 'x-px-class', 'x-px-content-type', 'x-captcha', 'server']) {
+        const v = await resp.headerValue(n);
+        if (v) hdrs[n] = v;
+      }
+    }
+    const status = resp?.status();
     await waitForSpaSettle(page);
     // 懒加载兜底：华安这类站产品卡 loading=lazy，首屏稳定≠内容齐——滚一轮触发 lazyload，
     // 再等一次稳定（内容未增长时第二次 settle 很快，~1s 即放行）
     await humanScroll(page, 4);
     await waitForSpaSettle(page);
-    return await waitForChallengePass(page, ctx, url, progress);
+    return await waitForChallengePass(page, ctx, url, progress, { status, headers: hdrs });
   } finally {
     await browser.close().catch(() => {});
   }
