@@ -64,7 +64,13 @@ export function stealthArgs(opts: { headless?: boolean } = {}): string[] {
 
 /** 传给 playwright `newContext()` 的环境选项 */
 export function stealthContextOptions(env: StealthEnv = DEFAULT_STEALTH_ENV) {
-  const e = { ...DEFAULT_STEALTH_ENV, ...env };
+  // 先剔除显式 undefined 键再合并：spread 语义下 `{ ...def, locale: undefined }` 会把
+  // 默认值覆盖成 undefined（traverseList 主循环传 ab?.locale 等显式 undefined 键必踩），
+  // 导致 locale.split 崩溃。undefined = 未配置 = 沿用默认。
+  const e = {
+    ...DEFAULT_STEALTH_ENV,
+    ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined)),
+  } as Required<StealthEnv>;
   return {
     userAgent: e.userAgent || undefined,
     locale: e.locale,

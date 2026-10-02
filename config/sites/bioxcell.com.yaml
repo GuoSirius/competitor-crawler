@@ -38,4 +38,9 @@ sections:
     category: 体内抗体
     startUrls: ["https://bioxcell.com/in-vivo-antibodies"]
     match: { detailUrlIncludes: ["bioxcell.com/"] }
-    listTraversal: { strategy: pagination-url, urlTemplate: "?page={page}", maxPages: 50 }
+    # Algolia instant search（urlSync 开启）：URL ?page=N 可直连（用户实测刷新 page=N 只显示
+    # 第 N 页；探针 page=2→NK1.1/BE0036、page=3→IL-6/BE0046 均为对应页数据）——用 URL 翻页。
+    # 注意：直连状态恢复比首屏更慢（10~120s 波动）；waitSelector 必须用内容级选择器——
+    # Algolia 渲染完成前 li 容器不可见，只有内容填充后 .result-title 才出现（浅层会假超时）。
+    # 爬取须带 CRAWL_SPA_MAX_WAIT=120（waitSelector 超时上限取该值）。
+    listTraversal: { strategy: pagination-url, urlTemplate: "?page={page}", maxPages: 100, waitSelector: "li.ais-InfiniteHits-item .result-title" }

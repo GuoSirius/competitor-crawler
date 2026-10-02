@@ -1,5 +1,5 @@
 import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
-import { fetchPage, waitForSpaSettle, headlessEnv, GOTO_TIMEOUT_MS, type RenderMode } from './page.js';
+import { fetchPage, waitForSpaSettle, headlessEnv, GOTO_TIMEOUT_MS, SPA_MAX_WAIT_MS, type RenderMode } from './page.js';
 import { stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
 import { humanClick, humanPause } from './human.js';
 import { Progress } from '../util/progress.js';
@@ -18,6 +18,11 @@ export interface TraverseOpts {
    * （ssr 单页 / spa UI 点击无法按页码跳页，语义不成立故忽略）。
    */
   pageEnd?: number;
+  /**
+   * 起始页码（CLI --page-start 覆盖）。仅 pagination-url 策略生效。
+   * 缺省回退 traversal.pageStart，再回退 1。
+   */
+  pageStart?: number;
   progress?: Progress;
   /**
    * 每页回调：解析该页 HTML，返回本页解析出的条目数（供翻页终止判断）。
@@ -113,7 +118,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     if (!traversal.urlTemplate) {
       throw new Error('pagination-url 策略必须提供 urlTemplate（含 {page} 占位）');
     }
-    const pageStart = traversal.pageStart ?? 1;
+    const pageStart = opts.pageStart ?? traversal.pageStart ?? 1;
     const pageEnd = opts.pageEnd;
     // 单页抓取失败重试次数（docs/16 规模化兜底）：默认 1（首次失败后再试 1 次）；
     // 0 = 不重试。重试耗尽仍失败 → 跳过该页、记缺失页、继续翻下一页（不再静默终止整轮，避免「个别失败前功尽弃」）。
@@ -132,7 +137,11 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
       let lastErr = '';
       for (let attempt = 0; attempt <= listRetry; attempt++) {
         try {
-          html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
+          html = await fetchPage(pageUrl, listMode, opts.progress, opts.headers, {
+            stealth: opts.antiBot,
+            headless: opts.antiBot?.headless,
+            waitSelector: traversal.waitSelector,
+          });
           break;
         } catch (e) {
           lastErr = (e as Error).message;
@@ -159,7 +168,11 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   // none：显式禁用翻页 —— 只抓第一页（按 listMode 渲染：spa 走浏览器、ssr 直接 fetch），
   // 不进入任何翻页循环。用于「站点级配了 pagination-url，但本栏目一次请求全量返回」的局部关停。
   if (traversal.strategy === 'none') {
-    const html = await fetchPage(url, listMode, opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
+    const html = await fetchPage(url, listMode, opts.progress, opts.headers, {
+      stealth: opts.antiBot,
+      headless: opts.antiBot?.headless,
+      waitSelector: traversal.waitSelector,
+    });
     const n = await opts.onPage(html, 1, url);
     return { pages: 1, items: n, missingPages: [] };
   }
@@ -203,6 +216,14 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     const page = await ctx.newPage();
     await humanPause([400, 1400]);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.max(60_000, GOTO_TIMEOUT_MS) });
+    // 站点级等待（接口渲染站）：数据请求晚于 networkidle 时 settle 会抓到 loading 空壳，
+    // 先等列表容器真出现（超时只告警不抛错，退化回 settle 语义）
+    if (traversal.waitSelector) {
+      const hit = await page
+        .waitForSelector(traversal.waitSelector, { state: 'visible', timeout: SPA_MAX_WAIT_MS })
+        .catch(() => null);
+      if (!hit) opts.progress?.log(`[traverse] waitSelector 未出现（${traversal.waitSelector}），按 settle 继续`);
+    }
     // SPA 首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
     // 否则首次 page.content() 拿到空壳 → 解析 0 条直接终止
     await waitForSpaSettle(page);

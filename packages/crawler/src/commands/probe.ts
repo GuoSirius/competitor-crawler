@@ -116,7 +116,11 @@ export async function probe(opts: ProbeOpts): Promise<void> {
     const sectionItems: Array<{ detailUrl: string; name?: string; sectionKey?: string }> = [];
     for (const listUrl of listUrls) {
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 抓取列表页 ${listUrl}`);
-      const html = await fetchPage(listUrl, listMode, progress, undefined, { stealth: section.antiBot, headless: section.antiBot?.headless });
+      const html = await fetchPage(listUrl, listMode, progress, undefined, {
+        stealth: section.antiBot,
+        headless: section.antiBot?.headless,
+        waitSelector: section.listTraversal?.waitSelector, // 接口渲染站：等列表容器真出现
+      });
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 解析列表页…`);
       const items = parseListWithConfig(html, section.parseList, section.key);
 

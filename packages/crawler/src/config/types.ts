@@ -99,6 +99,13 @@ export interface ListTraversalConfig {
   /** 接口模式失败自动回退 UI 驱动（pagination-url 不使用） */
   fallbackToUi?: boolean;
   /**
+   * 列表容器等待选择器（仅 spa 通道生效）：goto 后先等该选择器出现（可见）再进入 settle。
+   * 用于「接口渲染且数据请求晚于 networkidle」的站点——如 Algolia instant search 延迟 30-50s
+   * 才发首个查询（Bio X Cell 实测），DOM 稳定 + networkidle 都会提前放行，抓到 loading 空壳。
+   * 配 `itemSelector` 同值即可（等首批产品卡真渲染出来）。
+   */
+  waitSelector?: string;
+  /**
    * URL 模板翻页（strategy='pagination-url' 时必填）。
    * 把 `{page}` 替换为页码；base 是**当前正在翻页的入口 URL**——traverseList 对
    * startUrls 数组逐个调用，每个入口各自以自己为 base 翻页（并非只用首个 startUrl）。

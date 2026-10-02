@@ -75,6 +75,12 @@ export interface FetchOpts {
   stealth?: Partial<StealthEnv>;
   /** 覆盖 headless（默认取 env CRAWL_BROWSER_HEADLESS，未设=有头，本机桌面更隐蔽） */
   headless?: boolean;
+  /**
+   * 列表容器等待选择器（仅 spa 通道）：goto 后先等其出现再 settle。
+   * 接口渲染站（Algolia 等）数据请求晚于 networkidle，settle 会抓到 loading 空壳；
+   * 由 listTraversal.waitSelector 透传，见 config/types.ts。
+   */
+  waitSelector?: string;
 }
 
 export async function fetchPage(
@@ -151,7 +157,7 @@ function envMs(raw: string | undefined, fallback: number): number {
   const v = Number(raw);
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
-const SPA_MAX_WAIT_MS = envMs(process.env.CRAWL_SPA_MAX_WAIT, 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
+export const SPA_MAX_WAIT_MS = envMs(process.env.CRAWL_SPA_MAX_WAIT, 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
 const SPA_NETWORK_WAIT_MS = envMs(process.env.CRAWL_SPA_NETWORK_WAIT, 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
 const CHALLENGE_WAIT_ROUNDS = 5; // 挑战页自动放行轮数（CF 5 秒盾通常 3~8s 放行）
 const CHALLENGE_WAIT_MS = 6_000; // 每轮等待
@@ -356,12 +362,40 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
       }
     }
     const status = resp?.status();
+    // 站点级等待：接口渲染站（Algolia 等）数据请求晚于 networkidle / DOM 稳定，
+    // 先等列表容器真出现。超时**抛错**（上层 pagination-url 分支按 listRetry 重试、
+    // 仍失败记缺失页继续）——接口渲染站偶发空壳率高，静默 0 条会被「0 条=末页」
+    // 语义误判为翻页终止，整轮漏抓。
+    if (opts.waitSelector) {
+      const hit = await page
+        .waitForSelector(opts.waitSelector, { state: 'visible', timeout: SPA_MAX_WAIT_MS })
+        .catch(() => null);
+      if (!hit) throw new Error(`waitSelector 未出现（${opts.waitSelector}，等满 ${SPA_MAX_WAIT_MS}ms）——接口渲染失败/空壳页`);
+      if (process.env.CRAWL_DEBUG_DUMP) {
+        const dbgInfo = await page
+          .evaluate(() => ({
+            url: location.href,
+            items: document.querySelectorAll('li.ais-InfiniteHits-item').length,
+            titles: document.querySelectorAll('li.ais-InfiniteHits-item .result-title').length,
+            first: document.querySelector('li.ais-InfiniteHits-item .result-title')?.textContent?.trim().slice(0, 40) ?? null,
+          }))
+          .catch((e) => ({ err: String(e) }));
+        progress?.log(`[spa][debug] 命中时页面状态: ${JSON.stringify(dbgInfo)}`);
+      }
+    }
     await waitForSpaSettle(page);
     // 懒加载兜底：华安这类站产品卡 loading=lazy，首屏稳定≠内容齐——滚一轮触发 lazyload，
     // 再等一次稳定（内容未增长时第二次 settle 很快，~1s 即放行）
     await humanScroll(page, 4);
     await waitForSpaSettle(page);
-    return await waitForChallengePass(page, ctx, url, progress, { status, headers: hdrs });
+    const htmlOut = await waitForChallengePass(page, ctx, url, progress, { status, headers: hdrs });
+    if (process.env.CRAWL_DEBUG_DUMP) {
+      const { writeFileSync, mkdirSync } = await import('node:fs');
+      mkdirSync('../../.tmp/debug', { recursive: true });
+      writeFileSync('../../.tmp/debug/spa-dump.html', htmlOut);
+      progress?.log(`[spa][debug] html dumped, len=${htmlOut.length}`);
+    }
+    return htmlOut;
   } finally {
     await browser.close().catch(() => {});
   }

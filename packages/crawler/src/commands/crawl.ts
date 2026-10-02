@@ -969,6 +969,7 @@ async function collectSection(args: {
       listMode,
       maxPages: tv.maxPages,
       pageEnd: tv.pageEnd,
+      pageStart: tv.pageStart,
       progress,
       // 适配器钩子（docs/16 🔴-2）：preflight 附加头 + 自定义翻页拼装
       headers,
@@ -1505,6 +1506,7 @@ async function collectContentSection(args: {
       listMode,
       maxPages: tv.maxPages,
       pageEnd: tv.pageEnd,
+      pageStart: tv.pageStart,
       progress,
       headers,
       antiBot: section.antiBot,
