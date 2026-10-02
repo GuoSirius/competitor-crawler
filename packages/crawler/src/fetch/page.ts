@@ -243,7 +243,9 @@ async function waitForChallengePass(
     hit = detectChallenge(html);
   }
   // 交互型挑战：有头 + 允许交互时，等用户在浏览器窗口里人工过盾
+  let waitedHuman = false;
   if (hit && interactive() && !headlessEnv()) {
+    waitedHuman = true;
     const sp = statePathOf(url);
     progress?.log(`挑战页[${hit.kind}] 请在弹出的浏览器窗口完成人机验证（最长 ${Math.round((HUMAN_WAIT_ROUNDS * HUMAN_WAIT_MS) / 1000)}s），通过后会话将持久化`);
     for (let i = 0; hit && i < HUMAN_WAIT_ROUNDS; i++) {
@@ -267,8 +269,12 @@ async function waitForChallengePass(
     }
   }
   if (hit) {
-    // 没进人工过盾分支（headless 或 CRAWL_INTERACTIVE=false）时，说清「为什么不给机会」
-    progress?.log(`挑战页[${hit.kind}] 未进入人工过盾（headless=${headlessEnv()} / CRAWL_INTERACTIVE=${process.env.CRAWL_INTERACTIVE ?? '默认true'}）；如需过盾请 CRAWL_BROWSER_HEADLESS=false 重跑`);
+    // 两种失败要说清：等满 180s 仍未过盾 vs 压根没给机会（headless / CRAWL_INTERACTIVE=false）
+    progress?.log(
+      waitedHuman
+        ? `挑战页[${hit.kind}] 人工过盾等满 ${Math.round((HUMAN_WAIT_ROUNDS * HUMAN_WAIT_MS) / 1000)}s 仍未通过（多为交互型滑块/IP 已限流）：建议换出口 IP 或隔时段再试`
+        : `挑战页[${hit.kind}] 未进入人工过盾（headless=${headlessEnv()} / CRAWL_INTERACTIVE=${process.env.CRAWL_INTERACTIVE ?? '默认true'}）；如需过盾请 CRAWL_BROWSER_HEADLESS=false 重跑`,
+    );
     throw new ChallengeError(hit.kind, url, hit.matched);
   }
   return html;
