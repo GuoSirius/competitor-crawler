@@ -113,8 +113,16 @@ async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean):
       seconds: Math.round((Date.now() - t0) / 100) / 10,
     };
   } catch (e) {
-    const msg = (e as Error).message.slice(0, 80);
-    return { ...base, result: e instanceof ChallengeError ? `CHALLENGED[${e.kind}]` : `ERR: ${msg}`, seconds: Math.round((Date.now() - t0) / 100) / 10 };
+    const raw = (e as Error).message;
+    const msg = raw.slice(0, 80);
+    // 有头模式下「窗口被关」几乎都是人手动关的（过盾等待 180s 期间最常见）：
+    // 不说清会被误读成站点反爬，实际是脚本跑到一半没人窗口了
+    const closed = /browser has been closed|has been closed|browserContext.close/i.test(raw);
+    return {
+      ...base,
+      result: e instanceof ChallengeError ? `CHALLENDED[${e.kind}]` : closed ? 'ERR: 浏览器窗口被关闭' : `ERR: ${msg}`,
+      seconds: Math.round((Date.now() - t0) / 100) / 10,
+    };
   }
 }
 
@@ -211,4 +219,12 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
   console.log(`🔶 部分明确 ${cat('🔶').length} 站：${cat('🔶').join('、') || '—'}`);
   console.log(`❓ 结构不明确 ${cat('❓').length} 站：${cat('❓').join('、') || '—'}`);
   console.log(`❌ 不成功 ${cat('❌').length} 站：${cat('❌').join('、') || '—'}`);
+  // 窗口被关的排障提示：有头模式下脚本全程依赖那个窗口（等人工过盾用），中途关掉只能重跑
+  const closed = rows.filter((r) => r.result.includes('浏览器窗口被关闭'));
+  if (closed.length > 0) {
+    console.log(
+      `\n⚠️ ${closed.length} 次「浏览器窗口被关闭」：脚本运行期间请勿关闭/最小化浏览器窗口` +
+        `（有头模式要靠它等人工过盾），改动后重跑即可，属站点无关问题。`,
+    );
+  }
 }
