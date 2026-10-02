@@ -2,7 +2,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '@competitor-crawler/shared';
 import { fetchPage, ChallengeError } from '../fetch/page.js';
-import { detectChallenge, type ChallengeHit } from '../fetch/antiBot.js';
+import type { ChallengeKind } from '../fetch/antiBot.js';
 import { Progress } from '../util/progress.js';
 
 /**
@@ -83,12 +83,6 @@ export interface SweepRow {
 /** 产品详情链接启发式匹配（宁漏勿误：只认高置信度词根） */
 const PRODUCT_HREF_RE = /href="([^"]*(?:\/product|\/goods|\/p\/|\/item|\/detail|sku)[^"]*)"/gi;
 
-function classify(html: string): { result: string; hit: ChallengeHit | null } {
-  const hit = detectChallenge(html);
-  if (hit) return { result: `CHALLENGED[${hit.kind}]`, hit };
-  return { result: 'OK', hit: null };
-}
-
 async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean): Promise<SweepRow> {
   const progress = new Progress();
   const t0 = Date.now();
@@ -98,14 +92,14 @@ async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean):
   };
   try {
     const html = await fetchPage(t.url, mode, progress, undefined, { headless });
-    const cls = classify(html);
-    // 伪放行标记（sweep 实测教训：MCE spa 返回 39B 空壳却被判 OK）——
-    // 通过了挑战检测但内容量异常小，大概率是 JS 指纹检测后吐的空响应
-    const suspect = cls.result === 'OK' && html.length < 500;
+    // 挑战判定已内置于 fetchPage（分层检测：响应头/可见文本/DOM 控件/状态码），
+    // 这里不再用旧正则重复分类——重复分类曾把 BD/赛业等带 reCAPTCHA 组件的正常页误标 CHALLENGED。
+    // 只保留伪放行标记（sweep 实测：MCE spa 返回 39B 空壳却被判 OK）。
+    const suspect = html.length < 500;
     return {
       ...base,
-      result: suspect ? 'SUSPECT(伪放行?)' : cls.result,
-      kind: cls.hit?.kind,
+      result: suspect ? 'SUSPECT(伪放行?)' : 'OK',
+      kind: undefined,
       bytes: html.length,
       title: /<title[^>]*>([^<]{0,120})/i.exec(html)?.[1]?.trim() ?? '',
       anchors: html.match(/<a\s+[^>]*href/gi)?.length ?? 0,

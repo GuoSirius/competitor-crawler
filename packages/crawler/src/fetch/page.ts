@@ -4,7 +4,6 @@ import { repoRoot } from '@competitor-crawler/shared';
 import { Progress } from '../util/progress.js';
 import {
   DEFAULT_STEALTH_ENV,
-  detectChallenge,
   stealthArgs,
   stealthContextOptions,
   stealthInitSource,
