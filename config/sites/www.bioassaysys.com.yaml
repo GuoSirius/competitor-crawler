@@ -7,6 +7,7 @@
 domain: www.bioassaysys.com
 company: BioAssay Systems
 currency: USD
+render: ssr # 列表/详情均服务端直出
 
 parseList:
   itemSelector: "div.astra-shop-summary-wrap"

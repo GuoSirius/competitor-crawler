@@ -6,6 +6,7 @@
 domain: abclonal.com.cn
 company: ABclonal
 currency: CNY
+render: ssr # 列表/详情均服务端直出
 
 parseList:
   itemSelector: "div.products-box.clearfix"

@@ -6,6 +6,7 @@
 domain: www.4abio.com
 company: 四正柏（4A Biotech）
 currency: CNY
+render: ssr # 列表/详情均服务端直出
 
 parseList:
   itemSelector: "ul.Notice > li.zz"
