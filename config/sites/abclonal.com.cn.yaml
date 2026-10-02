@@ -1,0 +1,41 @@
+# 站点适配器：ABclonal 爱博泰克 abclonal.com.cn
+# 结构：自研商城（ssr 直出）
+#   - 列表卡 div.products-box.clearfix；产品名/链接 a.product-title-style（href=/catalog/<货号>）
+#   - 列表无价格（价格在详情页）；翻页 /polyclonal-antibodies/&p=N（&p 前无 ?，站点原生写法）
+# 抓取命令：pnpm crawl --domain abclonal.com.cn
+domain: abclonal.com.cn
+company: ABclonal
+currency: CNY
+
+parseList:
+  itemSelector: "div.products-box.clearfix"
+  fields:
+    detailUrl: { sel: "a.product-title-style", attr: href }
+    name: { sel: "a.product-title-style", text: true }
+    # 货号 = /catalog/A5437 中的 A5437
+    sku: { sel: "a.product-title-style", attr: href, regex: '/catalog/([A-Za-z0-9]+)' }
+
+parseDetail:
+  fields:
+    # 详情数据在内联 JS 变量：priceStr='50 μL,1260,In Stock|5x 100 μL,3300,...'（规格,价格,库存|...）
+    # YAML 单引号字符串：内嵌单引号写 ''，正则反斜杠单写
+    price:
+      sel: 'script:contains(priceStr)'
+      text: true
+      regex: 'priceStr = \$.trim\(''[^'']*?,(\d+)'
+      number: true # 取首个规格价
+    specText:
+      sel: 'script:contains(priceStr)'
+      text: true
+      regex: 'priceStr = \$.trim\(''([^,]+),'
+    species:
+      sel: 'script:contains(field_s1)'
+      text: true
+      regex: 'field_s1 = \$.trim\(''([^'']+)''\)'
+
+sections:
+  - key: polyclonal-antibodies
+    category: 多克隆抗体
+    startUrls: ["https://abclonal.com.cn/polyclonal-antibodies/"]
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "&p={page}", maxPages: 50 }
