@@ -1,0 +1,66 @@
+# 站点适配器：Cytion（2026-10-04 实测接入，C 类升 A 类）
+# 入口推导（docs/14 §4 原记录「ERR_CONNECTION_TIMED_OUT」为无 VPN 时的旧结论）：
+#   - ssr 通道 fetch failed、curl 也失败，**必须 spa + Playwright**（约 40s 首屏）；
+#   - 首页只有 product-slider（20 个推荐位），不是列表；真实列表在导航的分类页。
+# 平台：Shopware 6（cms-element-product-listing / product-box / checkout-cart 结构）。
+# 结构：
+#   列表 .product-box（18 条/页）
+#     a.product-name[title|href]   → 产品名 + 详情链接（/us/<产品名>/<数字 id>）
+#     .product-description table   → 属性表（Organism / Tissue / Disease…）
+#     .product-price-info > .product-price → 「USD$550.00*」（* 表示需询价/附加费）
+#   详情 .product-detail
+#     h1                            → 产品名
+#     .product-detail-price         → 价格
+#     .product-detail-ordernumber   → 货号（文案「Product number: 300484」，取纯数字）
+#     其余属性（Organism/Tissue/Disease/Synonyms/Gender/Growth properties…）走 captureRest
+# 翻页：前端是 radio+label 组件（无 <a>），但 URL 参数 ?p=N 有效（实测 p2 与 p1 仅重叠 2 条）；
+#       每分类实测 5 页（分页 radio 最大 p5）。
+domain: www.cytion.com
+company: Cytion
+role: competitor
+currency: USD
+render: spa
+
+parseList:
+  itemSelector: .product-box
+  fields:
+    detailUrl: { sel: "a.product-name", attr: href }
+    name: { sel: "a.product-name", attr: title }
+    price: { sel: ".product-price", text: true, regex: '([\d,]+\.?\d*)', number: true }
+    priceText: { sel: ".product-price-info", text: true } # 「USD$550.00*」保留原串
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?p={page}"
+  pageStart: 1
+  maxPages: 6 # 实测每分类 5 页
+  waitSelector: ".product-box .product-name" # 内容级：等列表卡真出现（约 40s）
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku: { sel: ".product-detail-ordernumber", text: true }
+    price: { sel: ".product-detail-price", text: true, regex: '([\d,]+\.?\d*)', number: true }
+    priceText: { sel: ".product-detail-price", text: true }
+  captureRest: true
+
+sections:
+  - key: cell-lines-human
+    category: 细胞系-人源
+    startUrls: ["https://www.cytion.com/us/Cell-Lines/Human-cells"]
+    match: { detailUrlIncludes: ["cytion.com/us/"] }
+  - key: cell-lines-animal
+    category: 细胞系-动物源
+    startUrls: ["https://www.cytion.com/us/Cell-Lines/Animal-cells"]
+    match: { detailUrlIncludes: ["cytion.com/us/"] }
+  - key: cell-lines-reporter
+    category: 细胞系-报告基因标记
+    startUrls: ["https://www.cytion.com/us/Cell-Lines/Reporter-labeled-cells"]
+    match: { detailUrlIncludes: ["cytion.com/us/"] }
+  - key: primary-cells
+    category: 原代细胞
+    startUrls: ["https://www.cytion.com/us/Primary-Cells"]
+    match: { detailUrlIncludes: ["cytion.com/us/"] }
+# 注：/us/Cell-Culture-Services 是营销页（h1「Accelerate Your Research」，无 .product-box），
+#      其下 Sample-Storage-Service/900200 等 4 个服务本身就是**详情页**形态、无列表容器，
+#      与本 YAML 的「列表→详情」模型不同构，故暂不配（docs/14 §3 记为待办）。
