@@ -197,6 +197,39 @@ function inferCategoryPath(s: SectionConfig, cfg: SiteConfig): string[] | undefi
  *
  * 消费方（probe / crawl）统一遍历返回值即可，无需再判断写法。
  */
+/**
+ * 把 proxy 合并进 antiBot（section 优先于站点级）。
+ *
+ * 为什么要单独拎出来而不是让 YAML 直接写 `antiBot.proxy`：
+ * 代理是**最常按站切换**的一项（境外站走代理、国内站直连），顶层 `proxy:` 一行就能加/去，
+ * 不必为了一个字段去写 `antiBot:` 块。合并规则：
+ *   - `antiBot.proxy`（成套写指纹时顺带写的）> 同级 `proxy:` > 上级 `proxy:`；
+ *   - 显式 antiBot 里已写 proxy 时不被覆盖。
+ * **默认直连**：没配 proxy 的站一律不走代理（不做全局默认），避免国内站被绕出国。
+ */
+function withProxy(ab: SiteConfig['antiBot'], proxy?: string): SiteConfig['antiBot'] {
+  const p = expandProxyVar(ab?.proxy ?? proxy);
+  if (!p) return ab;
+  return { ...(ab ?? {}), proxy: p };
+}
+
+/**
+ * 展开 `proxy: '${CRAWL_PROXY}'` 占位符。
+ *
+ * 为什么不把端口硬编码进每份 YAML：VPN 客户端的本地监听端口会变（7890/7897/…），
+ * 散落在几十份站点配置里等于埋雷。写成占位符后，端口只在 `.env` 的 CRAWL_PROXY 维护一处。
+ * 未设置该环境变量时展开为空串 → 等价于「没配代理」→ 该站直连（不报错、不阻断）。
+ */
+function expandProxyVar(v?: string): string | undefined {
+  if (!v) return undefined;
+  const m = /^\$\{([A-Z0-9_]+)\}$/.exec(v.trim());
+  if (!m) return v;
+  // 常用占位符显式列出（点号访问，envContract 契约测试靠静态扫描确认「声明即被读取」）；
+  // 其余变量名仍走通用下标回退，不为了测试牺牲可扩展性。
+  const known: Record<string, string | undefined> = { CRAWL_PROXY: process.env.CRAWL_PROXY };
+  return known[m[1]!] ?? process.env[m[1]!] ?? '';
+}
+
 export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   const topTraversal = cfg.listTraversal ?? DEFAULT_TRAVERSAL;
   const topDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };
@@ -233,7 +266,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         renderList: s.renderList ?? cfg.renderList,
         renderDetail: s.renderDetail ?? cfg.renderDetail,
         // 反爬/指纹：section 覆盖站点级（整体覆盖，不做字段级深合并——配置本来就该成套写）
-        antiBot: s.antiBot ?? cfg.antiBot,
+        antiBot: withProxy(s.antiBot ?? cfg.antiBot, s.proxy ?? cfg.proxy),
       };
     });
   }
@@ -259,7 +292,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       render: cfg.render,
       renderList: cfg.renderList,
       renderDetail: cfg.renderDetail,
-      antiBot: cfg.antiBot,
+      antiBot: withProxy(cfg.antiBot, cfg.proxy),
     },
   ];
 }

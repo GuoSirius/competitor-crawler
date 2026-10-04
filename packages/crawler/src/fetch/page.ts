@@ -91,9 +91,12 @@ export async function fetchPage(
   opts: FetchOpts = {},
 ): Promise<string> {
   if (mode === 'spa') return spaFetch(url, progress, opts);
+  // 代理只在显式配置时生效（站点/栏目 YAML 的 proxy / antiBot.proxy，默认空=直连）。
+  // 不读 CRAWL_PROXY 作全局默认：国内站不该被绕出国。
+  const proxy = opts.stealth?.proxy || undefined;
   let html: string;
   try {
-    html = await ssrFetch(url, progress, headers);
+    html = await ssrFetch(url, progress, headers, proxy);
   } catch (e) {
     // auto：静态被拦（403/挑战页）通常是 WAF 首包拦截，直接上浏览器比重试更划算
     if (mode === 'auto' && !(e instanceof ChallengeError)) {
@@ -110,25 +113,63 @@ export async function fetchPage(
   return html;
 }
 
+/**
+ * 代理模式下复用的浏览器实例：Node 原生 fetch 不认代理（既不读 http_proxy 环境变量，
+ * 也没有 ProxyAgent —— undici 不是本项目依赖），所以走代理的 ssr 请求改用
+ * Playwright 的 APIRequestContext（它天然吃 context 的 proxy 配置）。仅在配了代理时创建。
+ */
+let proxyBrowser: import('playwright').Browser | null = null;
+
+async function ssrFetchViaProxy(
+  url: string,
+  headers: Record<string, string>,
+  proxy: string,
+): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+  const { chromium } = await import('playwright');
+  if (!proxyBrowser || !proxyBrowser.isConnected()) {
+    // ssr 通道不执行 JS，headless 更省资源（反爬维度上与浏览器通道无关）
+    proxyBrowser = await chromium.launch({ headless: true, args: stealthArgs({ headless: true }) });
+  }
+  const ctx = await proxyBrowser.newContext({ proxy: { server: proxy } });
+  try {
+    const res = await ctx.request.get(url, { headers, timeout: GOTO_TIMEOUT_MS });
+    return {
+      status: res.status(),
+      headers: Object.fromEntries(Object.entries(res.headers())),
+      body: await res.text().catch(() => ''),
+    };
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
 async function ssrFetch(
   url: string,
   progress?: Progress,
   headers?: Record<string, string>,
+  proxy?: string,
 ): Promise<string> {
-  progress?.log(`GET ${url} (ssr)`);
+  progress?.log(`GET ${url} (ssr${proxy ? ' / proxy' : ''})`);
   // 与 SPA 分支对齐补齐浏览器头（docs/16 C4）：部分 WAF 对缺 sec-ch-ua / Accept 头的请求直接拦截
-  const res = await fetch(url, {
-    headers: {
-      'user-agent': DEFAULT_UA,
-      'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'accept-language': 'en-US,en;q=0.9',
-      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'upgrade-insecure-requests': '1',
-      ...headers,
-    },
-  });
+  const reqHeaders: Record<string, string> = {
+    'user-agent': DEFAULT_UA,
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.9',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'upgrade-insecure-requests': '1',
+    ...headers,
+  };
+
+  if (proxy) {
+    const r = await ssrFetchViaProxy(url, reqHeaders, proxy);
+    const a = assessChallenge({ status: r.status, headers: r.headers, html: r.body });
+    if (a.hit && a.confidence !== 'none') throw new ChallengeError(a.hit.kind, url, a.hit.matched);
+    return r.body;
+  }
+
+  const res = await fetch(url, { headers: reqHeaders });
   const hdrs: Record<string, string> = {};
   res.headers.forEach((v, k) => {
     hdrs[k] = v;

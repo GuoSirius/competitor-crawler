@@ -235,6 +235,8 @@ export interface SectionConfig {
    * （如时区/语言随站点地域、UI 翻页需更伪装）才写。
    */
   antiBot?: AntiBotConfig;
+  /** 该栏目单独指定的代理（覆盖站点级 proxy / antiBot.proxy），如某栏目需走境外出口 */
+  proxy?: string;
 }
 
 /**
@@ -255,6 +257,12 @@ export interface AntiBotConfig {
   userAgent?: string;
   /** Canvas/WebGL 噪声种子（默认固定值；同站点不要随机换，回访指纹要稳定） */
   seed?: number;
+  /**
+   * 代理服务器（如 VPN 本地端口 `http://127.0.0.1:7890`）；缺省读 `CRAWL_PROXY` 环境变量，再缺省直连。
+   * Chromium 不认 `http_proxy` 环境变量——开了 VPN 不显式传这里，抓取仍以本机 IP 直连，
+   * 境外站 WAF 会按「国内 IP + 自动化」判爬虫（实测 BioLegend/逸漠 403 → 走代理后 200）。
+   */
+  proxy?: string;
   /** 无头开关（默认 false=有头；本机桌面有头更隐蔽，CI/服务器设 true） */
   headless?: boolean;
 }
@@ -312,6 +320,12 @@ export interface SiteConfig {
   renderDetail?: RenderMode;
   /** 站点级反爬/指纹配置（section 可覆盖）；字段与默认值见 AntiBotConfig */
   antiBot?: AntiBotConfig;
+  /**
+   * 站点级代理（如 VPN 本地端口 `http://127.0.0.1:7890`），等价于写在 `antiBot.proxy`。
+   * 单独提出来是因为它是最常按站切换的一项：境外站走代理、国内站直连。
+   * 生效优先级：section.proxy > section.antiBot.proxy > 顶层 proxy > 顶层 antiBot.proxy > `CRAWL_PROXY`。
+   */
+  proxy?: string;
   /**
    * 站点级默认采集类型（section 未指定 contentType 时继承）。缺省 'products'。
    * 整站只做资讯采集的站点可直接在顶层写 contentType: news，sections 无需逐个声明。
@@ -381,4 +395,6 @@ export interface ResolvedSection {
   renderDetail?: RenderMode;
   /** 该栏目最终生效的反爬/指纹配置（section.antiBot ?? 站点 antiBot） */
   antiBot?: AntiBotConfig;
+  /** 该栏目最终生效的代理（section.proxy ?? 站点 proxy；已并入 antiBot.proxy） */
+  proxy?: string;
 }

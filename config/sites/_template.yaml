@@ -56,6 +56,19 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 # renderList: ssr                  # 可选：仅列表页用 ssr（如产品列表是 SSR）
 # renderDetail: spa                # 可选：仅详情页用 spa（如详情是 CSR、列表页已 SSR）
 
+# ---------- 1.1) 代理（按需用，默认直连）----------
+# 什么时候需要：开了 VPN 之后，**境外站**（BioLegend / 义翘 / MCE / elabscience.com 等）仍被
+# WAF 拦时才加；国内站不要加（绕出国会变慢且更容易被拦）。
+# 原理：Chromium **不认** http_proxy / HTTPS_PROXY 环境变量（只读 Windows 系统代理设置），
+#      Node 的 fetch 也不认 → 不显式配就仍以本机国内 IP 直连，被按「国内 IP + 自动化」判爬虫。
+#      实测逸漠 XImo 同一页面：Chromium 直连 403 → 走代理 200。
+# 写法二选一：
+#   proxy: "http://127.0.0.1:7890"   # 直接写完整 URL（scheme + 主机 + 端口）
+#   proxy: '${CRAWL_PROXY}'          # 推荐：端口在 .env 的 CRAWL_PROXY 维护一处，换端口不动 YAML
+# 生效范围：写在站点顶层 = 整站走；写在某个 section 内 = 仅该栏目走（section.proxy 覆盖站点级）。
+# 不写 = 直连。留空字符串也视为直连。
+# proxy: '${CRAWL_PROXY}'
+
 # ---------- 1.5) 分类归属（产品挂到 categories 通用分类树；三种来源按优先级取一）----------
 # 优先级：categoryFromPage（动态，最准）> categoryPath（静态数组）> category（单名兜底）
 # 三种都省略 → 产品不绑分类（category_id 记空）。

@@ -28,6 +28,19 @@ export interface StealthEnv {
   userAgent?: string;
   /** 噪声种子：同一站点固定 seed → 同一指纹（避免「回访用户指纹变化」暴露） */
   seed?: number;
+  /**
+   * 代理服务器（如 VPN 的本地监听端口 `http://127.0.0.1:7890`）；空 = 直连。
+   *
+   * 为什么必须显式传：**Chromium 不认 `http_proxy` / `HTTPS_PROXY` 环境变量**
+   * （只读 Windows 系统代理设置），Node 的 fetch 也不认。开了 VPN 若不配这里，
+   * 抓取仍以**本机国内 IP** 直连出去 → 境外站 WAF 按「国内 IP + 自动化指纹」判爬虫。
+   * 实测：逸漠 XImo 同指纹同页面，Chromium 默认直连 403，显式走代理后 **200**。
+   *
+   * **默认直连，不做全局默认**：是否走代理由站点/栏目 YAML 的 `proxy:` 决定
+   * （支持 `proxy: '${CRAWL_PROXY}'` 占位符，端口只在 .env 维护一处），
+   * 否则国内站会被白白绕出国、变慢且更容易被拦。
+   */
+  proxy?: string;
 }
 
 /**
@@ -42,6 +55,8 @@ export const DEFAULT_STEALTH_ENV: Required<StealthEnv> = {
   screen: { width: 1920, height: 1200 },
   userAgent: '', // 空 = 沿用 page.ts 的 DEFAULT_UA
   seed: 20261001,
+  // 默认直连。走代理的站在 YAML 写 `proxy: '${CRAWL_PROXY}'`，避免国内站被绕出国。
+  proxy: '',
 };
 
 /**
@@ -73,6 +88,9 @@ export function stealthContextOptions(env: StealthEnv = DEFAULT_STEALTH_ENV) {
   } as Required<StealthEnv>;
   return {
     userAgent: e.userAgent || undefined,
+    // 代理：Chromium 只认这里，不认 http_proxy 环境变量（见 StealthEnv.proxy 注释）。
+    // 空串 = 直连，Playwright 接受 undefined。
+    proxy: e.proxy ? { server: e.proxy } : undefined,
     locale: e.locale,
     timezoneId: e.timezone,
     viewport: e.viewport,
