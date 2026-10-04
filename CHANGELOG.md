@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.6.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.5.0...v1.6.0) (2026-10-04)
+
+
+### 🚀 新功能 (Features)
+
+* **antibot:** 反爬基建——挑战页识别 + stealth 注入增强 + 拟人行为层 ([c33cd96](https://github.com/GuoSirius/competitor-crawler/commit/c33cd9693e2561843f00a5ecd7b5630678ab4152))
+* **antibot:** 分层挑战检测 detectors（响应头+可见文本+状态码）+ 反向放行，压误检补漏检 ([d8939d9](https://github.com/GuoSirius/competitor-crawler/commit/d8939d9971662966715c61b5864e6974035ae6a3))
+* **antibot:** 人工过盾等待 + storageState 会话持久化（过一次长期复用） ([e3464dd](https://github.com/GuoSirius/competitor-crawler/commit/e3464dd32e4db49cd371cc92d2d412e4759d66ad))
+* **antibot:** antiBot 站点级/栏目级 YAML 配置接入（整体覆盖，默认零配置） ([3cbfe4f](https://github.com/GuoSirius/competitor-crawler/commit/3cbfe4f20cf5494b6fe10de86b8d976eea3a6738))
+* **fetch:** 列表级 waitSelector 等待接口渲染 + 修 pageStart 透传与 stealth 默认值覆盖 ([0992a18](https://github.com/GuoSirius/competitor-crawler/commit/0992a18e59a090b08b5ff01944eeb1ef0c5edd91))
+* **sites:** 爱博泰克 abclonal YAML（ssr 列表 + 内联 js 详情抽取） ([2d5c73b](https://github.com/GuoSirius/competitor-crawler/commit/2d5c73b33b1d89717f1269ad72e45d62359e547a))
+* **sites:** 华安 YAML（spa 懒加载列表+价格双选择器）+ spaFetch 懒加载滚动兜底 ([8cd72df](https://github.com/GuoSirius/competitor-crawler/commit/8cd72dfde5d5ac559472f1c5be123e93bbc6d0f2))
+* **sites:** 接入 cusabio/capricorn/fudancell 三站（下钻找到真实列表入口） ([dd6a43f](https://github.com/GuoSirius/competitor-crawler/commit/dd6a43f3e85a5f0f4341bef707aa5ad8913813bd))
+* **sites:** 美森 ctcc YAML（六分类列表页 + aspx 分页，落地页下钻入口） ([de2b0b6](https://github.com/GuoSirius/competitor-crawler/commit/de2b0b653dc0cd7bf7e9a8d354d5aad3d034bf1a))
+* **sites:** 默克 sigmaaldrich YAML（spa 表格行 + emotion 语义后缀选择器） ([a58a73a](https://github.com/GuoSirius/competitor-crawler/commit/a58a73a9599243598d0cccdc6204851a39e95087))
+* **sites:** 四正柏 4abio YAML（ssr 单页列表 + 货号/规格直出） ([e39ef53](https://github.com/GuoSirius/competitor-crawler/commit/e39ef5374255bc055b37df4d5e9a5888d1d4990d))
+* **sites:** 下钻接通 procellsystem/fn-test 两站（stubs 4 站收尾两站） ([af60cc7](https://github.com/GuoSirius/competitor-crawler/commit/af60cc793ae800f308e6dc8febf0203763e62d15))
+* **sites:** bio x cell YAML（algolia 渲染列表 + magento 详情） ([479cc49](https://github.com/GuoSirius/competitor-crawler/commit/479cc4914c48312b3688a4751f024946e37f4943))
+* **sites:** bioassay systems YAML（woocommerce 列表 + 美元价格） ([e36987c](https://github.com/GuoSirius/competitor-crawler/commit/e36987c3537491bac24ca82ed934de6e161b0953))
+* **sweep:** --all 全量模式 + 产品锚点启发式 + 智能跳过 + 四类站点汇总 ([a548f89](https://github.com/GuoSirius/competitor-crawler/commit/a548f893a08c670da42da365311b89a543b717eb))
+* **sweep:** --only 过滤重跑失败组 + ignoreHTTPSErrors 修证书误判 ([c512c2d](https://github.com/GuoSirius/competitor-crawler/commit/c512c2da84afd0542405b81c6cd1aa8698c93f02))
+* **sweep:** 批量反爬复探命令——可达性/挑战页/内容量三件事 ([1145c62](https://github.com/GuoSirius/competitor-crawler/commit/1145c62805c7ac0b451a0c5c38db2f7d699e9bfa))
+
+
+### 📚 文档 (Documentation)
+
+* **14:** 按实测校订台账——A 类 24→29、B 类重排、翻页收敛两大两类 ([abd2544](https://github.com/GuoSirius/competitor-crawler/commit/abd25447bdda16477b7fc906aa67e3abcd1fe291))
+* **14:** 检测 SOP + 20 站复探结果（51/59 可达） ([60d278d](https://github.com/GuoSirius/competitor-crawler/commit/60d278dd55c98fb50709044cfc62949eb28f346a))
+* **14:** 全量 59 站 sweep 四类清单 + 正反馈闭环记录 ([cd792ed](https://github.com/GuoSirius/competitor-crawler/commit/cd792ed95a93547698f05910facc50b43e8773e5))
+* **14:** 台账整体重写（总览/a类23站/b类12卡点/c类8站/检测sop） ([3734a6d](https://github.com/GuoSirius/competitor-crawler/commit/3734a6daacf8852941235d33d0477a6335f26d4b))
+* **14:** b/c类表格补回官网链接可点击核查，bio x cell 升入a类 ([2c3cbe6](https://github.com/GuoSirius/competitor-crawler/commit/2c3cbe6179f9cf75867e06c0ba964e21ca769a10))
+* **14:** b类复核结果与剩余站点卡点清单 ([5195f93](https://github.com/GuoSirius/competitor-crawler/commit/5195f935880d08b167cd4d1b176c2d0e62d5ba96))
+* **14:** bio x cell 点击累积模式口径 ([6b494bd](https://github.com/GuoSirius/competitor-crawler/commit/6b494bddae3f45cc6f30f0aadac4fef8dedbf02d))
+* **14:** sweep 复探后重排反爬拦截分类——14 站升出并标注防护类型 ([6073d11](https://github.com/GuoSirius/competitor-crawler/commit/6073d119b87481763f62828ebd8b2a5cbebc54b6))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* **antibot:** 过盾倒计时复述 + headless 未过盾原因提示（sweep 批量静默被误认卡死） ([09e533f](https://github.com/GuoSirius/competitor-crawler/commit/09e533f192eca00fe44a91721865e3547062a31c))
+* **antibot:** 宽泛文案须 DOM 裁决（BD/赛业/ScienCell 大页面误判回归） ([955b12f](https://github.com/GuoSirius/competitor-crawler/commit/955b12fedd6b78df35f6a09c6eca67ee78e87247))
+* **antibot:** 挑战等待收敛到非交互盾 + goto 超时可调 + sweep 伪放行标记 ([0d2d868](https://github.com/GuoSirius/competitor-crawler/commit/0d2d868a911bc5d63e75d07bfd85594368025c37))
+* **antibot:** 挑战页等待自动放行（CF 5s 盾）+ SPA 观察窗放宽可配 ([60513dd](https://github.com/GuoSirius/competitor-crawler/commit/60513dda641e4702f5059517fa33e02a02522a4d))
+* **antibot:** captcha 误报修正（正则只认真验证控件 + DOM 侧二次校验） ([4627037](https://github.com/GuoSirius/competitor-crawler/commit/462703782f4d1743c98e411ecae191b2e8158871))
+* **env:** 契约测试修 MIME 通配符误吞块注释 + env 点号访问规整 ([0410c83](https://github.com/GuoSirius/competitor-crawler/commit/0410c83583ed307e936a951e359f43cdd73fdc1c))
+* **fetch:** 补 waitSelector 的重挂载复查，修 Algolia 两阶段渲染偶发丢列表 ([a215ba5](https://github.com/GuoSirius/competitor-crawler/commit/a215ba53b5cce15680f1c3e9cc6b6cc5d2f8a3af))
+* **scripts:** 根脚本改 exec 直调（filter+script+args 在 pnpm12 下 3s 即 ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL） ([a46381d](https://github.com/GuoSirius/competitor-crawler/commit/a46381d62c257990d0629985e87c0b5db419149a))
+* **sweep:** 报告输出改到 .tmp/sweep（临时产物不进仓库） ([8110f6b](https://github.com/GuoSirius/competitor-crawler/commit/8110f6be5ceeb97c9a8d32bfe43979bd578ff978))
+* **sweep:** 浏览器窗口被关闭单独归类 + 排障提示（有头模式别中途关窗） ([b3cedc3](https://github.com/GuoSirius/competitor-crawler/commit/b3cedc3fcd63cf24af9ecfb3b57d62ab2f1a0dfc))
+* **sweep:** 移除重复的旧正则分类（fetchPage 已内置分层检测，重复分类误标正常页） ([6644ca3](https://github.com/GuoSirius/competitor-crawler/commit/6644ca3a762fd07a723b949d4af9581842f99cd8))
+
+
+### 🏠 其他 (Miscellaneous)
+
+* 清理 src 下的遗留临时探针，忽略本机 workbuddy 记忆目录 ([b95f699](https://github.com/GuoSirius/competitor-crawler/commit/b95f699c2a300e4c3c02c14aef07cd7724bcde0b))
+* **sites:** 已配 yaml 显式声明 render 模式 ([a7d5ec0](https://github.com/GuoSirius/competitor-crawler/commit/a7d5ec04b1413521d79ff197f190c1df607773b4))
+
 ## [1.5.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.4.0...v1.5.0) (2026-10-01)
 
 
