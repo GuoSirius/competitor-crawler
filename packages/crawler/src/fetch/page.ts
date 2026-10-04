@@ -83,6 +83,28 @@ export interface FetchOpts {
   waitSelector?: string;
 }
 
+/**
+ * 代理裁决：**中文站强制直连**（`.cn` 域名），其余按配置。
+ *
+ * 为什么要写死在代码里而不是只靠 YAML 不配：
+ * - 用户明确要求「伊莱瑞特中文站不需要、也不能使用代理」，这是硬约束，不能依赖
+ *   后来人（或 gen-site 生成的草稿）记得手滑；
+ * - 实测支撑：elabscience.cn 直连 403 风险警告页，**走代理同样 403**（多等 188s）——
+ *   这类 WAF 是**地域策略**，境外出口 IP 访问国内站反而触发拦截，代理只会更糟；
+ * - 误配成本不对称：中文站走代理没有收益、只有变慢 + 触发风控的风险。
+ *
+ * 境外站（.com 等 WAF 严的）照常按 YAML `proxy:` 走，见 StealthEnv.proxy。
+ */
+export function resolveProxy(url: string, configured?: string): string | undefined {
+  if (!configured) return undefined;
+  try {
+    if (/\.cn$/i.test(new URL(url).hostname)) return undefined;
+  } catch {
+    /* URL 非法时不做特殊处理，交给上层报错 */
+  }
+  return configured;
+}
+
 export async function fetchPage(
   url: string,
   mode: RenderMode = 'auto',
@@ -92,8 +114,8 @@ export async function fetchPage(
 ): Promise<string> {
   if (mode === 'spa') return spaFetch(url, progress, opts);
   // 代理只在显式配置时生效（站点/栏目 YAML 的 proxy / antiBot.proxy，默认空=直连）。
-  // 不读 CRAWL_PROXY 作全局默认：国内站不该被绕出国。
-  const proxy = opts.stealth?.proxy || undefined;
+  // 不读 CRAWL_PROXY 作全局默认：国内站不该被绕出国。中文站再叠一层强制直连（resolveProxy）。
+  const proxy = resolveProxy(url, opts.stealth?.proxy || undefined);
   let html: string;
   try {
     html = await ssrFetch(url, progress, headers, proxy);
@@ -380,6 +402,8 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
   const browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   try {
     const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
+    // 中文站强制直连（即使 YAML 误配了 proxy）——见 resolveProxy 注释
+    env.proxy = resolveProxy(url, env.proxy);
     // 会话复用：曾人工过盾的站点直接带 cookie 进场（.runtime/state/<host>.json）
     const sp = statePathOf(url);
     const ctx = await browser.newContext({

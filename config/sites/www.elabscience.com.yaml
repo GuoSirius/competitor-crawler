@@ -1,4 +1,55 @@
+# 站点适配器：伊莱瑞特英文站（2026-10-04 实测接入，桩 → 正式配置）
+# 推翻 2026-10-02 的旧结论「产品格 XHR 未触发、0 产品链接」：**VPN 环境下 curl/SSR 直连即可拿到完整列表**。
+# 关键发现（也解释了为什么之前探针扑空）：产品卡是 SSR 直出的，探针当时走了「渲染 + 等 XHR」的路子，
+# 而该站列表本来就不靠 XHR 渲染 → 等不到接口自然报 0 条。**先用 ssr 通道验，别急着上 spa。**
+# 结构（Elabscience 自研模板）：
+#   .search-list-pro                → 产品卡容器（20/页）
+#     a.search-list-title[href]     → 产品名 + 详情链接（/p/<slug>，slug 末尾带货号）
+#     i.cat.reg_tag.cat-no          → 货号（如 E-AB-F1271C）
+#     em.js-s-price                 → 价格（$50.00；同一卡内可能有多个价，取首个=最低规格价）
+#     卡内文本另含 Clone / Application / Isotype / Size（规格），随 captureRest 进 row
+# 翻页：`&page=N`（实测 page=2 与 page=1 产品不同）。搜索入口同时接受 ?category=<slug>。
+# ⚠️ 不配 proxy：实测本机直连 200，走代理无差别且慢一倍（境外出口对 .com 站无收益）。
 domain: www.elabscience.com
 company: 伊莱瑞特英文站
 role: own
-currency: 元
+currency: USD
+render: ssr
+
+parseList:
+  itemSelector: .search-list-pro
+  fields:
+    detailUrl: { sel: "a.search-list-title", attr: href }
+    name: { sel: "a.search-list-title", text: true }
+    sku: { sel: "i.cat.reg_tag.cat-no", text: true }
+    price:
+      sel: "em.js-s-price"
+      text: true
+      regex: '([\d,]+\.?\d*)'
+      number: true
+    priceText: { sel: "em.js-s-price", text: true }
+
+listTraversal:
+  strategy: pagination-url
+  # startUrls 已带 ?category=<slug>，故用 & 追加页码
+  urlTemplate: "&page={page}"
+  pageStart: 1
+  maxPages: 30
+
+parseDetail:
+  fields:
+    # h1 形如「FITC Anti-Human CD8a Antibody[HIT8a] (E-AB-F1271C)」，货号已在括号内
+    name: { sel: "h1", text: true }
+    price:
+      sel: "em.js-s-price"
+      text: true
+      regex: '([\d,]+\.?\d*)'
+      number: true
+    priceText: { sel: "em.js-s-price", text: true }
+  captureRest: true
+
+sections:
+  - key: flow-cytometry-antibodies
+    category: 流式抗体
+    startUrls: ["https://www.elabscience.com/search?category=flow-cytometry-antibodies"]
+    match: { detailUrlIncludes: ["elabscience.com/p/"] }
