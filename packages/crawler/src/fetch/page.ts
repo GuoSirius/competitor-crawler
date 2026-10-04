@@ -384,6 +384,16 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
       }
     }
     await waitForSpaSettle(page);
+    // 两阶段渲染复查（Bio X Cell / Algolia 实测）：列表容器会「先挂内容 → 随后整块重挂载」，
+    // 上面 waitForSelector 命中的是**第一波**，settle 期间被清空 → 拿回 0 条空壳。
+    // 现象是同站同配置时好时坏（首屏 XHR 快的轮次正常、慢的轮次 0 条）。
+    // 判据用「选择器还在不在」而不是重等固定时长：消失就等它回来，仍不出现由上层 listRetry 兜。
+    if (opts.waitSelector && !(await page.$(opts.waitSelector).then((h) => h !== null))) {
+      progress?.log(`[spa] waitSelector ${opts.waitSelector} 在 settle 后消失（疑似重挂载），再等一轮`);
+      await page
+        .waitForSelector(opts.waitSelector, { state: 'visible', timeout: SPA_MAX_WAIT_MS })
+        .catch(() => null);
+    }
     // 懒加载兜底：华安这类站产品卡 loading=lazy，首屏稳定≠内容齐——滚一轮触发 lazyload，
     // 再等一次稳定（内容未增长时第二次 settle 很快，~1s 即放行）
     await humanScroll(page, 4);
