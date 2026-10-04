@@ -201,11 +201,11 @@ function inferCategoryPath(s: SectionConfig, cfg: SiteConfig): string[] | undefi
  * 把 proxy 合并进 antiBot（section 优先于站点级）。
  *
  * 为什么要单独拎出来而不是让 YAML 直接写 `antiBot.proxy`：
- * 代理是**最常按站切换**的一项（境外站走代理、国内站直连），顶层 `proxy:` 一行就能加/去，
- * 不必为了一个字段去写 `antiBot:` 块。合并规则：
+ * 代理是**最常按站切换**的一项，顶层 `proxy:` 一行就能加/去，不必为了一个字段去写 `antiBot:` 块。
+ * 合并规则：
  *   - `antiBot.proxy`（成套写指纹时顺带写的）> 同级 `proxy:` > 上级 `proxy:`；
  *   - 显式 antiBot 里已写 proxy 时不被覆盖。
- * **默认直连**：没配 proxy 的站一律不走代理（不做全局默认），避免国内站被绕出国。
+ * **配了就走、没配就直连**：代码层不区分域名/地区——哪个站走代理由 YAML 决定（docs/14 §5.5）。
  */
 function withProxy(ab: SiteConfig['antiBot'], proxy?: string): SiteConfig['antiBot'] {
   const p = expandProxyVar(ab?.proxy ?? proxy);
@@ -220,7 +220,7 @@ function withProxy(ab: SiteConfig['antiBot'], proxy?: string): SiteConfig['antiB
  * 散落在几十份站点配置里等于埋雷。写成占位符后，端口只在 `.env` 的 CRAWL_PROXY 维护一处。
  * 未设置该环境变量时展开为空串 → 等价于「没配代理」→ 该站直连（不报错、不阻断）。
  */
-function expandProxyVar(v?: string): string | undefined {
+export function expandProxyVar(v?: string): string | undefined {
   if (!v) return undefined;
   const m = /^\$\{([A-Z0-9_]+)\}$/.exec(v.trim());
   if (!m) return v;

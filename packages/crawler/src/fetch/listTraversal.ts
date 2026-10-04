@@ -1,5 +1,5 @@
 import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
-import { fetchPage, waitForSpaSettle, headlessEnv, GOTO_TIMEOUT_MS, SPA_MAX_WAIT_MS, type RenderMode } from './page.js';
+import { fetchPage, waitForBrowserSettle, headlessEnv, GOTO_TIMEOUT_MS, BROWSER_MAX_WAIT_MS, type RenderMode } from './page.js';
 import { stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
 import { humanClick, humanPause } from './human.js';
 import { Progress } from '../util/progress.js';
@@ -9,13 +9,13 @@ export interface TraverseOpts {
   url: string;
   /** 翻页策略（见 docs/05 §5.4） */
   traversal: ListTraversalConfig;
-  /** 列表页渲染模式：ssr=不启浏览器（仅单页）；spa/auto=用 Playwright 翻页 */
+  /** 列表页渲染模式：ssr=不启浏览器（仅单页）；browser/auto=用 Playwright 翻页 */
   listMode: RenderMode;
   /** 最大翻页数（含首页） */
   maxPages: number;
   /**
    * 终止页码（闭区间，含本页）；缺省不限。仅 pagination-url 策略生效
-   * （ssr 单页 / spa UI 点击无法按页码跳页，语义不成立故忽略）。
+   * （ssr 单页 / browser UI 点击无法按页码跳页，语义不成立故忽略）。
    */
   pageEnd?: number;
   /**
@@ -31,7 +31,7 @@ export interface TraverseOpts {
   onPage: (html: string, pageNo: number, pageUrl: string) => number | Promise<number>;
   /**
    * 附加到每页 ssr 请求的头（如代码适配器 preflight 拿到的 Cookie，docs/16 🔴-2）。
-   * spa（Playwright）模式由浏览器自管 Cookie，此参数忽略。
+   * browser（Playwright）模式由浏览器自管 Cookie，此参数忽略。
    */
   headers?: Record<string, string>;
   /**
@@ -69,7 +69,7 @@ export function buildPageUrl(base: string, template: string, page: number): stri
     throw new Error(
       `urlTemplate 含 '#'（hash 翻页不被支持）：${template}` +
         ` —— HTTP 请求不发送 # 之后的部分，逐页 fetch 拿到的永远是第一页。` +
-        `hash 路由站点请改用 render spa + pagination-html（UI 点击翻页），或改用等效的 ?query 翻页参数。`,
+        `hash 路由站点请改用 render browser + pagination-html（UI 点击翻页），或改用等效的 ?query 翻页参数。`,
     );
   }
   const pageStr = String(page);
@@ -100,7 +100,7 @@ export function buildPageUrl(base: string, template: string, page: number): stri
  * 接口逆向仅作为后续「稳定、无签名站点」的性能优化。
  *
  * - ssr 模式：不启浏览器，仅抓单页（无 JS 翻页能力）。
- * - spa/auto 模式：用 Playwright 翻页；Playwright 不可用时回退单页 fetchPage。
+ * - browser/auto 模式：用 Playwright 翻页；Playwright 不可用时回退单页 fetchPage。
  * - pagination-url 模式：不改写 HTML、不启浏览器，按 maxPages 顺序拼 URL 逐页抓取。
  */
 export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> {
@@ -113,7 +113,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   const max = Math.max(1, Number.isFinite(explicit) ? explicit : 500);
 
   // URL 模板翻页：不改写 HTML、不启浏览器，按 maxPages 顺序拼 URL 逐页抓取。
-  // pageStart/pageEnd 仅本策略支持（URL 可精确定位页码；ssr 单页 / spa UI 点击无法跳页）
+  // pageStart/pageEnd 仅本策略支持（URL 可精确定位页码；ssr 单页 / browser UI 点击无法跳页）
   if (traversal.strategy === 'pagination-url') {
     if (!traversal.urlTemplate) {
       throw new Error('pagination-url 策略必须提供 urlTemplate（含 {page} 占位）');
@@ -165,7 +165,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     return { pages, items, missingPages };
   }
 
-  // none：显式禁用翻页 —— 只抓第一页（按 listMode 渲染：spa 走浏览器、ssr 直接 fetch），
+  // none：显式禁用翻页 —— 只抓第一页（按 listMode 渲染：browser 走浏览器、ssr 直接 fetch），
   // 不进入任何翻页循环。用于「站点级配了 pagination-url，但本栏目一次请求全量返回」的局部关停。
   if (traversal.strategy === 'none') {
     const html = await fetchPage(url, listMode, opts.progress, opts.headers, {
@@ -188,7 +188,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   const ab = opts.antiBot;
   try {
     const { chromium } = await import('playwright');
-    // 与 spaFetch 同口径 stealth：旧实现这里用的是裸 launch（无 initScript、无 timezone/locale），
+    // 与 browserFetch 同口径 stealth：旧实现这里用的是裸 launch（无 initScript、无 timezone/locale），
     // 「点下一页」比「取 HTML」更像真人操作，反而反检测最弱 —— 补上。
     const headless = ab?.headless ?? headlessEnv();
     browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
@@ -220,13 +220,13 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     // 先等列表容器真出现（超时只告警不抛错，退化回 settle 语义）
     if (traversal.waitSelector) {
       const hit = await page
-        .waitForSelector(traversal.waitSelector, { state: 'visible', timeout: SPA_MAX_WAIT_MS })
+        .waitForSelector(traversal.waitSelector, { state: 'visible', timeout: BROWSER_MAX_WAIT_MS })
         .catch(() => null);
       if (!hit) opts.progress?.log(`[traverse] waitSelector 未出现（${traversal.waitSelector}），按 settle 继续`);
     }
-    // SPA 首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
+    // 浏览器通道首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
     // 否则首次 page.content() 拿到空壳 → 解析 0 条直接终止
-    await waitForSpaSettle(page);
+    await waitForBrowserSettle(page);
 
     while (pages < max) {
       const html = await page.content();

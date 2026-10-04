@@ -239,7 +239,7 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: Site
     const needMore = /NEED_MORE_HTML/.test(yamlOut);
     throw new Error(
       needMore
-        ? '模型反馈清洗截取后的页面 HTML 中看不到商品条目结构（NEED_MORE_HTML）。可尝试：① 换更直接的列表页 URL（含真实产品网格的页面）；② 该站可能需要 spa 渲染（--render spa 重试）。'
+        ? '模型反馈清洗截取后的页面 HTML 中看不到商品条目结构（NEED_MORE_HTML）。可尝试：① 换更直接的列表页 URL（含真实产品网格的页面）；② 该站可能需要 browser 渲染（--render browser 重试）。'
         : '模型产出缺少必要的 parseList（itemSelector / fields.detailUrl），请检查页面 HTML 或重试',
     );
   }
@@ -256,7 +256,7 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: Site
   cfg.competitorType = opts.competitorType ?? existing?.competitorType ?? cfg.competitorType;
   cfg.role = opts.role ?? existing?.role ?? cfg.role;
   cfg.currency = opts.currency ?? existing?.currency ?? cfg.currency ?? DEFAULT_CURRENCY;
-  // 渲染模式：CLI 传入 > 已存在文件 > 模型产出 > 默认 auto；并写回 YAML，供 probe/crawl 统一复用（批量混合 ssr/spa 无需逐站指定）
+  // 渲染模式：CLI 传入 > 已存在文件 > 模型产出 > 默认 auto；并写回 YAML，供 probe/crawl 统一复用（批量混合 ssr/browser 无需逐站指定）
   cfg.render = (opts.render as RenderMode) ?? (existing?.render as RenderMode) ?? (cfg.render as RenderMode) ?? 'auto';
   cfg.listTraversal = cfg.listTraversal ?? existing?.listTraversal ?? { strategy: 'pagination-html', maxPages: 50, fallbackToUi: true };
   cfg.parseDetail = cfg.parseDetail ?? { fields: {}, captureRest: true };

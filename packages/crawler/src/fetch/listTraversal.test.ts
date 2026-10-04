@@ -278,14 +278,14 @@ describe('traverseList — strategy: none（局部禁翻页）', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it('spa 模式也只走一次 fetch（仍然渲染，不点下一页）', async () => {
+  it('browser 模式也只走一次 fetch（仍然渲染，不点下一页）', async () => {
     mockFetch.mockResolvedValue('<html></html>');
     const onPage = vi.fn(async () => 3);
 
     const res = await traverseList({
       url: 'https://x.com/resource/material',
       traversal: { strategy: 'none' },
-      listMode: 'spa',
+      listMode: 'browser',
       maxPages: 10,
       onPage,
     });

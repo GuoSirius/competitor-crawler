@@ -2,7 +2,7 @@
  * 反爬/反检测基础设施：启动参数、指纹环境、挑战页识别。
  *
  * 现状基线（2026-10-01）：`fetch/page.ts` 只有 3 个 launch 参数 + 一个覆盖
- * `navigator.webdriver/plugins/languages` 的手搓 initScript，`spaFetch` 走 stealth，
+ * `navigator.webdriver/plugins/languages` 的手搓 initScript，`browserFetch` 走 stealth，
  * 但 `listTraversal.ts` 的 UI 翻页分支是**裸 launch**（无 initScript）——点翻页这条路
  * 反而最像机器人。这里把能力集中到一处，两处共用。
  *

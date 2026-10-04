@@ -58,17 +58,17 @@ async function newStealthPage(
   return page;
 }
 
-/** 渲染模式：ssr=静态 fetch；spa=Playwright 渲染；auto=先 ssr，内容过少回退 spa */
-export type RenderMode = 'ssr' | 'spa' | 'auto';
+/** 渲染模式：ssr=静态 fetch；browser=Playwright 渲染；auto=先 ssr，内容过少回退 browser */
+export type RenderMode = 'ssr' | 'browser' | 'auto';
 
 /**
  * 统一页面抓取：按渲染模式取 HTML。
  * - ssr 用 Node 原生 fetch（轻量、快）；
- * - spa 动态 import playwright，仅需要时加载，避免无谓依赖开销；
+ * - browser 动态 import playwright，仅需要时加载，避免无谓依赖开销；
  * - auto 在 ssr 返回内容偏少时自动回退 Playwright，提升复杂站点的成功率。
  *
  * `headers`：附加请求头（如代码适配器 preflight 拿到的 Cookie，docs/16 🔴-2），
- * 合并进 ssr 默认浏览器头（同名键覆盖）；spa 模式由浏览器自管 Cookie，此参数忽略。
+ * 合并进 ssr 默认浏览器头（同名键覆盖）；browser 模式由浏览器自管 Cookie，此参数忽略。
  */
 export interface FetchOpts {
   /** 隐身/指纹环境（默认 DEFAULT_STEALTH_ENV：mid + Asia/Shanghai + zh-CN） */
@@ -76,34 +76,17 @@ export interface FetchOpts {
   /** 覆盖 headless（默认取 env CRAWL_BROWSER_HEADLESS，未设=有头，本机桌面更隐蔽） */
   headless?: boolean;
   /**
-   * 列表容器等待选择器（仅 spa 通道）：goto 后先等其出现再 settle。
+   * 列表容器等待选择器（仅 browser 通道）：goto 后先等其出现再 settle。
    * 接口渲染站（Algolia 等）数据请求晚于 networkidle，settle 会抓到 loading 空壳；
    * 由 listTraversal.waitSelector 透传，见 config/types.ts。
    */
   waitSelector?: string;
 }
 
-/**
- * 代理裁决：**中文站强制直连**（`.cn` 域名），其余按配置。
- *
- * 为什么要写死在代码里而不是只靠 YAML 不配：
- * - 用户明确要求「伊莱瑞特中文站不需要、也不能使用代理」，这是硬约束，不能依赖
- *   后来人（或 gen-site 生成的草稿）记得手滑；
- * - 实测支撑：elabscience.cn 直连 403 风险警告页，**走代理同样 403**（多等 188s）——
- *   这类 WAF 是**地域策略**，境外出口 IP 访问国内站反而触发拦截，代理只会更糟；
- * - 误配成本不对称：中文站走代理没有收益、只有变慢 + 触发风控的风险。
- *
- * 境外站（.com 等 WAF 严的）照常按 YAML `proxy:` 走，见 StealthEnv.proxy。
- */
-export function resolveProxy(url: string, configured?: string): string | undefined {
-  if (!configured) return undefined;
-  try {
-    if (/\.cn$/i.test(new URL(url).hostname)) return undefined;
-  } catch {
-    /* URL 非法时不做特殊处理，交给上层报错 */
-  }
-  return configured;
-}
+// 代理使用点：唯一裁决方是**站点/栏目 YAML 的 proxy**（经 loader 展开占位符后落到
+// antiBot.proxy）。**配了就走、没配就直连**，代码层不做任何域名/地区黑名单——
+// 哪个站该不该走代理是配置决策，写死在代码里会让后来人无从调整（见 docs/14 §5.5）。
+// 空串视为未配置（loader 展开 `${CRAWL_PROXY}` 但环境变量没设时就是空串）。
 
 export async function fetchPage(
   url: string,
@@ -112,10 +95,9 @@ export async function fetchPage(
   headers?: Record<string, string>,
   opts: FetchOpts = {},
 ): Promise<string> {
-  if (mode === 'spa') return spaFetch(url, progress, opts);
-  // 代理只在显式配置时生效（站点/栏目 YAML 的 proxy / antiBot.proxy，默认空=直连）。
-  // 不读 CRAWL_PROXY 作全局默认：国内站不该被绕出国。中文站再叠一层强制直连（resolveProxy）。
-  const proxy = resolveProxy(url, opts.stealth?.proxy || undefined);
+  if (mode === 'browser') return browserFetch(url, progress, opts);
+  // 代理只在 YAML 显式配置时生效（站点/栏目 proxy / antiBot.proxy），默认空=直连。
+  const proxy = opts.stealth?.proxy || undefined;
   let html: string;
   try {
     html = await ssrFetch(url, progress, headers, proxy);
@@ -123,14 +105,14 @@ export async function fetchPage(
     // auto：静态被拦（403/挑战页）通常是 WAF 首包拦截，直接上浏览器比重试更划算
     if (mode === 'auto' && !(e instanceof ChallengeError)) {
       progress?.log('静态抓取被拦，回退 Playwright 渲染…');
-      return spaFetch(url, progress, opts);
+      return browserFetch(url, progress, opts);
     }
     throw e;
   }
   if (mode === 'ssr') return html;
   if (html.length < 800) {
     progress?.log('静态抓取内容偏少，回退 Playwright 渲染…');
-    return spaFetch(url, progress, opts);
+    return browserFetch(url, progress, opts);
   }
   return html;
 }
@@ -172,7 +154,7 @@ async function ssrFetch(
   proxy?: string,
 ): Promise<string> {
   progress?.log(`GET ${url} (ssr${proxy ? ' / proxy' : ''})`);
-  // 与 SPA 分支对齐补齐浏览器头（docs/16 C4）：部分 WAF 对缺 sec-ch-ua / Accept 头的请求直接拦截
+  // 与 browser 分支对齐补齐浏览器头（docs/16 C4）：部分 WAF 对缺 sec-ch-ua / Accept 头的请求直接拦截
   const reqHeaders: Record<string, string> = {
     'user-agent': DEFAULT_UA,
     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -204,15 +186,15 @@ async function ssrFetch(
   return html;
 }
 
-// ── spa 渲染稳定检测（自适应，替代固定延时）─────────────────────────────
+// ── browser 渲染稳定检测（自适应，替代固定延时）─────────────────────────────
 // 背景：不少站（ATCC/Coveo、ptglab 等）在 load 之后才异步挂载结果卡，过早 page.content()
 // 只能拿到空壳。固定 sleep 要么浪费（快站白等）、要么不够（慢站 0 条）。
 // 方案：轮询 DOM 签名（outerHTML 长度），连续 STABLE_CHECKS 次不增长即视为稳定。
 // 不用「重试+指数退避」：解析 0 条在本系统是合法语义（空栏目自动停页），
 // 重试层无法区分「没渲染完」和「真的没有」，会翻倍耗时甚至死循环。
-const SPA_POLL_MS = 400; // 轮询间隔
-const SPA_STABLE_CHECKS = 2; // 连续 N 次签名不变 → 稳定
-const SPA_MIN_WAIT_MS = 800; // 最短观察窗：防初始空壳直接返回
+const BROWSER_POLL_MS = 400; // 轮询间隔
+const BROWSER_STABLE_CHECKS = 2; // 连续 N 次签名不变 → 稳定
+const BROWSER_MIN_WAIT_MS = 800; // 最短观察窗：防初始空壳直接返回
 // 上限可用 env 放宽（慢站/弱网）：视觉上「还在转圈」多数是图片/字体在拖，
 // DOM+XHR 数据早已就位；但首屏 XHR 特别慢的站确实需要更长观察窗。
 // 注意：必须以 process.env.X 点号访问（envContract 契约测试静态扫描此形态）。
@@ -220,8 +202,8 @@ function envMs(raw: string | undefined, fallback: number): number {
   const v = Number(raw);
   return Number.isFinite(v) && v > 0 ? v : fallback;
 }
-export const SPA_MAX_WAIT_MS = envMs(process.env.CRAWL_SPA_MAX_WAIT, 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
-const SPA_NETWORK_WAIT_MS = envMs(process.env.CRAWL_SPA_NETWORK_WAIT, 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
+export const BROWSER_MAX_WAIT_MS = envMs(process.env.CRAWL_BROWSER_MAX_WAIT, 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
+const BROWSER_NETWORK_WAIT_MS = envMs(process.env.CRAWL_BROWSER_NETWORK_WAIT, 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
 const CHALLENGE_WAIT_ROUNDS = 5; // 挑战页自动放行轮数（CF 5 秒盾通常 3~8s 放行）
 const CHALLENGE_WAIT_MS = 6_000; // 每轮等待
 /** goto 超时可调（跨境慢站 45s 可能不够）：CRAWL_GOTO_TIMEOUT */
@@ -236,17 +218,17 @@ export function headlessEnv(): boolean {
  * 等待页面「网络 + DOM」双稳定，快站 ~2-3s 返回，慢站自动多等。
  *
  * ATCC 实测教训（两层缺一不可）：
- * - 仅 DOM 签名检测会**假稳定**：SPA 的 DOM 分块爆发式挂载，两波之间静默 >1s 很常见；
+ * - 仅 DOM 签名检测会**假稳定**：前端渲染站 DOM 分块爆发式挂载，两波之间静默 >1s 很常见；
  * - 仅 networkidle 会**等不到**：埋点长轮询让 networkidle 永不触发（超时）。
  * 放行条件：DOM 连续稳定 且（networkidle 已发生 或 已观察满 NETWORK_WAIT）。
  * 不用「重试+指数退避」：解析 0 条在本系统是合法语义（空栏目自动停页），
  * 重试层无法区分「没渲染完」和「真的没有」，会翻倍耗时甚至死循环。
  */
-export async function waitForSpaSettle(page: import('playwright').Page): Promise<void> {
+export async function waitForBrowserSettle(page: import('playwright').Page): Promise<void> {
   const start = Date.now();
   let networkSettled = false;
   page
-    .waitForLoadState('networkidle', { timeout: SPA_NETWORK_WAIT_MS })
+    .waitForLoadState('networkidle', { timeout: BROWSER_NETWORK_WAIT_MS })
     .then(() => {
       networkSettled = true;
     })
@@ -254,7 +236,7 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
 
   let lastSig = -1;
   let stable = 0;
-  while (Date.now() - start < SPA_MAX_WAIT_MS) {
+  while (Date.now() - start < BROWSER_MAX_WAIT_MS) {
     let sig: number;
     try {
       sig = await page.evaluate(() => document.documentElement.outerHTML.length);
@@ -265,11 +247,11 @@ export async function waitForSpaSettle(page: import('playwright').Page): Promise
     lastSig = sig;
 
     const elapsed = Date.now() - start;
-    const quiet = stable >= SPA_STABLE_CHECKS && elapsed >= SPA_MIN_WAIT_MS;
-    const networkOk = networkSettled || elapsed >= SPA_NETWORK_WAIT_MS;
+    const quiet = stable >= BROWSER_STABLE_CHECKS && elapsed >= BROWSER_MIN_WAIT_MS;
+    const networkOk = networkSettled || elapsed >= BROWSER_NETWORK_WAIT_MS;
     if (quiet && networkOk) return;
 
-    await page.waitForTimeout(SPA_POLL_MS);
+    await page.waitForTimeout(BROWSER_POLL_MS);
   }
 }
 
@@ -351,7 +333,7 @@ async function waitForChallengePass(
   for (let i = 0; hit && isAutoPassableChallenge(hit) && i < CHALLENGE_WAIT_ROUNDS; i++) {
     progress?.log(`挑战页[${hit.kind}] 等待自动放行 ${i + 1}/${CHALLENGE_WAIT_ROUNDS}（${hit.matched}）`);
     await page.waitForTimeout(CHALLENGE_WAIT_MS);
-    await waitForSpaSettle(page);
+    await waitForBrowserSettle(page);
     html = await page.content();
     text = await pageInnerText(page);
     hit = assessChallenge({ ...resp, html, innerText: text, domWidget: await hasCaptchaWidget(page) }).hit;
@@ -379,7 +361,7 @@ async function waitForChallengePass(
         await ctx.storageState({ path: sp });
         progress?.log(`人工过盾成功，会话已持久化 → ${sp}（后续轮次自动复用，不再弹盾）`);
       } catch { /* 持久化失败不影响本次结果 */ }
-      await waitForSpaSettle(page);
+      await waitForBrowserSettle(page);
       return await page.content();
     }
   }
@@ -395,15 +377,13 @@ async function waitForChallengePass(
   return html;
 }
 
-async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}): Promise<string> {
-  progress?.log(`GET ${url} (spa/playwright)`);
+async function browserFetch(url: string, progress?: Progress, opts: FetchOpts = {}): Promise<string> {
+  progress?.log(`GET ${url} (browser/playwright)`);
   const { chromium } = await import('playwright');
   const headless = opts.headless ?? headlessEnv();
   const browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
   try {
     const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
-    // 中文站强制直连（即使 YAML 误配了 proxy）——见 resolveProxy 注释
-    env.proxy = resolveProxy(url, env.proxy);
     // 会话复用：曾人工过盾的站点直接带 cookie 进场（.runtime/state/<host>.json）
     const sp = statePathOf(url);
     const ctx = await browser.newContext({
@@ -433,9 +413,9 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
     // 语义误判为翻页终止，整轮漏抓。
     if (opts.waitSelector) {
       const hit = await page
-        .waitForSelector(opts.waitSelector, { state: 'visible', timeout: SPA_MAX_WAIT_MS })
+        .waitForSelector(opts.waitSelector, { state: 'visible', timeout: BROWSER_MAX_WAIT_MS })
         .catch(() => null);
-      if (!hit) throw new Error(`waitSelector 未出现（${opts.waitSelector}，等满 ${SPA_MAX_WAIT_MS}ms）——接口渲染失败/空壳页`);
+      if (!hit) throw new Error(`waitSelector 未出现（${opts.waitSelector}，等满 ${BROWSER_MAX_WAIT_MS}ms）——接口渲染失败/空壳页`);
       if (process.env.CRAWL_DEBUG_DUMP) {
         const dbgInfo = await page
           .evaluate(() => ({
@@ -445,30 +425,30 @@ async function spaFetch(url: string, progress?: Progress, opts: FetchOpts = {}):
             first: document.querySelector('li.ais-InfiniteHits-item .result-title')?.textContent?.trim().slice(0, 40) ?? null,
           }))
           .catch((e) => ({ err: String(e) }));
-        progress?.log(`[spa][debug] 命中时页面状态: ${JSON.stringify(dbgInfo)}`);
+        progress?.log(`[browser][debug] 命中时页面状态: ${JSON.stringify(dbgInfo)}`);
       }
     }
-    await waitForSpaSettle(page);
+    await waitForBrowserSettle(page);
     // 两阶段渲染复查（Bio X Cell / Algolia 实测）：列表容器会「先挂内容 → 随后整块重挂载」，
     // 上面 waitForSelector 命中的是**第一波**，settle 期间被清空 → 拿回 0 条空壳。
     // 现象是同站同配置时好时坏（首屏 XHR 快的轮次正常、慢的轮次 0 条）。
     // 判据用「选择器还在不在」而不是重等固定时长：消失就等它回来，仍不出现由上层 listRetry 兜。
     if (opts.waitSelector && !(await page.$(opts.waitSelector).then((h) => h !== null))) {
-      progress?.log(`[spa] waitSelector ${opts.waitSelector} 在 settle 后消失（疑似重挂载），再等一轮`);
+      progress?.log(`[browser] waitSelector ${opts.waitSelector} 在 settle 后消失（疑似重挂载），再等一轮`);
       await page
-        .waitForSelector(opts.waitSelector, { state: 'visible', timeout: SPA_MAX_WAIT_MS })
+        .waitForSelector(opts.waitSelector, { state: 'visible', timeout: BROWSER_MAX_WAIT_MS })
         .catch(() => null);
     }
     // 懒加载兜底：华安这类站产品卡 loading=lazy，首屏稳定≠内容齐——滚一轮触发 lazyload，
     // 再等一次稳定（内容未增长时第二次 settle 很快，~1s 即放行）
     await humanScroll(page, 4);
-    await waitForSpaSettle(page);
+    await waitForBrowserSettle(page);
     const htmlOut = await waitForChallengePass(page, ctx, url, progress, { status, headers: hdrs });
     if (process.env.CRAWL_DEBUG_DUMP) {
       const { writeFileSync, mkdirSync } = await import('node:fs');
       mkdirSync('../../.tmp/debug', { recursive: true });
-      writeFileSync('../../.tmp/debug/spa-dump.html', htmlOut);
-      progress?.log(`[spa][debug] html dumped, len=${htmlOut.length}`);
+      writeFileSync('../../.tmp/debug/browser-dump.html', htmlOut);
+      progress?.log(`[browser][debug] html dumped, len=${htmlOut.length}`);
     }
     return htmlOut;
   } finally {
@@ -488,9 +468,9 @@ export async function fetchScreenshot(url: string, progress?: Progress): Promise
   const browser = await chromium.launch({ args: STEALTH_ARGS });
   try {
     const page = await newStealthPage(browser, { width: 1440, height: 900 });
-    // SPA 站截图同样需要等渲染完成，否则截到的是空壳（与 spaFetch 同一套稳定检测）
+    // 浏览器渲染站截图同样需要等渲染完成，否则截到的是空壳（与 browserFetch 同一套稳定检测）
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
-    await waitForSpaSettle(page);
+    await waitForBrowserSettle(page);
     return await page.screenshot({ fullPage: true, type: 'jpeg', quality: 70 });
   } finally {
     await browser.close();

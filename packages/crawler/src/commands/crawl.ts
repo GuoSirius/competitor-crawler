@@ -56,7 +56,7 @@ export interface CrawlOpts {
   perPage?: number;
   /** 每栏目最大详情抓取数（调试用，缺省不限） */
   limit?: number;
-  /** 渲染模式 ssr/spa/auto */
+  /** 渲染模式 ssr/browser/auto */
   render?: string;
   /**
    * 爬取范围数据源（YAML 是唯一真相源，docs/05）：
@@ -1536,7 +1536,7 @@ async function collectContentSection(args: {
   listNotes.push(section.listOnly ? `仅列表${targets.length}/${deduped.length}` : `详情解析${targets.length}/${deduped.length}`);
   listBar.finish(listNotes.join(' · '));
 
-  // 仅列表模式（listOnly，docs：无详情页的栏目）：条目即终态（文件直链/SPA 单页），
+  // 仅列表模式（listOnly，docs：无详情页的栏目）：条目即终态（文件直链/前端渲染单页），
   // 跳过详情抓取，用列表快照归一化——title=列表 name、identityKey=canonical(detailUrl)、publishedAt/summary 为空。
   if (section.listOnly) {
     for (const it of targets) {

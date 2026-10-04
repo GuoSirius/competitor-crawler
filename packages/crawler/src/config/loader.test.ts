@@ -132,12 +132,12 @@ describe('resolveSections — 渲染模式 Hybrid 合并', () => {
     const cfg: SiteConfig = {
       ...single,
       render: 'ssr',
-      renderList: 'spa',
+      renderList: 'browser',
       renderDetail: 'auto',
     };
     const [s] = resolveSections(cfg);
     expect(s.render).toBe('ssr');
-    expect(s.renderList).toBe('spa');
+    expect(s.renderList).toBe('browser');
     expect(s.renderDetail).toBe('auto');
   });
 
@@ -150,8 +150,8 @@ describe('resolveSections — 渲染模式 Hybrid 合并', () => {
       sections: [
         // 仅覆盖 render（整栏目统一），renderList/renderDetail 继承站点级 ssr
         { key: 'all-ssr', render: 'ssr', startUrls: ['https://h.com/a'] },
-        // 覆盖 renderList/renderDetail（列表 ssr、详情 spa），render 继承站点级
-        { key: 'hybrid', renderList: 'ssr', renderDetail: 'spa', startUrls: ['https://h.com/b'] },
+        // 覆盖 renderList/renderDetail（列表 ssr、详情 browser），render 继承站点级
+        { key: 'hybrid', renderList: 'ssr', renderDetail: 'browser', startUrls: ['https://h.com/b'] },
         // 全继承站点级
         { key: 'inherit', startUrls: ['https://h.com/c'] },
       ],
@@ -162,7 +162,7 @@ describe('resolveSections — 渲染模式 Hybrid 合并', () => {
     expect(got[0].renderDetail).toBeUndefined();
     expect(got[1].render).toBe('ssr'); // 继承站点级
     expect(got[1].renderList).toBe('ssr');
-    expect(got[1].renderDetail).toBe('spa');
+    expect(got[1].renderDetail).toBe('browser');
     expect(got[2].render).toBe('ssr'); // 全继承
     expect(got[2].renderList).toBeUndefined();
     expect(got[2].renderDetail).toBeUndefined();
@@ -173,21 +173,21 @@ describe('listRenderMode / detailRenderMode — 回退链', () => {
   const base = { render: 'auto' as const };
 
   it('列表页：renderList > render > 回退值', () => {
-    expect(listRenderMode({ ...base, renderList: 'ssr' }, 'spa')).toBe('ssr');
-    expect(listRenderMode(base, 'spa')).toBe('auto'); // 无 renderList → render
-    expect(listRenderMode({ render: undefined }, 'spa')).toBe('spa'); // 全无 → 回退
+    expect(listRenderMode({ ...base, renderList: 'ssr' }, 'browser')).toBe('ssr');
+    expect(listRenderMode(base, 'browser')).toBe('auto'); // 无 renderList → render
+    expect(listRenderMode({ render: undefined }, 'browser')).toBe('browser'); // 全无 → 回退
   });
 
   it('详情页：renderDetail > render > 回退值（与列表对称）', () => {
-    expect(detailRenderMode({ ...base, renderDetail: 'spa' }, 'ssr')).toBe('spa');
+    expect(detailRenderMode({ ...base, renderDetail: 'browser' }, 'ssr')).toBe('browser');
     expect(detailRenderMode(base, 'ssr')).toBe('auto');
     expect(detailRenderMode({ render: undefined }, 'ssr')).toBe('ssr');
   });
 
-  it('Hybrid 站点：同一栏目列表 ssr、详情 spa', () => {
-    const s = { render: 'auto' as const, renderList: 'ssr' as const, renderDetail: 'spa' as const };
+  it('Hybrid 站点：同一栏目列表 ssr、详情 browser', () => {
+    const s = { render: 'auto' as const, renderList: 'ssr' as const, renderDetail: 'browser' as const };
     expect(listRenderMode(s, 'auto')).toBe('ssr');
-    expect(detailRenderMode(s, 'auto')).toBe('spa');
+    expect(detailRenderMode(s, 'auto')).toBe('browser');
   });
 });
 

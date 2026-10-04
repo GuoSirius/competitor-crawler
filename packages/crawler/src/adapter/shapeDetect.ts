@@ -166,7 +166,7 @@ function tabEvidence(t: TabReport): string[] {
 
 /**
  * 探测一个**详情页** HTML 属于哪种规格×价格形态。
- * @param html 详情页 HTML（建议用 ssr/spa 渲染后的最终 HTML）
+ * @param html 详情页 HTML（建议用 ssr/browser 渲染后的最终 HTML）
  */
 export function detectSpecPriceShape(html: string): ShapeFinding {
   const $ = cheerio.load(html);

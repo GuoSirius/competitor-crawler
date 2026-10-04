@@ -37,7 +37,7 @@ export interface CodeAdapter {
    * 典型用途：过 WAF / 换取 Cookie / 校验可达性。
    * 返回的请求头（如 `{ cookie: 'X-REDIRECT=1' }`）会合并进该站点后续所有
    * ssr 静态抓取请求（fetchPage）；返回 undefined/void 表示无附加头。
-   * spa（Playwright）模式由浏览器自管 Cookie，附加头不参与。
+   * browser（Playwright）模式由浏览器自管 Cookie，附加头不参与。
    * 抛错只记日志不中断整轮（适配器是增强，不是单点）。
    */
   preflight?(ctx: { domain: string }): MaybePromise<Record<string, string> | void>;

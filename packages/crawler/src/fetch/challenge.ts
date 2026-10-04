@@ -37,7 +37,7 @@ export interface ChallengeInput {
   headers?: Record<string, string | undefined>;
   /** 整页 HTML（ssr 通道；含 script，仅作弱信号） */
   html?: string;
-  /** 可见文本（spa 通道；playwright 的 document.body.innerText） */
+  /** 可见文本（browser 通道；playwright 的 document.body.innerText） */
   innerText?: string;
   /** 正文字符数（innerText 长度），用于「有内容 = 放行」判断；缺省用 innerText/html 长度 */
   contentChars?: number;
@@ -111,8 +111,8 @@ function matchFirst(rules: Array<[ChallengeKind, RegExp]>, text: string): Challe
 }
 
 /**
- * 统一判定入口（ssr / spa 两条通道都走这里）。
- * ssr 只能给 html，用弱信号路径；spa 能给 innerText+headers，走强信号路径。
+ * 统一判定入口（ssr / browser 两条通道都走这里）。
+ * ssr 只能给 html，用弱信号路径；browser 能给 innerText+headers，走强信号路径。
  */
 export function assessChallenge(i: ChallengeInput): Assessment {
   const notes: string[] = [];
@@ -132,7 +132,7 @@ export function assessChallenge(i: ChallengeInput): Assessment {
   }
   if (hdr) notes.push(`响应头命中 ${hdr.kind}（${hdr.matched}）`);
 
-  // 2) 文本（spa 通道 innerText 可信；ssr 通道整页 HTML 只配 medium）：
+  // 2) 文本（browser 通道 innerText 可信；ssr 通道整页 HTML 只配 medium）：
   //    specific=特异文案（出现即挑战）；broad=宽泛文案（需 DOM 控件或「无内容」佐证）
   const specific = i.innerText ? matchFirst(SPECIFIC_TEXT, i.innerText) : null;
   const broad = !specific && i.innerText ? matchFirst(BROAD_TEXT, i.innerText) : null;
@@ -171,7 +171,7 @@ export function assessChallenge(i: ChallengeInput): Assessment {
     return { hit: specific, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
   }
   // 宽泛文案：有实质内容且 DOM 无验证控件 → 误报放行（BD/赛业/ScienCell 这类自带组件文案的正常页）
-  // spa 通道（innerText 通道）用 domWidget 佐证；ssr 通道拿不到 DOM，用「正文 ≥500 字符」等效放行。
+  // browser 通道（innerText 通道）用 domWidget 佐证；ssr 通道拿不到 DOM，用「正文 ≥500 字符」等效放行。
   if (broad || htmlBroad) {
     if (hasRealContent && !i.domWidget) {
       return {
@@ -191,7 +191,7 @@ export function assessChallenge(i: ChallengeInput): Assessment {
     };
   }
 
-  // ── 反向放行：spa 通道命中中/弱词 + 有实质内容 → 误报放行 ──
+  // ── 反向放行：browser 通道命中中/弱词 + 有实质内容 → 误报放行 ──
   if (medium && hasRealContent) {
     return {
       hit: null,

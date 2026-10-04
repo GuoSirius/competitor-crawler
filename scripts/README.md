@@ -12,7 +12,7 @@
 | `analyze-sites.mjs` | 批量分析 SERVER_LIST 站点：详情链接 pattern、卡片容器链、翻页形态、详情页 name/price/sku 候选选择器 | `node scripts/analyze-sites.mjs` | `.tmp/site-analysis/site-analysis.json`（用完即删） |
 | `probe-render.mjs` | B 类站渲染探针：Playwright 逐站渲染后统计详情锚点/卡片签名/重定向，判定「渲染后有真列表」还是「仍只有导航」 | `node scripts/probe-render.mjs` | `.tmp/render-analysis.json`（用完即删） |
 
-**典型接入流程**：`probe-lists` 定可爬性 → `analyze-sites` 拿结构（B 类站加跑 `probe-render`）→ 手写 `config/sites/<domain>.yaml` → `pnpm crawl -- --site <domain> --dry-run --limit 3`（B 类加 `--render spa`）验证 → 提交。
+**典型接入流程**：`probe-lists` 定可爬性 → `analyze-sites` 拿结构（B 类站加跑 `probe-render`）→ 手写 `config/sites/<domain>.yaml` → `pnpm crawl -- --site <domain> --dry-run --limit 3`（B 类加 `--render browser`）验证 → 提交。
 
 ## 仓库基建（勿动）
 
