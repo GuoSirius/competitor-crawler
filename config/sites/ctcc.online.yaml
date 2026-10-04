@@ -1,5 +1,5 @@
 # 站点适配器：浙江美森细胞科技 ctcc.online
-# 结构：.aspx 自研站（证书链有问题 → ssr 通道握手失败，必须 spa；playwright ignoreHTTPSErrors 可过）
+# 结构：.aspx 自研站（证书链有问题 → ssr 通道握手失败，必须 browser；playwright ignoreHTTPSErrors 可过）
 #   - 产品卡 div.TextList003149 ul.ul > li：div.tit a（/CellLines/info.aspx?itemid=N&lcid=N）
 #   - dl dd：第一个=货号、第二个=规格；翻页 &page=N（数字页码，站点脚本注入）
 #   - 入口=各产品分类列表页（导航产品中心下钻，落地页即列表页）
@@ -7,7 +7,7 @@
 domain: ctcc.online
 company: 浙江美森细胞科技有限公司
 currency: CNY
-render: spa
+render: browser
 
 parseList:
   itemSelector: "div.TextList003149 ul.ul > li"

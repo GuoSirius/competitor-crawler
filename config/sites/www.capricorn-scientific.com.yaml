@@ -1,5 +1,5 @@
 # 站点适配器：Capricorn Scientific（www.capricorn-scientific.com）
-# 结构（CoreShop PHP 站，纯 SSR HTML，无需 spa）：
+# 结构（CoreShop PHP 站，纯 SSR HTML，无需 browser）：
 #   - 产品列表页 /en/shop/<slug>~c<catId>（~c 后是分类 id，~p 后是产品 id）
 #   - 产品卡 div.product-col：详情/名称 h4 > a（移动端标题）或 .image > a；
 #     .properties 里是「Cat-No: / Volume: / …」键值行

@@ -42,10 +42,10 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 
 # ---------- 1.x) 渲染模式（Hybrid 站点：不同页面/栏目用不同模式抓取）----------
 # render: 抓取渲染模式（写入 YAML 顶层，probe / crawl / gen-site 统一复用）：
-#   ssr  = 纯 Node fetch 静态 HTML（最快，SSR/SSG/ISR 站首选）
-#   spa  = 用 Playwright 渲染（CSR / 前端路由站必须）
-#   auto = 先 ssr 抓，内容过少（<800 字符）自动升级 spa（缺省兜底、最稳）
-# 命令行 --render 仍可临时覆盖；逐站写进 YAML 即可混合 ssr/spa 无需每次指定。
+#   ssr     = 纯 Node fetch 静态 HTML（最快，SSR/SSG/ISR 站首选）
+#   browser = 开 Playwright 真浏览器取执行后 DOM（前端渲染站；或站本身 SSR 但 ssr 通道被 WAF 拦）
+#   auto    = 先 ssr 抓，内容过少（<800 字符）自动升级 browser（缺省兜底、最稳）
+# 命令行 --render 仍可临时覆盖；逐站写进 YAML 即可混合 ssr/browser 无需每次指定。
 #
 # ★ 更细粒度（Hybrid 站点真实覆盖）：列表页与详情页、不同栏目可分别指定——
 #   renderList   : 仅列表页用指定模式（覆盖本栏目 render）
@@ -54,7 +54,7 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 #   多规则站点在对应 section 内写 render / renderList / renderDetail 即可（见 _template.sections.yaml）。
 # render: auto                     # 单规则站点：整站统一模式（最常写）
 # renderList: ssr                  # 可选：仅列表页用 ssr（如产品列表是 SSR）
-# renderDetail: spa                # 可选：仅详情页用 spa（如详情是 CSR、列表页已 SSR）
+# renderDetail: browser             # 可选：仅详情页用 browser（如详情是前端渲染、列表页已 SSR）
 
 # ---------- 1.1) 代理（按需用，默认直连）----------
 # 什么时候需要：开了 VPN 之后，**境外站**（BioLegend / 义翘 / MCE / elabscience.com 等）仍被
@@ -288,7 +288,7 @@ parseDetail:
 #   pnpm probe --domain example.com                 # 单站验证 + ★自动判定规格价格形态（默认抽查 1 个详情页）
 #   pnpm probe --domain example.com --detail 3      # 每栏目抽查 3 个详情页
 #   pnpm probe --domain example.com --detail 0      # 关闭详情页形态探测
-#   pnpm probe --domain example.com --render spa    # 需要 JS 渲染时指定 Playwright
+#   pnpm probe --domain example.com --render browser    # 需要 JS 渲染时指定 Playwright
 #   pnpm probe --domain example.com --section <key> # 多规则站点只验某个栏目
 #   pnpm crawl --site example.com --dry-run --limit 3        # crawl 默认 --source config（YAML 即爬取范围）
 #   pnpm crawl --site example.com,other.com --dry-run --limit 3   # 手动测试多个站：逗号分隔

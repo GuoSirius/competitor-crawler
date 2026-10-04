@@ -1,0 +1,93 @@
+# 站点适配器：MedChemExpress（MCE，2026-10-04 换 VPN 节点后实测接入）
+# 旧结论作废：「CF 真盾 412 / 人工过盾未通过」——换节点后出口 IP 变为境外（50.7.250.107），
+# 列表页与详情页均 200 直出。**该站不需要在 YAML 配 proxy**（VPN 已在网络层生效）。
+#
+# 结构（MCE 自研模板，无翻页：每个分类页一次性列出全部条目）：
+#   div.kt[data-catalogno]          → 产品条目（cell-isolation 23 条 / inhibitor-kit 633 条）
+#     a.full-link[href]             → 详情链接（形如 /inhibitor-kit/sybr-green-...html）
+#     fieldset.kits-third-level-item
+#       legend                      → "Cat. No.: HY-K1004"
+#       span                        → 产品名
+#       div.kits-third-desc > p     → 简介
+#   ⚠️ 头部 mega-menu 里有 3967 个 li.detail-item[data-catalogno]（导航菜单，非产品），
+#      所以条目选择器必须锁 div.kt —— 用 [data-catalogno] 裸选会把导航全抓进来。
+#
+# 详情页字段：h1=名称；价格/货号/品牌取自 ld+json（#0 块 "@type": "Product"，含 sku/mpn/brand/offers.price）。
+# ⚠️ 列表页无价格，价格只在详情页（且随国家/规格浮动，JSON-LD 的 price 为基准价）。
+domain: www.medchemexpress.com
+company: MCE（MedChemExpress）
+role: competitor
+currency: USD
+# ⚠️ 必须 browser：ssr（Node fetch）被 CF 判机器人返回 403，有头 Chromium 直出 200。
+render: browser
+
+listTraversal:
+  # 分类页单页全量，无 next/无 ?page= —— 显式 none，避免继承默认翻页白抓
+  strategy: none
+  # 内容级：等条目里的货号真出现（页面 1.7MB 且头部菜单巨大，等 DOM 稳定即可）
+  waitSelector: div.kt[data-catalogno] legend
+
+parseList:
+  itemSelector: div.kt[data-catalogno]
+  fields:
+    detailUrl: { sel: "a.full-link", attr: href }
+    sku: { sel: "$self", attr: data-catalogno }
+    name: { sel: "fieldset span", text: true }
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku:
+      sel: 'script[type="application/ld+json"]'
+      text: true
+      regex: '"sku":\s*"([^"]+)"'
+    brand:
+      sel: 'script[type="application/ld+json"]'
+      text: true
+      regex: '"brand":\s*\{[\s\S]*?"name":\s*"([^"]+)"'
+    price:
+      sel: 'script[type="application/ld+json"]'
+      text: true
+      regex: '"price":\s*"([\d.]+)"'
+      number: true
+    priceText:
+      sel: 'script[type="application/ld+json"]'
+      text: true
+      regex: '"price":\s*"([\d.]+)"'
+
+sections:
+  - key: cell-culture
+    category: 细胞培养
+    startUrls: ["https://www.medchemexpress.com/kits/cell-culture.html"]
+  - key: cell-isolation
+    category: 细胞分离
+    startUrls: ["https://www.medchemexpress.com/kits/cell-isolation.html"]
+  - key: cell-biology
+    category: 细胞生物学
+    startUrls: ["https://www.medchemexpress.com/kits/cell-biology.html"]
+  - key: 3d-cell-culture
+    category: 3D 细胞培养
+    startUrls: ["https://www.medchemexpress.com/kits/3d-cell-culture.html"]
+  - key: cell-analysis
+    category: 细胞分析
+    startUrls: ["https://www.medchemexpress.com/kits/cell-analysis.html"]
+  - key: cytokines
+    category: 细胞因子与生长因子
+    startUrls: ["https://www.medchemexpress.com/proteins/cytokines-and-growth-factors.html"]
+    # ⚠️ 蛋白分类页是**另一套模板**（与 /kits/* 的 div.kt 不同构），故本栏目自带 parseList：
+    #   div.rp-category-group            → 条目（20/页，177 页）
+    #     a[href^="/recombinant-proteins/"]  → 首条即标题链接（同选择器再取 text = 名称）
+    #     div[data-catalog-no]           → 货号（HY-P7085）
+    #   列表页无价格（价格随规格/国家异步），价格一律走详情页 JSON-LD。
+    parseList:
+      itemSelector: div.rp-category-group
+      fields:
+        detailUrl: { sel: 'a[href^="/recombinant-proteins/"]', attr: href }
+        name: { sel: 'a[href^="/recombinant-proteins/"]', text: true }
+        sku: { sel: "div[data-catalog-no]", attr: data-catalog-no }
+    listTraversal:
+      strategy: pagination-url
+      urlTemplate: "?page={page}&pageSize=20"
+      pageStart: 1
+      maxPages: 177
+      waitSelector: div.rp-category-group

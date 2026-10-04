@@ -1,4 +1,4 @@
-# 站点适配器：ATCC www.atcc.org（B 类 · JS 渲染站，爬取必须带 --render spa）
+# 站点适配器：ATCC www.atcc.org（B 类 · JS 渲染站，爬取必须带 --render browser）
 # 结构（2026-09-24 渲染实测）：Coveo 搜索驱动
 #   - 列表页 /cell-products 渲染后 div.product-search-listing-card ×24（CoveoResult）
 #   - 卡片：a[href*="/products/<slug>"] + h3.product-search-listing-card__name + 货号在

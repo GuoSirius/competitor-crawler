@@ -1,6 +1,6 @@
 # 站点适配器：Cytion（2026-10-04 实测接入，C 类升 A 类）
 # 入口推导（docs/14 §4 原记录「ERR_CONNECTION_TIMED_OUT」为无 VPN 时的旧结论）：
-#   - ssr 通道 fetch failed、curl 也失败，**必须 spa + Playwright**（约 40s 首屏）；
+#   - ssr 通道 fetch failed、curl 也失败，**必须 browser + Playwright**（约 40s 首屏）；
 #   - 首页只有 product-slider（20 个推荐位），不是列表；真实列表在导航的分类页。
 # 平台：Shopware 6（cms-element-product-listing / product-box / checkout-cart 结构）。
 # 结构：
@@ -19,7 +19,7 @@ domain: www.cytion.com
 company: Cytion
 role: competitor
 currency: USD
-render: spa
+render: browser
 
 parseList:
   itemSelector: .product-box

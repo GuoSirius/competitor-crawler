@@ -1,7 +1,7 @@
 # 站点适配器：华安生物（HUABIO）huabio.cn
 # 结构：Shopify + 自定义主题（usf/product-card 系）
 #   - 列表页 ssr 只有导航/分类聚合壳（锚点全是 collections），产品卡**懒加载** → 必须渲染
-#   - 产品卡 div.product-card.js-product（SPA 渲染后每页 ~28 个）
+#   - 产品卡 div.product-card.js-product（浏览器渲染后每页 ~28 个）
 #   - 卡内 a.product-card-link：href=/collections/<c>/products/<slug>，title 属性=全名（含 [克隆号] (货号)）
 #   - 详情页 h1=名称（不含货号）；价格 .product-single__price-number：
 #       #discount-price=现价（特惠价 880）、#price=原价（1500，display:none）→ 逗号选择器取先命中者
@@ -11,7 +11,7 @@
 domain: huabio.cn
 company: 华安生物（HUABIO）
 currency: CNY
-render: spa # 产品卡懒加载；ssr 只有导航壳
+render: browser # 产品卡懒加载；ssr 只有导航壳
 
 # antiBot 不配：默认档（mid stealth + Asia/Shanghai + zh-CN + 有头）已验证可过
 

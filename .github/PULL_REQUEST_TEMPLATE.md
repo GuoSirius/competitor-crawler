@@ -23,7 +23,7 @@
 - [ ] 写库幂等：种子 upsert / crawl `ON CONFLICT` / 下架软删 / backfill 只填空列（§12.1）
 - [ ] 去重键 = `(company_id, dedupe_key, section_key)`，`sku` 不参与；列表先 `canonical(detailUrl)` 去重
 - [ ] 时间：秒级用 `dayjs.unix()`，展示用 `formatBj()`，无裸 `new Date()`
-- [ ] 解析层：`regex` 单反斜杠、dry-run 验证条数 > 0；形态/SPA 等待正确；非产品页已排除
+- [ ] 解析层：`regex` 单反斜杠、dry-run 验证条数 > 0；形态/浏览器渲染等待正确；非产品页已排除
 
 ## 安全性（🔴 必查）
 

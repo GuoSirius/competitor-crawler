@@ -1,4 +1,4 @@
-# 站点适配器：Proteintech www.ptglab.com（B 类 · JS 渲染站，爬取必须带 --render spa）
+# 站点适配器：Proteintech www.ptglab.com（B 类 · JS 渲染站，爬取必须带 --render browser）
 # 结构（2026-09-24 渲染实测）：
 #   - /products/<品类>/ 静态页是纯导航（分类链接），真列表在搜索结果页 /results?q=<词>
 #   - 渲染后 li.search-result-wrapper.result-group（首屏 21 条）：卡片自身属性就带

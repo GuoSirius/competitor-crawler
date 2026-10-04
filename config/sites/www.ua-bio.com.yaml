@@ -4,12 +4,12 @@
 #   药物筛选/诊断抗原/特色产品/酶制剂/药物靶点&FC受体）全部 deep-link 到
 #   ua-bio.com/goodsList.html?typeld=N（带 mk_channel=starter_topnav），真实产品数据在此。
 #   故 config 域用 ua-bio.com、company 绑「斯达特（Starter）」。
-# 结构（Vue/Element-UI SPA，须 --render spa）：
+# 结构（Vue/Element-UI SPA，须 --render browser）：
 #   - 列表页 goodsList.html?typeld=<栏目ID>，每页 20 条产品卡
 #   - 产品卡 div.goods-item-view；名称 a.hover-a > strong；详情 a.hover-a href（/ua<id>_*.html）
 #   - 货号 span.stock_number 文本「货号：UA040005」；价格 span.price > strong（￥460）
-#   - 翻页 el-pagination，下一页 .el-pagination .btn-next（SPA 点按触发 Vue 加载）
-# 抓取命令：pnpm crawl -- --site www.ua-bio.com --render spa
+#   - 翻页 el-pagination，下一页 .el-pagination .btn-next（前端点按触发 Vue 加载）
+# 抓取命令：pnpm crawl -- --site www.ua-bio.com --render browser
 domain: www.ua-bio.com
 company: 斯达特（Starter）
 currency: CNY

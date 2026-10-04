@@ -5,7 +5,7 @@
 #   - 货号 div.col-lg-3[title]（如 RAT-iCell-a012）
 #   - 价格 div.col-lg-1（如「￥ 4050.0」）
 #   - 翻页 .next（class="pagination" 包裹）
-# 列表页即 SSR（无需 --render spa），fetchPage auto 模式即可。
+# 列表页即 SSR（无需 --render browser），fetchPage auto 模式即可。
 # 抓取命令：pnpm crawl -- --site www.icellbioscience.com
 domain: www.icellbioscience.com
 company: 赛百慷（上海）生物技术股份有限公司

@@ -1,0 +1,60 @@
+# 站点适配器：义翘神州 Sino Biological（2026-10-04 换 VPN 节点后实测接入）
+# 旧结论作废：「CF 真盾 + 等满 180s 人工过盾未通过」→ 换节点后出口 IP 变境外，列表/详情均 200 直出。
+# **该站不需要在 YAML 配 proxy**（VPN 已在网络层生效）。
+#
+# 入口是**搜索页**（站内没有可直接翻的产品列表页，`/category/*` 全是营销盒 + 导航菜单）：
+#   /search/by-category?keywords=<宽泛词>&categoryCode=<1=蛋白|2=抗体>&searchType=1
+# 结果由 `POST /SearchResultDetails`（表单 `rpc=20&page=N&keywords=...`）在浏览器里拼出 →
+#   **必须 render: browser**，并等 `#search_result_cntr ul.result-item.body` 真出现。
+#   ⚠️ 该接口连发会被 CF 限流（实测第二次 403），翻页走 UI「Load more」累积，不要直连接口。
+#
+# 结构：
+#   ul.result-item.body                 → 条目（20/条一次 Load more，TotalRecords 上限 10000）
+#     div.cata-link > a[href]           → 详情链接 + 货号文本（40891-V08E）
+#     li[data-col=description] span.text → 简称（完整名以详情 h1 为准）
+#   ⚠️ 每条产品占 3 个 ul：主行 / `.more`（移动端展开行，同样含 cata-link）/ `.biz-ul`（Citations）
+#      → 只取主行，否则同一产品会出 2 条（实测 20 变 40）
+# 详情页：h1=名称；`span.more[data-catalog]`=货号；`div.price.price_now`=现价（¥169）、
+#         `div.price.price_origin`=原价；`#sku_selec div.unit.active`=当前规格（10 µg）。
+domain: www.sinobiological.com
+company: 义翘神州
+role: competitor
+currency: CNY
+# ⚠️ 必须 browser：结果由 XHR 拼装，ssr 只有筛选器 + 导航（且 ssr 通道易被 CF 挑战）
+render: browser
+
+listTraversal:
+  # 「Load more」点击累积（同 BioXCell 套路）：无更多时按钮隐藏 → clickNext 返回 false 收尾
+  strategy: pagination-html
+  nextSelector: "#search_result_pager a.load"
+  maxPages: 500
+  waitSelector: "#search_result_cntr ul.result-item.body"
+
+parseList:
+  # ⚠️ 每条产品占 3 个 ul：主行 / `.more`（移动端展开行，同样含 cata-link）/ `.biz-ul`（Citations）。
+  #    只取主行 → `:not(.more):not(.biz-ul)`（实测 20 条；不排除会变 40 条重复行）
+  itemSelector: ul.result-item.body:not(.more):not(.biz-ul)
+  fields:
+    detailUrl: { sel: "div.cata-link a", attr: href }
+    sku: { sel: "div.cata-link a", text: true }
+    name: { sel: "li[data-col=description] span.text", text: true }
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku: { sel: "span.more[data-catalog]", attr: data-catalog }
+    price:
+      sel: "div.price.price_now"
+      text: true
+      regex: '([\d,]+\.?\d*)'
+      number: true
+    priceText: { sel: "div.price.price_now", text: true }
+    specText: { sel: "#sku_selec div.unit.active", text: true }
+
+sections:
+  - key: proteins
+    category: 重组蛋白
+    startUrls: ["https://www.sinobiological.com/search/by-category?keywords=protein&categoryCode=1&searchType=1"]
+  - key: antibodies
+    category: 抗体
+    startUrls: ["https://www.sinobiological.com/search/by-category?keywords=antibody&categoryCode=2&searchType=1"]

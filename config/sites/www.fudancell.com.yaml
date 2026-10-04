@@ -1,5 +1,5 @@
 # 站点适配器：富衡生物（www.fudancell.com）
-# 结构（Fai 建站系统，纯 SSR HTML，无需 spa）：
+# 结构（Fai 建站系统，纯 SSR HTML，无需 browser）：
 #   - 分类列表页 /sys-col-<colId>/，产品卡 div.productDoublePicListForm
 #     · 容器自带 productid / productname 属性（$self 直读，不依赖内层元素）
 #     · 详情/名称 a.fk-productName

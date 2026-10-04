@@ -3,7 +3,7 @@
 #   - 产品网格 ul > li > a[href^="/product-info/"]；名称 span.p1（含 <i>级别</i>），货号/宿主/纯度在后续 span.p2~p4
 #   - 详情 /product-info/<id>.html
 #   - 翻页 .pro-page 为 JS 注入（空容器），先按单页抓；若需翻页再补 pagination-url 参数
-# 列表页 SSR 可见，fetchPage auto 即可（无需 --render spa）。
+# 列表页 SSR 可见，fetchPage auto 即可（无需 --render browser）。
 # 抓取命令：pnpm crawl -- --site www.seafrom.com
 domain: www.seafrom.com
 company: 同立海源

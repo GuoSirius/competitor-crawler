@@ -46,7 +46,7 @@ company: 示例生物科技有限公司        # 站点归属公司名；省略�
 currency: CNY
 
 # 顶层默认「渲染模式」（各 section 未指定时继承；Hybrid 站点见下方 per-section render）
-#   ssr / spa / auto 含义同模板 A；列表页与详情页分别指定用 renderList / renderDetail。
+#   ssr / browser / auto 含义同模板 A；列表页与详情页分别指定用 renderList / renderDetail。
 # render: auto
 
 # 顶层默认「分类归属」（各 section 未指定时继承；三种来源优先级 categoryFromPage > categoryPath > category，
@@ -102,7 +102,7 @@ sections:
     productLine: 细胞试剂                     # 产品线（可选）：写入 categories.product_line；crawl --product-line 可据此过滤
     # render: ssr                            # 可选：本栏目统一渲染模式（覆盖顶层 render）
     # renderList: ssr                        # 可选：仅列表页（覆盖 render）；如产品列表是 SSR
-    # renderDetail: spa                      # 可选：仅详情页（覆盖 render）；如详情是 CSR、列表已 SSR
+    # renderDetail: browser                      # 可选：仅详情页（覆盖 render）；如详情是 CSR、列表已 SSR
     startUrls:                              # 该栏目的列表页入口（可多个；省略则回退顶层 startUrl）
       - "https://example.com/products"
       - "https://example.com/products/page2"

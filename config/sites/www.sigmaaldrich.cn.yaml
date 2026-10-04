@@ -2,12 +2,12 @@
 # 结构：Adobe AEM + MUI + emotion（css-hash 类，但带语义后缀 -productNumber/-productName）
 #   - 产品行 [class*="tBodyRow"]（表头行为 tHeadRow，已排除）
 #   - 货号 [class*="productNumber"] a（D2650），名称 [class*="productName"] a
-#   - render: spa（ssr 只有壳）
+#   - render: browser（ssr 只有壳）
 # 抓取命令：pnpm crawl --domain www.sigmaaldrich.cn
 domain: www.sigmaaldrich.cn
 company: 默克（Merck）
 currency: CNY
-render: spa
+render: browser
 
 parseList:
   itemSelector: '[class*="tBodyRow"]'

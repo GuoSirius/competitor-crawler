@@ -1,10 +1,10 @@
 # 站点适配器：华美生物 CUSABIO（www.cusabio.cn）
-# 结构（纯 SSR HTML，无需 spa）：
+# 结构（纯 SSR HTML，无需 browser）：
 #   - 列表页 https://www.cusabio.cn/catalog-30-{page}.html，每页 20 条 ELISA 试剂盒
 #   - 产品卡 div.results-item；名称/详情 .search-results-title > a（含 Product-Name）
 #   - 货号 .search-results-code（如 CSB-EL3325HU）
 #   - 翻页是**相对路径**模板：catalog-30-2.html / catalog-30-3.html …（catalog-30 共 200+ 页）
-# 复核修正（2026-10-04）：docs/14 原记「spa OK 但主页是营销页」——主页确实是营销页，
+# 复核修正（2026-10-04）：docs/14 原记「browser OK 但主页是营销页」——主页确实是营销页，
 #   但真实产品列表入口是 catalog-30-N.html（页面自带 <h2>产品列表</h2> 区块），可直接 SSR 抓。
 domain: www.cusabio.cn
 company: 华美生物（CUSABIO）

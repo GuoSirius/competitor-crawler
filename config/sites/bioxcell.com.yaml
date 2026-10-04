@@ -1,6 +1,6 @@
 # 站点适配器：Bio X Cell（bioxcell.com，Magento + Algolia instant search）
 # 结构（2026-10-02 二次实测）：
-#   - 列表页产品卡由 Algolia 前端渲染 li.ais-InfiniteHits-item（首屏 10 条），必须 spa；
+#   - 列表页产品卡由 Algolia 前端渲染 li.ais-InfiniteHits-item（首屏 10 条），必须 browser；
 #     `{{url}}` 只是 algolia autocomplete 的 text/template 脚本，非未挂载模板
 #   - 翻页 = 底部「View More」按钮（button.ais-InfiniteHits-loadMore），点击**累积**追加：
 #     连点 3 次实测 10→20→30→40，URL 同步变 ?page=4（刷新只出本页、不回吐 1~3 页）。
@@ -14,7 +14,7 @@
 domain: bioxcell.com
 company: Bio X Cell
 currency: USD
-render: spa # Algolia instant search 前端渲染
+render: browser # Algolia instant search 前端渲染
 # 不配 antiBot：引擎默认（有头 + 默认 UA）实测能过；换成自定义 UA 会与 antiBot.ts 里
 # 写死的 sec-ch-ua「Chromium 124」不自洽，画蛇添足。
 
@@ -49,5 +49,5 @@ sections:
     # 拟人点击累积加载（warm 渲染，成功率远高于逐页冷启动的 pagination-url）；
     # 累积 DOM 每轮重解析 + 列表末尾统一去重；按钮消失即终止。
     # waitSelector 用**内容级**选择器（浅层容器在 Algolia 重挂载时会被清空，见 fetch/page.ts
-    # 「两阶段渲染复查」）：命中即证明 hits 结果已填充。CRAWL_SPA_MAX_WAIT 建议 150000（首屏 ~57s）。
+    # 「两阶段渲染复查」）：命中即证明 hits 结果已填充。CRAWL_BROWSER_MAX_WAIT 建议 150000（首屏 ~57s）。
     listTraversal: { strategy: pagination-html, nextSelector: "button.ais-InfiniteHits-loadMore", maxPages: 200, waitSelector: "li.ais-InfiniteHits-item .result-title" }
