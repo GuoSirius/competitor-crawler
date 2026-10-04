@@ -1,0 +1,46 @@
+# 站点适配器：STEMCELL Technologies（2026-10-04 实测接入，C 类升 A 类）
+# 入口推导（docs/14 §4 原记录「goto 45s 超时」为无 VPN 时的旧结论；开 VPN 后 curl 直连 200）：
+#   - sweep 报的 87 个「产品锚点」是 /products/ 前缀误判（多为 product-types 分类链接）——
+#     brands/easysep-cell-separation.html 是**品牌页**，无产品网格（li.product-item = 0）；
+#   - 真实入口 = /products.html（Magento 分类根页，SSR 直出 12 个 li.product-item/页）。
+# 结构（Magento 2 标准）：
+#   li.product-item > .product-item-info[data-container=product-grid]
+#     a.product.photo.product-item-photo[href]  → 详情链接（/products/<slug>.html，扁平）
+#     .product.details > strong.product.name > a.product-item-link[title] → 产品名
+#     div.product.description → 卡片描述
+# 翻页：SSR 分页 ?p=N（实测 p=2 与 p=1 零重叠；分页控件 next → ?p=31）
+# ⚠️ 字段缺口（询价制 + 变体）：
+#   - 无价格：详情页 [class*=price] 全空，STEMCELL 走「登录/询价」，价格不公开；
+#   - 无货号：Catalog # 属性初始为「(Select a product)」，cat# 需选 super_attribute 后由
+#     Ajax 回填（静态 HTML 取不到）→ 货号列留空，去重键退化为 canonical(detail_url)。
+#   - 规格信息在详情页属性块（species / host_species / application / clone / isotype 等），
+#     走 captureRest 进 row。
+domain: www.stemcell.com
+company: STEMCELL Technologies
+role: competitor
+currency: USD
+render: ssr
+
+parseList:
+  itemSelector: li.product-item
+  fields:
+    detailUrl: { sel: "a.product-item-photo", attr: href }
+    name: { sel: "a.product-item-link", attr: title }
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?p={page}"
+  pageStart: 1
+  # 实测 p=100 仍有 12 条、p=400 归零 → 全量约 100~300 页（1200~3600 产品）；
+  # 这里先给 150 页（1800 条），需要全量时用 CLI --max-pages 覆盖。
+  maxPages: 150
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+  captureRest: true
+
+sections:
+  - key: default
+    startUrls: ["https://www.stemcell.com/products.html"]
+    match: { detailUrlIncludes: ["stemcell.com/products/"] }
