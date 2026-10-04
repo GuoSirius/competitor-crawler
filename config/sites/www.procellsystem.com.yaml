@@ -1,4 +1,127 @@
 domain: www.procellsystem.com
 company: 普诺赛英文站
 role: own
-currency: 元
+currency: USD
+render: auto
+
+# 2026-10-02 实测（stubs 4 站之一，下钻）
+#   - 首页/产品分类落地页（/products/<slug>）形态不统一：有的分类产品是表格
+#     （<table class="zhongdian-pro …"> / <table class="table w-100 …">，两种 class 并存）、
+#     有的分类是卡片网格（div.row.other-list），有的分类页压根 0 产品（powder-basal-media、
+#     primary-cell-isolation-kit）→ 直接按落地页配会漏、会串，逐个写 itemSelector 维护 cost 太高。
+#   - 真实统一入口是搜索式列表：**/search-category=<top-level>**（与中文站 /search 同族）：
+#     每页固定 div.pro_item ×20 条，分页是标准 <li class="page-item"><a class="page-link" href="?page=N">，
+#     20 条/页、最多 11 页（cell-culture-media 等大分类）→ 按「顶层分类 + ?page={page}」配，全站形态一致。
+#   - 条目结构（pro_item）：
+#       a.pro-title        = 产品名 + 详情链接（/p/<slug>-<code>，如 /p/raw-264-7-cell-complete-medium-cm-0190-72330）
+#       em.cat-text        = Cat.No.（如 CM-0190），**与详情页的货号不是一回事**，
+#                            故列表侧存 catNo 不存 sku，避免与详情 sku（h4.fs_24 = PB180129）被判成字段不一致。
+#       b.js-s-price.price = $98.00（列表自带价格，两阶段兜底时详情优先）
+#   - 顶层分类取值（站内导航 /search-category=xxx）：cell-culture-media / auxiliary-reagents /
+#     growth-supplements / cytokines / cell-function-research-kits / cell-health-assays /
+#     primary-cells / cell-lines / serums / other-reagents / removal-reagents / removal-media /
+#     safeguard / cell-resource-banks。
+#   - 无 load-more / 无滚动加载：纯 SSR URL 分页。
+parseList:
+  itemSelector: div.pro_item
+  fields:
+    detailUrl:
+      sel: "a.pro-title"
+      attr: href
+    name:
+      sel: "a.pro-title"
+      text: true
+    # Cat.No.（如 CM-0190），与详情 sku（PB180129）不同源，单独留档不参与 sku 比对
+    catNo:
+      sel: "em.cat-text"
+      text: true
+    price:
+      sel: "b.js-s-price.price"
+      text: true
+      number: true
+    priceText:
+      sel: "b.js-s-price.price"
+      text: true
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?page={page}"
+  pageStart: 1
+  maxPages: 30
+
+parseDetail:
+  fields:
+    name:
+      sel: ".pro-cart-title"
+      text: true
+    # 货号卡片 <h4 class="fs_24">PB180129</h4>
+    sku:
+      sel: "h4.fs_24"
+      text: true
+    # 价格 <span class="price_span text-danger">$ 18.00</span>
+    price:
+      sel: "span.price_span"
+      text: true
+      number: true
+    priceText:
+      sel: "span.price_span"
+      text: true
+  captureRest: true
+
+sections:
+  - key: cell-culture-media
+    category: 细胞培养（基础/完全/无血清培养基）
+    startUrls: ["https://www.procellsystem.com/search-category=cell-culture-media"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: auxiliary-reagents
+    category: 辅助试剂（平衡盐/解离/冻存/抗生素）
+    startUrls: ["https://www.procellsystem.com/search-category=auxiliary-reagents"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: growth-supplements
+    category: 生长补充剂
+    startUrls: ["https://www.procellsystem.com/search-category=growth-supplements"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: cytokines
+    category: 细胞因子
+    startUrls: ["https://www.procellsystem.com/search-category=cytokines"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: cell-function-research-kits
+    category: 细胞功能研究试剂盒
+    startUrls: ["https://www.procellsystem.com/search-category=cell-function-research-kits"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: cell-health-assays
+    category: 细胞健康检测
+    startUrls: ["https://www.procellsystem.com/search-category=cell-health-assays"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: primary-cells
+    category: 原代细胞
+    startUrls: ["https://www.procellsystem.com/search-category=primary-cells"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: cell-lines
+    category: 细胞系
+    startUrls: ["https://www.procellsystem.com/search-category=cell-lines"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: serums
+    category: 血清
+    startUrls: ["https://www.procellsystem.com/search-category=serums"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: other-reagents
+    category: 其他试剂
+    startUrls: ["https://www.procellsystem.com/search-category=other-reagents"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: removal-reagents
+    category: 支原体去除剂
+    startUrls: ["https://www.procellsystem.com/search-category=removal-reagents"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: removal-media
+    category: 支原体去除培养基
+    startUrls: ["https://www.procellsystem.com/search-category=removal-media"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: safeguard
+    category: 安全保障试剂
+    startUrls: ["https://www.procellsystem.com/search-category=safeguard"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
+  - key: cell-resource-banks
+    category: 细胞资源库
+    startUrls: ["https://www.procellsystem.com/search-category=cell-resource-banks"]
+    match: { detailUrlIncludes: ["procellsystem.com/p/"] }
