@@ -4,6 +4,7 @@ import { repoRoot } from '@competitor-crawler/shared';
 import { Progress } from '../util/progress.js';
 import {
   DEFAULT_STEALTH_ENV,
+  maximizeWindow,
   stealthArgs,
   stealthContextOptions,
   stealthInitSource,
@@ -27,7 +28,6 @@ export const DEFAULT_UA =
 // `navigator.webdriver`、缺失的 sec-ch-ua、非浏览器 UA 等指纹拦截（返回 403/挑战页）。
 // 这里统一加 stealth：禁 AutomationControlled 标志 + 覆盖 webdriver/plugins +
 // 补齐真实浏览器的 UA 与 sec-ch-ua 系列请求头。实测可过绝大多数 WAF。
-const STEALTH_ARGS = stealthArgs();
 
 /** 风控/挑战页错误：与「抓取失败（网络/404）」区分开，供上层记 SITE_CHALLENGED。 */
 export class ChallengeError extends Error {
@@ -381,16 +381,18 @@ async function browserFetch(url: string, progress?: Progress, opts: FetchOpts = 
   progress?.log(`GET ${url} (browser/playwright)`);
   const { chromium } = await import('playwright');
   const headless = opts.headless ?? headlessEnv();
-  const browser = await chromium.launch({ args: stealthArgs({ headless }), headless });
+  const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
+  const browser = await chromium.launch({ args: stealthArgs({ headless, maximize: env.maximize }), headless });
   try {
-    const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
     // 会话复用：曾人工过盾的站点直接带 cookie 进场（.runtime/state/<host>.json）
     const sp = statePathOf(url);
     const ctx = await browser.newContext({
-      ...stealthContextOptions(env),
+      ...stealthContextOptions(env, { headless }),
       ...(existsSync(sp) ? { storageState: sp } : {}),
     });
     const page = await ctx.newPage();
+    // 有头模式补一次最大化（--start-maximized 只对启动窗口生效，新上下文不一定继承）
+    if (!headless && env.maximize !== false) await maximizeWindow(page);
     const profile = env.profile ?? 'mid';
     if (profile !== 'none') await page.addInitScript(stealthInitSource(profile));
     // 进站前留一点"读页面"的时间，避免 goto 即操作这种机器节奏
@@ -465,7 +467,8 @@ async function browserFetch(url: string, progress?: Progress, opts: FetchOpts = 
 export async function fetchScreenshot(url: string, progress?: Progress): Promise<Buffer> {
   progress?.log(`PLAYWRIGHT 截图 ${url}`);
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch({ args: STEALTH_ARGS });
+  // 截图只用于「模型读图」，固定视口保证版面稳定（不受 maximize / 显示器尺寸影响）
+  const browser = await chromium.launch({ headless: true, args: stealthArgs({ headless: true }) });
   try {
     const page = await newStealthPage(browser, { width: 1440, height: 900 });
     // 浏览器渲染站截图同样需要等渲染完成，否则截到的是空壳（与 browserFetch 同一套稳定检测）

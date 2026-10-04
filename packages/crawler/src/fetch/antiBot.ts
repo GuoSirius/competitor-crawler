@@ -29,6 +29,21 @@ export interface StealthEnv {
   /** 噪声种子：同一站点固定 seed → 同一指纹（避免「回访用户指纹变化」暴露） */
   seed?: number;
   /**
+   * 有头模式是否把浏览器窗口最大化铺满屏幕（默认 true）。
+   *
+ * 为什么默认开：Playwright 有头模式默认窗口只有约 1280×720 且**居中但不铺满**，
+ * 一来人眼看列表不方便（调试/人工过盾时要盯着页面），二来小视口会让站点走窄屏布局
+ * （懒加载阈值、响应式列数变化），与真实桌面用户不一致。最大化后视口=屏幕工作区，
+ * 同时不再覆写 viewport/screen（用真实显示器尺寸，指纹更自洽）。
+ * 无头模式无窗口概念，此开关无效。
+ *
+ * 实测（1920×1080 屏，2026-10-05）：
+ * - 只加 `--start-maximized` 不补 CDP：窗口 945×1030、视口仅 929×935 —— **新上下文窗口不继承启动参数**；
+ * - 启动参数 + CDP 补刀：窗口 1920×1050（=屏幕可用区，真铺满），视口 1920×963；
+   * - 旧行为（固定 viewport 1920×1080）：窗口被撑到 1936×1100，**超出屏幕底部**，且 screen 被伪造成 1920×1200。
+   */
+  maximize?: boolean;
+  /**
    * 代理服务器（如 VPN 的本地监听端口 `http://127.0.0.1:7890`）；空 = 直连。
    *
    * 为什么必须显式传：**Chromium 不认 `http_proxy` / `HTTPS_PROXY` 环境变量**
@@ -55,6 +70,7 @@ export const DEFAULT_STEALTH_ENV: Required<StealthEnv> = {
   screen: { width: 1920, height: 1200 },
   userAgent: '', // 空 = 沿用 page.ts 的 DEFAULT_UA
   seed: 20261001,
+  maximize: true, // 有头模式铺满屏幕（无头无效）
   // 默认直连。走代理的站在 YAML 写 `proxy: '${CRAWL_PROXY}'`，避免国内站被绕出国。
   proxy: '',
 };
@@ -65,20 +81,53 @@ export const DEFAULT_STEALTH_ENV: Required<StealthEnv> = {
  * 关键：`--disable-blink-features=AutomationControlled` 去掉 `window.chrome` 的
  * automation 标记；不用 `--disable-web-security` / `--mute-audio` 这类"越不像浏览器"
  * 的开关；有头模式（默认）比 headless 更接近真实设备。
+ *
+ * `--start-maximized`：有头模式让窗口直接铺满屏幕（默认开，见 StealthEnv.maximize）。
+ * 它是**启动参数**，只对 launch 时的首个窗口生效；Playwright 新建上下文的窗口靠
+ * `maximizeWindow()` 走 CDP 补一次，两者叠加最稳（缺任一都可能拿到小窗口）。
  */
-export function stealthArgs(opts: { headless?: boolean } = {}): string[] {
+export function stealthArgs(opts: { headless?: boolean; maximize?: boolean } = {}): string[] {
+  const headfulMax = !opts.headless && opts.maximize !== false;
   return [
     '--no-sandbox',
     '--disable-dev-shm-usage',
     '--disable-blink-features=AutomationControlled',
     ...(opts.headless ? ['--headless=new'] : ['--hide-scrollbars']),
+    ...(headfulMax ? ['--start-maximized', '--window-position=0,0'] : []),
     '--force-device-scale-factor=1',
     '--disable-features=IsolateOrigins,site-per-process',
   ];
 }
 
-/** 传给 playwright `newContext()` 的环境选项 */
-export function stealthContextOptions(env: StealthEnv = DEFAULT_STEALTH_ENV) {
+/**
+ * 把窗口真正最大化（CDP 层）。
+ *
+ * `--start-maximized` 是启动参数，Playwright 后面 `newContext()` 新开的窗口不一定继承，
+ * 实测只靠参数会出现「参数带了、窗口还是不大」的情况；这里用 CDP `Browser.setWindowBounds`
+ * 按当前 target 的 windowId 再设一次，是唯一可靠的补刀（headless 下该 CDP 域不可用 → 静默跳过）。
+ */
+export async function maximizeWindow(page: import('playwright').Page): Promise<void> {
+  try {
+    const cdp = await page.context().newCDPSession(page);
+    const { windowId } = (await cdp.send('Browser.getWindowForTarget')) as { windowId: number };
+    await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'maximized' } });
+  } catch {
+    // 最大化失败绝不能影响抓取主流程（headless / 老内核 / 受限环境都可能不支持）
+  }
+}
+
+/**
+ * 传给 playwright `newContext()` 的环境选项。
+ *
+ * `opts.headless` 决定「有头最大化」是否生效：有头 + maximize（默认 true）时
+ * 传 `viewport: null`（不覆写视口，页面尺寸跟随真实窗口 = 最大化后的屏幕工作区），
+ * 同时不覆写 `screen`——Playwright 的 screen 只在 viewport 有值时生效，此时
+ * `window.screen` 直接用真实显示器尺寸，反而是最自洽的指纹。
+ */
+export function stealthContextOptions(
+  env: StealthEnv = DEFAULT_STEALTH_ENV,
+  opts: { headless?: boolean } = {},
+) {
   // 先剔除显式 undefined 键再合并：spread 语义下 `{ ...def, locale: undefined }` 会把
   // 默认值覆盖成 undefined（traverseList 主循环传 ab?.locale 等显式 undefined 键必踩），
   // 导致 locale.split 崩溃。undefined = 未配置 = 沿用默认。
@@ -86,6 +135,7 @@ export function stealthContextOptions(env: StealthEnv = DEFAULT_STEALTH_ENV) {
     ...DEFAULT_STEALTH_ENV,
     ...Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined)),
   } as Required<StealthEnv>;
+  const maximized = !opts.headless && e.maximize !== false;
   return {
     userAgent: e.userAgent || undefined,
     // 代理：Chromium 只认这里，不认 http_proxy 环境变量（见 StealthEnv.proxy 注释）。
@@ -93,9 +143,12 @@ export function stealthContextOptions(env: StealthEnv = DEFAULT_STEALTH_ENV) {
     proxy: e.proxy ? { server: e.proxy } : undefined,
     locale: e.locale,
     timezoneId: e.timezone,
-    viewport: e.viewport,
-    screen: e.screen,
-    deviceScaleFactor: 1,
+    // 有头最大化：不覆写视口（页面=窗口=屏幕工作区）；否则用配置的固定视口
+    viewport: maximized ? null : e.viewport,
+    // screen 仅在 viewport 有值时生效（Playwright 语义），最大化时省略即可
+    screen: maximized ? undefined : e.screen,
+    // 最大化（viewport=null）时 Playwright 直接拒绝 deviceScaleFactor，必须一并省略
+    deviceScaleFactor: maximized ? undefined : 1,
     hasTouch: false,
     isMobile: false,
     // 部分国内站证书链不全（索莱宝 elabox.cn / 美森 ctcc.online 实测 ERR_CERT_AUTHORITY_INVALID）

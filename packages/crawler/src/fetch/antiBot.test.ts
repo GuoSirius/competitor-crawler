@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectChallenge, stealthArgs, stealthInitSource, stealthContextOptions } from './antiBot.js';
+import { detectChallenge, maximizeWindow, stealthArgs, stealthInitSource, stealthContextOptions } from './antiBot.js';
 
 describe('detectChallenge — 挑战页/风控页识别', () => {
   it('Cloudflare "Just a moment" 挑战页', () => {
@@ -44,6 +44,13 @@ describe('stealth 环境构建', () => {
     expect(f).toContain('--disable-blink-features=AutomationControlled');
   });
 
+  it('stealthArgs：有头默认带 --start-maximized，可显式关掉；无头不带', () => {
+    const f = stealthArgs({ headless: false });
+    expect(f).toContain('--start-maximized');
+    expect(stealthArgs({ headless: false, maximize: false })).not.toContain('--start-maximized');
+    expect(stealthArgs({ headless: true })).not.toContain('--start-maximized');
+  });
+
   it('stealthInitSource：webdriver 强制 false（非 undefined），high 档含 Canvas 噪声，none 为空', () => {
     expect(stealthInitSource('mid')).toContain("'webdriver'");
     expect(stealthInitSource('high')).toContain('seedNoise');
@@ -55,8 +62,23 @@ describe('stealth 环境构建', () => {
     expect(o.timezoneId).toBe('Asia/Shanghai');
     expect(o.locale).toBe('zh-CN');
     expect(o.extraHTTPHeaders?.['sec-ch-ua-platform']).toBe('"Windows"');
-    // screen 必须不小于 viewport
-    expect(o.screen!.width).toBeGreaterThanOrEqual(o.viewport!.width);
-    expect(o.screen!.height).toBeGreaterThanOrEqual(o.viewport!.height);
+    // 有头默认最大化 → 不覆写 viewport/screen（视口跟随真实窗口，screen 交给真实显示器）
+    expect(o.viewport).toBeNull();
+    expect(o.screen).toBeUndefined();
+  });
+
+  it('contextOptions：无头 / 显式关最大化 → 用配置视口，且 screen 不小于 viewport', () => {
+    const headless = stealthContextOptions({}, { headless: true });
+    expect(headless.viewport).toEqual({ width: 1920, height: 1080 });
+    expect(headless.screen!.width).toBeGreaterThanOrEqual(headless.viewport!.width);
+    expect(headless.screen!.height).toBeGreaterThanOrEqual(headless.viewport!.height);
+    const noMax = stealthContextOptions({ maximize: false }, { headless: false });
+    expect(noMax.viewport).toEqual({ width: 1920, height: 1080 });
+  });
+
+  it('maximizeWindow：CDP 不可用（无头/异常）也不抛错', async () => {
+    // 造一个最小假 page：newCDPSession 直接抛，验证「最大化失败不影响主流程」
+    const fakePage = { context: () => ({ newCDPSession: () => Promise.reject(new Error('no cdp')) }) };
+    await expect(maximizeWindow(fakePage as never)).resolves.toBeUndefined();
   });
 });

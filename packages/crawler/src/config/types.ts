@@ -274,6 +274,12 @@ export interface AntiBotConfig {
   /** Canvas/WebGL 噪声种子（默认固定值；同站点不要随机换，回访指纹要稳定） */
   seed?: number;
   /**
+   * 有头模式是否把窗口最大化铺满屏幕（默认 true）。
+   * 最大化后不再覆写 viewport/screen，视口=真实屏幕工作区（指纹自洽 + 人工过盾时看得清）。
+   * 需要固定小视口调试时设 false（此时用 viewport/screen 配置值）。
+   */
+  maximize?: boolean;
+  /**
    * 代理服务器（如 VPN 本地端口 `http://127.0.0.1:7890`）；缺省读 `CRAWL_PROXY` 环境变量，再缺省直连。
    * Chromium 不认 `http_proxy` 环境变量——开了 VPN 不显式传这里，抓取仍以本机 IP 直连，
    * 境外站 WAF 会按「国内 IP + 自动化」判爬虫（实测 BioLegend/逸漠 403 → 走代理后 200）。

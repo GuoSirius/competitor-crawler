@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   pickSectionByUrl,
   resolveSections,
@@ -6,6 +6,7 @@ import {
   detailRenderMode,
   resolveTraversalLimits,
   slicePageItems,
+  expandProxyVar,
   LIST_ONLY_TRAVERSAL,
 } from './loader.js';
 import type { SiteConfig } from './types.js';
@@ -242,6 +243,39 @@ describe('resolveTraversalLimits / slicePageItems — 分页条目控制', () =>
     expect(slicePageItems(items, { offset: 1, perPage: 3 })).toEqual([2, 3, 4]);
     expect(slicePageItems(items, { offset: 10, perPage: 3 })).toEqual([]); // 越界 → 空
     expect(slicePageItems(items, { offset: 4, perPage: 100 })).toEqual([5, 6]); // 尾部不足 → 到页尾
+  });
+});
+
+describe('expandProxyVar — 代理占位符展开（YAML 是唯一裁决方）', () => {
+  const orig = process.env.CRAWL_PROXY;
+
+  afterEach(() => {
+    if (orig === undefined) delete process.env.CRAWL_PROXY;
+    else process.env.CRAWL_PROXY = orig;
+  });
+
+  it('未配 / 空串 → undefined（不配就是直连，代码层不做任何域名推断）', () => {
+    expect(expandProxyVar(undefined)).toBeUndefined();
+    expect(expandProxyVar('')).toBeUndefined();
+  });
+
+  it('字面量原样透传（不走占位符解析）', () => {
+    expect(expandProxyVar('http://127.0.0.1:7890')).toBe('http://127.0.0.1:7890');
+  });
+
+  it('${CRAWL_PROXY} 展开为环境变量值', () => {
+    process.env.CRAWL_PROXY = 'http://127.0.0.1:54212';
+    expect(expandProxyVar('${CRAWL_PROXY}')).toBe('http://127.0.0.1:54212');
+  });
+
+  it('占位符但环境变量未设置 → 空串（等价于没配 → 直连，不报错）', () => {
+    delete process.env.CRAWL_PROXY;
+    expect(expandProxyVar('${CRAWL_PROXY}')).toBe('');
+  });
+
+  it('其他变量名走通用回退，未设置同样给空串', () => {
+    delete process.env.CRAWL_PROXY;
+    expect(expandProxyVar('${CRAWL_PROXY_ZH}')).toBe('');
   });
 });
 
