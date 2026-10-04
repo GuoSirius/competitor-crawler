@@ -20,6 +20,10 @@ data/exports/
 
 
 # 临时工作目录（探针 HTML / 调试产物），用完即删，不入库
+# 约定：一次性探针脚本一律放这里（.tmp/），**不要**写进 packages/*/src/ —— 那里会被
+# typecheck/vitest 扫到，且容易变成漏提交的历史遗留。
 .tmp/
 # 断点续跑状态（crawl 运行期生成，成功自动清理、失败保留供 --resume）
 .crawl-state/
+# WorkBuddy 本机工作记忆（day-log / 项目约定），属本机状态不入库
+.workbuddy/
