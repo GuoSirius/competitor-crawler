@@ -13,6 +13,7 @@ import { runValidate, runFieldDocs } from './commands/validate.js';
 import { sweep } from './commands/sweep.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags, normalizeAliases } from './util/args.js';
+import { isRenderMode, RENDER_MODES } from './config/types.js';
 
 // 路径统一由 shared/src/paths.ts 提供（不再本地上溯算层级）
 const seedsJson = path.join(dataDir, 'seeds', 'seeds.json');
@@ -26,6 +27,13 @@ async function main() {
   if (flags.help === true || flags.h === true) {
     printHelp(cmd);
     return;
+  }
+
+  // --render 取值守卫：非法值会静默退化成 auto（排查成本高），入口直接挡掉。
+  if (typeof flags.render === 'string' && !isRenderMode(flags.render)) {
+    console.error(`[cli] --render 取值无效：'${flags.render}'（可选：${RENDER_MODES.join(' / ')}）`);
+    if (flags.render === 'spa') console.error('      旧名 spa 已于 2026-10-05 更名为 browser，请改用 --render browser');
+    process.exit(1);
   }
 
   if (cmd === 'seed') {
@@ -167,7 +175,7 @@ function printHelp(cmd?: string): void {
   console.log('\n通用参数（crawl / probe / validate / gen-site 均支持，站点标识统一 --domain）：');
   console.log('  --domain <d>        站点域名（等价旧名 --site，仍可用）');
   console.log('  --section <key>     只跑指定栏目（crawl / probe）');
-  console.log('  --render ssr|spa|auto  渲染模式覆盖（crawl / probe / gen-site）');
+  console.log('  --render ssr|browser|auto  渲染模式覆盖（crawl / probe / gen-site）');
   console.log('  --dry-run           解析不落库（crawl）');
   if (all || cmd === 'crawl') {
     console.log('\ncrawl 翻页 / 条数（覆盖 YAML listTraversal，显式传入生效）：');

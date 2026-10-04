@@ -15,7 +15,7 @@ import { Progress } from '../util/progress.js';
  * 用法：
  *   pnpm sweep --group c                    # 预设 C 类全集（从 crawl-inventory.json 匹配）
  *   pnpm sweep --domain x --url <u>         # 单站单 URL
- *   pnpm sweep --group c --mode spa         # 只试 spa（默认 both：ssr → spa 各一轮）
+ *   pnpm sweep --group c --mode browser         # 只试 browser（默认 both：ssr → browser 各一轮）
  *   pnpm sweep --group c --limit 3          # 只跑前 N 个（冒烟）
  *   pnpm sweep --group c --headless true    # 无头跑（默认有头，更隐蔽）
  */
@@ -66,7 +66,7 @@ function buildTargets(group: string, inventory: InventoryEntry[]): SweepTarget[]
 export interface SweepRow {
   company: string;
   url: string;
-  mode: 'ssr' | 'spa';
+  mode: 'ssr' | 'browser';
   /** OK / HTTP 403 / CHALLENGED[cloudflare] / ERR:… */
   result: string;
   kind?: string;
@@ -83,7 +83,7 @@ export interface SweepRow {
 /** 产品详情链接启发式匹配（宁漏勿误：只认高置信度词根） */
 const PRODUCT_HREF_RE = /href="([^"]*(?:\/product|\/goods|\/p\/|\/item|\/detail|sku)[^"]*)"/gi;
 
-async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean): Promise<SweepRow> {
+async function sweepOne(t: SweepTarget, mode: 'ssr' | 'browser', headless: boolean): Promise<SweepRow> {
   const progress = new Progress();
   const t0 = Date.now();
   const base: SweepRow = {
@@ -94,7 +94,7 @@ async function sweepOne(t: SweepTarget, mode: 'ssr' | 'spa', headless: boolean):
     const html = await fetchPage(t.url, mode, progress, undefined, { headless });
     // 挑战判定已内置于 fetchPage（分层检测：响应头/可见文本/DOM 控件/状态码），
     // 这里不再用旧正则重复分类——重复分类曾把 BD/赛业等带 reCAPTCHA 组件的正常页误标 CHALLENGED。
-    // 只保留伪放行标记（sweep 实测：MCE spa 返回 39B 空壳却被判 OK）。
+    // 只保留伪放行标记（sweep 实测：MCE browser 返回 39B 空壳却被判 OK）。
     const suspect = html.length < 500;
     return {
       ...base,
@@ -124,7 +124,12 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
   const group = typeof flags.group === 'string' ? flags.group : '';
   const domain = typeof flags.domain === 'string' ? flags.domain : undefined;
   const singleUrl = typeof flags.url === 'string' ? flags.url : undefined;
-  const mode = (typeof flags.mode === 'string' ? flags.mode : 'both') as 'ssr' | 'spa' | 'both';
+  const mode = (typeof flags.mode === 'string' ? flags.mode : 'both') as 'ssr' | 'browser' | 'both';
+  if (mode !== 'ssr' && mode !== 'browser' && mode !== 'both') {
+    console.error(`[sweep] --mode 取值无效：'${mode}'（可选：ssr / browser / both）`);
+    if (mode === 'spa') console.error('        旧名 spa 已于 2026-10-05 更名为 browser，请改用 --mode browser');
+    process.exit(1);
+  }
   const limit = Number(flags.limit ?? 0) || Number.POSITIVE_INFINITY;
   const headless = flags.headless === 'true' || flags.headless === true;
 
@@ -143,7 +148,7 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
   const shown = targets.slice(0, limit);
   console.log(`\n[sweep] 目标 ${shown.length}/${targets.length} 站 · 模式 ${mode} · headless=${headless}\n`);
 
-  const modes: Array<'ssr' | 'spa'> = mode === 'both' ? ['ssr', 'spa'] : [mode];
+  const modes: Array<'ssr' | 'browser'> = mode === 'both' ? ['ssr', 'browser'] : [mode];
   const rows: SweepRow[] = [];
   for (const t of shown) {
     for (const m of modes) {
@@ -151,13 +156,13 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
       const r = await sweepOne(t, m, headless);
       rows.push(r);
       console.log(`${r.result} · ${r.bytes}B · ${r.anchors} anchors · 产品${r.productAnchors} · ${r.seconds}s`);
-      // 智能跳过：ssr 已 OK 且产品锚点 ≥10（结构明确可解析），spa 大概率是重复劳动，跳过省一半时间
+      // 智能跳过：ssr 已 OK 且产品锚点 ≥10（结构明确可解析），browser 大概率是重复劳动，跳过省一半时间
       if (m === 'ssr' && mode === 'both' && r.result === 'OK' && r.productAnchors >= 10) break;
     }
   }
 
   // ── 站点级四类汇总（用户口径：可成功/不成功/可明确配置/部分明确/完全不明确）──
-  type SiteVerdict = { company: string; mode: 'ssr' | 'spa'; result: string; category: string };
+  type SiteVerdict = { company: string; mode: 'ssr' | 'browser'; result: string; category: string };
   const byCompany = new Map<string, SweepRow[]>();
   for (const r of rows) {
     const arr = byCompany.get(r.company) ?? [];
@@ -166,9 +171,9 @@ export async function sweep(flags: Record<string, unknown>): Promise<void> {
   }
   const verdicts: SiteVerdict[] = [];
   for (const [company, rs] of byCompany) {
-    // 取该站最佳一行：OK 优先，产品锚点多者优先，spa 优先于 ssr（同锚点时 spa 内容更全）
+    // 取该站最佳一行：OK 优先，产品锚点多者优先，browser 优先于 ssr（同锚点时 browser 内容更全）
     const okRows = rs.filter((r) => r.result === 'OK');
-    const best = okRows.sort((a, b) => (b.productAnchors - a.productAnchors) || (a.mode === 'spa' ? -1 : 1))[0];
+    const best = okRows.sort((a, b) => (b.productAnchors - a.productAnchors) || (a.mode === 'browser' ? -1 : 1))[0];
     const row = best ?? rs[0]!;
     let category: string;
     if (row.result !== 'OK') category = `❌ 不成功（${row.result}）`;

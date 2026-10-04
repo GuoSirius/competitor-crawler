@@ -16,6 +16,7 @@ import {
   type ContentKind,
 } from '@competitor-crawler/shared';
 import type { SiteConfig } from './types.js';
+import { isRenderMode, RENDER_MODES } from './types.js';
 
 export type IssueLevel = 'error' | 'warn' | 'info';
 export type IssueCode =
@@ -24,7 +25,8 @@ export type IssueCode =
   | 'UNKNOWN_FIELD_TYPO'
   | 'STAGE_MISMATCH'
   | 'NUMERIC_NOT_NUMBER'
-  | 'HASH_PAGINATION_UNSUPPORTED';
+  | 'HASH_PAGINATION_UNSUPPORTED'
+  | 'INVALID_RENDER_MODE';
 
 export interface ConfigIssue {
   level: IssueLevel;
@@ -75,6 +77,29 @@ function toSections(cfg: SiteConfig): SectionLike[] {
 export function validateSiteConfig(cfg: SiteConfig): ConfigIssue[] {
   const issues: ConfigIssue[] = [];
   const sections = toSections(cfg);
+
+  // 0) 渲染模式取值：非法值会静默退化成 auto（难排查），故显式报错。
+  //    旧名 spa（2026-10-05 更名 browser）单独给一句人话提示，别让人以为是拼写错误。
+  const renderPairs: Array<[string, unknown]> = [
+    ['render', cfg.render],
+    ['renderList', cfg.renderList],
+    ['renderDetail', cfg.renderDetail],
+  ];
+  for (const s of cfg.sections ?? []) {
+    const at = `sections[${s.key || '(未命名)'}]`;
+    renderPairs.push([`${at}.render`, s.render], [`${at}.renderList`, s.renderList], [`${at}.renderDetail`, s.renderDetail]);
+  }
+  for (const [label, v] of renderPairs) {
+    if (v === undefined) continue;
+    if (isRenderMode(v)) continue;
+    const legacy = v === 'spa' ? '（旧名 spa 已于 2026-10-05 更名为 browser，请直接改）' : '';
+    issues.push({
+      level: 'error',
+      code: 'INVALID_RENDER_MODE',
+      message: `${label} 的取值 '${String(v)}' 不是合法渲染模式（可选：${RENDER_MODES.join(' / ')}）${legacy}——非法值会静默退化成 auto。`,
+      field: label,
+    });
+  }
 
   for (const sec of sections) {
     // 配置桩（只有 domain/company 等身份信息，还没写 parseList）：字段无从校验，
@@ -133,7 +158,7 @@ export function validateSiteConfig(cfg: SiteConfig): ConfigIssue[] {
       issues.push({
         level: 'error',
         code: 'HASH_PAGINATION_UNSUPPORTED',
-        message: `栏目 [${sec.key}] 的 urlTemplate 含 '#'（如 #page={page}）——hash 翻页不被支持：HTTP 请求不发送 fragment，逐页抓取拿到的永远是第一页。hash 路由站点请改用 render spa + pagination-html（UI 点击翻页），或改用等效的 ?query 翻页参数。`,
+        message: `栏目 [${sec.key}] 的 urlTemplate 含 '#'（如 #page={page}）——hash 翻页不被支持：HTTP 请求不发送 fragment，逐页抓取拿到的永远是第一页。hash 路由站点请改用 render browser + pagination-html（UI 点击翻页），或改用等效的 ?query 翻页参数。`,
         sectionKey: sec.key,
       });
     }

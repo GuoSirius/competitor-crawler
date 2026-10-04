@@ -9,6 +9,22 @@ import type { RenderMode } from '../fetch/page.js';
  */
 export type { ListStrategy };
 
+/**
+ * 合法渲染模式（单一事实源）。
+ *
+ * **2026-10-05 更名：旧名 `spa` → `browser`，且不保留别名。**
+ * 原因：`spa`（单页应用）描述的是**站点架构**，而这个开关的真实语义是
+ * 「取 HTML 时开不开真浏览器」——不少用 browser 的站其实是服务端直出（如 MCE 的
+ * `div.kt` 就在首屏 HTML 里），开浏览器只为借浏览器指纹过 WAF / 拿执行后的 DOM。
+ * 用 `spa` 命名会让人误判站点形态；`browser` 与 `ssr`（纯 HTTP）严格对仗。
+ */
+export const RENDER_MODES = ['ssr', 'browser', 'auto'] as const;
+
+/** 类型守卫：值是否为合法渲染模式（YAML 校验 / CLI --render 入口统一用它挡非法值） */
+export function isRenderMode(v: unknown): v is RenderMode {
+  return typeof v === 'string' && (RENDER_MODES as readonly string[]).includes(v);
+}
+
 /** 列表页解析规则 */
 export interface ListParseConfig {
   /** 每个产品条目容器的选择器 */
@@ -99,7 +115,7 @@ export interface ListTraversalConfig {
   /** 接口模式失败自动回退 UI 驱动（pagination-url 不使用） */
   fallbackToUi?: boolean;
   /**
-   * 列表容器等待选择器（仅 spa 通道生效）：goto 后先等该选择器出现（可见）再进入 settle。
+   * 列表容器等待选择器（仅 browser 通道生效）：goto 后先等该选择器出现（可见）再进入 settle。
    * 用于「接口渲染且数据请求晚于 networkidle」的站点——如 Algolia instant search 延迟 30-50s
    * 才发首个查询（Bio X Cell 实测），DOM 稳定 + networkidle 都会提前放行，抓到 loading 空壳。
    * 配 `itemSelector` 同值即可（等首批产品卡真渲染出来）。
@@ -212,13 +228,13 @@ export interface SectionConfig {
   parseDetail?: DetailParseConfig;
   /**
    * 仅列表模式（contents 内容管线专用）：条目本身即终态、无详情页可抓（如文件下载直链、
-   * SPA 单页数据），跳过详情阶段，列表快照（title=列表 name / detailUrl / row）直接入库。
+   * 前端渲染单页数据），跳过详情阶段，列表快照（title=列表 name / detailUrl / row）直接入库。
    * products 产品管线不支持（价格/规格必须有详情阶段）。
    */
   listOnly?: boolean;
   /**
-   * 该栏目单独的渲染模式（覆盖站点级 render）：ssr/spa/auto。
-   * 用于 Hybrid 站点：同站内不同栏目用不同渲染模式（如产品列表 ssr、新闻列表 spa）。
+   * 该栏目单独的渲染模式（覆盖站点级 render）：ssr/browser/auto。
+   * 用于 Hybrid 站点：同站内不同栏目用不同渲染模式（如产品列表 ssr、新闻列表 browser）。
    * 列表/详情分别指定见 renderList / renderDetail（更细粒度）。
    */
   render?: RenderMode;
@@ -304,8 +320,8 @@ export interface SiteConfig {
    */
   currency?: string;
   /**
-   * 抓取渲染模式（写入 YAML 顶层，供 gen-site / probe / crawl 统一复用）：ssr=静态抓取 / spa=Playwright 渲染 / auto=先 ssr，内容过少回退 spa。
-   * 命令行 --render 仍可临时覆盖。批量站点混合 ssr/spa 时，逐站写在 YAML 即可，无需每次指定。
+   * 抓取渲染模式（写入 YAML 顶层，供 gen-site / probe / crawl 统一复用）：ssr=静态抓取 / browser=Playwright 渲染 / auto=先 ssr，内容过少回退 browser。
+   * 命令行 --render 仍可临时覆盖。批量站点混合 ssr/browser 时，逐站写在 YAML 即可，无需每次指定。
    */
   render?: RenderMode;
   /**

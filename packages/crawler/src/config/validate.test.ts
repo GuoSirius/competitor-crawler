@@ -171,3 +171,44 @@ describe('validateSiteConfig', () => {
     expect(formatIssues('x.com', [])).toEqual([]);
   });
 });
+
+describe('validateSiteConfig — 渲染模式取值（2026-10-05 spa → browser 更名后）', () => {
+  const minimal = {
+    startUrl: 'https://x.com/list',
+    parseList: { itemSelector: '.item', fields: { detailUrl: { sel: 'a', attr: 'href' }, name: { sel: '.t' } } },
+    parseDetail: { fields: { name: { sel: 'h1' } } },
+  } as Partial<SiteConfig>;
+
+  it('合法取值（ssr / browser / auto）不报问题', () => {
+    for (const v of ['ssr', 'browser', 'auto'] as const) {
+      expect(validateSiteConfig(baseCfg({ ...minimal, render: v }))).toEqual([]);
+    }
+  });
+
+  it('旧名 spa → error 级 INVALID_RENDER_MODE 并提示改名', () => {
+    const issues = validateSiteConfig(baseCfg({ ...minimal, render: 'spa' as never }));
+    const e = issues.find((i) => i.code === 'INVALID_RENDER_MODE');
+    expect(e?.level).toBe('error');
+    expect(e?.message).toContain('browser');
+  });
+
+  it('栏目级 renderList / renderDetail 非法值同样拦截', () => {
+    const cfg = baseCfg({
+      startUrl: 'https://x.com/list',
+      parseList: { itemSelector: '.item', fields: { detailUrl: { sel: 'a', attr: 'href' }, name: { sel: '.t' } } },
+      parseDetail: { fields: { name: { sel: 'h1' } } },
+      sections: [
+        {
+          key: 's1',
+          startUrls: ['https://x.com/a'],
+          renderList: 'ssr' as never,
+          renderDetail: 'spa' as never,
+        },
+      ],
+    }) as SiteConfig;
+    const issues = validateSiteConfig(cfg);
+    const bad = issues.filter((i) => i.code === 'INVALID_RENDER_MODE');
+    expect(bad.length).toBe(1);
+    expect(bad[0].field).toContain('sections[s1]');
+  });
+});
