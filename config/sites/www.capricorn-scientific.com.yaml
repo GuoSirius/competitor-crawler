@@ -1,0 +1,65 @@
+# 站点适配器：Capricorn Scientific（www.capricorn-scientific.com）
+# 结构（CoreShop PHP 站，纯 SSR HTML，无需 spa）：
+#   - 产品列表页 /en/shop/<slug>~c<catId>（~c 后是分类 id，~p 后是产品 id）
+#   - 产品卡 div.product-col：详情/名称 h4 > a（移动端标题）或 .image > a；
+#     .properties 里是「Cat-No: / Volume: / …」键值行
+#   - 单页即全量（列表页无翻页控件，分类内产品一次吐完）
+# 复核修正（2026-10-04）：docs/14 原记「/en/products 是 3 层分类树」——
+#   该页确实只有 mmenu 导航树（mm-listitem），是**分类入口页不是列表页**；
+#   真实列表在 /en/shop/*~c<id>。已实测各分类产品数（curl 数 product-col）：
+#     c26 FBS 49 / c538 特殊培养基 32 / c42 经典液体培养基 34 / c537 经典粉末培养基 12 /
+#     c868 液体缓冲液 11 / c532 细胞消化 8 / c530 BSA 7 / c24 转染抗生素 5 /
+#     c869 粉末缓冲液 2 / c534 细胞分离 2 / c29 人血清 1
+#     c20 细胞培养基、c23 细胞培养试剂、c25 诊断 → 0（空分类，不配）
+domain: www.capricorn-scientific.com
+company: Capricorn Scientific
+currency: EUR
+
+parseList:
+  itemSelector: "div.product-col"
+  fields:
+    detailUrl:       { sel: "h4 a", attr: href }
+    name:            { sel: "h4 a", text: true }
+    sourceProductId: { sel: "h4 a", attr: href, regex: '~p(\d+)' }
+
+parseDetail:
+  fields:
+    name:      { sel: "h1", text: true }
+    # 属性表 div.property-value 里首个（紧跟「Cat-No:」那行）是货号，次个是规格/包装量
+    sku:       { sel: "div.property-value span", text: true }
+    priceText: { sel: "div.price span.price-new", text: true }
+    price:     { sel: "div.price span.price-new", text: true, number: true }
+
+sections:
+  - key: fbs
+    category: 胎牛血清
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/fetal-bovine-serum-fbs~c26"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: special-media
+    category: 特殊细胞培养基
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/special-cell-culture-media~c538"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: liquid-media
+    category: 经典液体培养基
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/classical-liquid-media~c42"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: powder-media
+    category: 经典粉末培养基
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/classical-powder-media~c537"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: liquid-buffers
+    category: 液体缓冲液
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/liquid-buffers~c868"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: cell-detachment
+    category: 细胞消化试剂
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/cell-detachment~c532"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: bsa
+    category: 牛血清白蛋白
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/bovine-serum-albumin~c530"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }
+  - key: transfection-antibiotics
+    category: 转染抗生素
+    startUrls: ["https://www.capricorn-scientific.com/en/shop/transfection-antibiotics~c24"]
+    match: { detailUrlIncludes: ["capricorn-scientific.com/en/shop/"] }

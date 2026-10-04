@@ -1,0 +1,37 @@
+# 站点适配器：富衡生物（www.fudancell.com）
+# 结构（Fai 建站系统，纯 SSR HTML，无需 spa）：
+#   - 分类列表页 /sys-col-<colId>/，产品卡 div.productDoublePicListForm
+#     · 容器自带 productid / productname 属性（$self 直读，不依赖内层元素）
+#     · 详情/名称 a.fk-productName
+#     · 价格 .fourth_Price.fk-prop-price（￥ 号在 sibling span.fk-prop-price-other 里，已含在 priceText）
+#   - 翻页是 Fai 经典 pagetag：/col.jsp?m<moduleId>pageno=<n>&id=<colId>
+# 复核修正（2026-10-04）：docs/14 原记「sys-pr 详情页直连 ERR_ABORTED」——
+#   实测列表页/详情页均 200 正常（curl 缺 UA 会 403，浏览器头即可），是此前用裸 fetch 误判。
+#   栏目里只有 sys-col-103 有产品卡（其余 sys-col-101/104/105/109 都是空分类），故单栏目起步。
+domain: www.fudancell.com
+company: 富衡生物（Fudancell）
+currency: CNY
+
+parseList:
+  itemSelector: "div.productDoublePicListForm"
+  fields:
+    detailUrl:       { sel: "a.fk-productName", attr: href }
+    name:            { sel: "a.fk-productName", text: true }
+    sourceProductId: { sel: "$self", attr: productid }
+    price:           { sel: ".fourth_Price.fk-prop-price", text: true, number: true }
+    priceText:       { sel: ".fourth_Pricepanel", text: true }
+
+parseDetail:
+  fields: {}
+  captureRest: true
+
+sections:
+  - key: cell-products
+    category: 细胞系与原代细胞
+    startUrls: ["https://www.fudancell.com/sys-col-103/"]
+    match: { detailUrlIncludes: ["fudancell.com/"] }
+    listTraversal:
+      strategy: pagination-url
+      urlTemplate: "https://www.fudancell.com/col.jsp?m426pageno={page}&id=103"
+      maxPages: 20
+      listRetry: 2

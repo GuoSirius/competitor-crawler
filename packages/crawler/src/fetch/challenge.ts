@@ -91,9 +91,6 @@ const BROAD_TEXT: Array<[ChallengeKind, RegExp]> = [
   ['traffic', /unusual traffic|too many requests|请稍后再试|try again later/i],
 ];
 
-/** 兼容旧引用：强文案 = 特异 + 宽泛 */
-const STRONG_TEXT = [...SPECIFIC_TEXT, ...BROAD_TEXT];
-
 /** 中文案：挑战页常见但正常页偶尔带的边角词（等自动放行，别直接判死） */
 const MEDIUM_TEXT: Array<[ChallengeKind, RegExp]> = [
   ['cloudflare', /_cf_chl|cf_chl_opt|cf-captcha-container|ray id[:\s]/i],
@@ -139,9 +136,17 @@ export function assessChallenge(i: ChallengeInput): Assessment {
   //    specific=特异文案（出现即挑战）；broad=宽泛文案（需 DOM 控件或「无内容」佐证）
   const specific = i.innerText ? matchFirst(SPECIFIC_TEXT, i.innerText) : null;
   const broad = !specific && i.innerText ? matchFirst(BROAD_TEXT, i.innerText) : null;
-  const htmlHit = !i.innerText ? matchFirst(STRONG_TEXT, i.html ?? '') ?? matchFirst(MEDIUM_TEXT, i.html ?? '') : null;
   const medium = !specific && !broad && i.innerText ? matchFirst(MEDIUM_TEXT, i.innerText) : null;
-  const textHit = specific ?? broad ?? medium ?? htmlHit;
+  // ssr 通道（只有整页 HTML，没有 innerText / DOM 控件）同样要区分「特异」与「宽泛」两层：
+  //   整页 HTML 里的宽泛词绝大多数来自站点自有组件（ScienCell/Promega 把 g-recaptcha 写进
+  //   富文本白名单或页脚脚本），与 innerText 通道一样必须走「有实质内容 → 误报放行」，
+  //   否则正常产品页会被判 medium 直接抛 ChallengeError（2026-10-04 ScienCell 踩坑）。
+  //   特异词（`just a moment...` / `request unsuccessful...`）在整页 HTML 里出现仍然可信。
+  const htmlSpecific = !i.innerText ? matchFirst(SPECIFIC_TEXT, i.html ?? '') : null;
+  const htmlBroad = !specific && !broad && !i.innerText ? matchFirst(BROAD_TEXT, i.html ?? '') : null;
+  const htmlMedium =
+    !specific && !broad && !htmlBroad && !i.innerText ? matchFirst(MEDIUM_TEXT, i.html ?? '') : null;
+  const textHit = specific ?? broad ?? medium ?? htmlSpecific ?? htmlBroad ?? htmlMedium;
   if (textHit) notes.push(`文本命中 ${textHit.kind}（${textHit.matched}）`);
 
   // 3) 状态码兜底
@@ -166,17 +171,24 @@ export function assessChallenge(i: ChallengeInput): Assessment {
     return { hit: specific, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
   }
   // 宽泛文案：有实质内容且 DOM 无验证控件 → 误报放行（BD/赛业/ScienCell 这类自带组件文案的正常页）
-  if (broad) {
+  // spa 通道（innerText 通道）用 domWidget 佐证；ssr 通道拿不到 DOM，用「正文 ≥500 字符」等效放行。
+  if (broad || htmlBroad) {
     if (hasRealContent && !i.domWidget) {
       return {
         hit: null,
         confidence: 'none',
         falseAlarm: true,
         suspicious: false,
-        reason: `宽泛特征「${broad.kind}：${broad.matched}」但正文 ${len} 字符且无验证控件，判定误报放行`,
+        reason: `宽泛特征「${(broad ?? htmlBroad)!.kind}：${(broad ?? htmlBroad)!.matched}」但正文 ${len} 字符且无验证控件，判定误报放行`,
       };
     }
-    return { hit: broad, confidence: 'high', falseAlarm: false, suspicious: false, reason: notes.join('；') };
+    return {
+      hit: broad ?? htmlBroad,
+      confidence: 'high',
+      falseAlarm: false,
+      suspicious: false,
+      reason: notes.join('；'),
+    };
   }
 
   // ── 反向放行：spa 通道命中中/弱词 + 有实质内容 → 误报放行 ──
@@ -187,6 +199,17 @@ export function assessChallenge(i: ChallengeInput): Assessment {
       falseAlarm: true,
       suspicious: false,
       reason: `仅命中弱特征「${medium.kind}：${medium.matched}」但正文 ${len} 字符，判定误报放行`,
+    };
+  }
+
+  // ── ssr 通道的特异文案：整页 HTML 里可能是脚本/白名单 JSON（Promega 已踩），故降级 medium ──
+  if (htmlSpecific) {
+    return {
+      hit: htmlSpecific,
+      confidence: 'medium',
+      falseAlarm: false,
+      suspicious: false,
+      reason: notes.join('；'),
     };
   }
 
@@ -201,7 +224,7 @@ export function assessChallenge(i: ChallengeInput): Assessment {
     };
   }
 
-  if (medium || htmlHit) {
+  if (medium || htmlMedium) {
     return {
       hit: textHit,
       confidence: 'medium',

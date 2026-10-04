@@ -29,6 +29,35 @@ describe('assessChallenge — 不误检', () => {
   });
 });
 
+describe('assessChallenge — ssr 通道（只有整页 HTML）', () => {
+  it('整页 HTML 里的 g-recaptcha（站点自有组件）+ 长正文 → 误报放行，不抛 ChallengeError', () => {
+    const r = assessChallenge({
+      status: 200,
+      html:
+        '<html><body><h1>Cell Culture Media</h1>' +
+        '<div class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"></div>' +
+        '<ul><li class="product-item">Astrocyte Medium $145</li>'.repeat(200),
+      contentChars: 5000,
+    });
+    expect(r.hit).toBeNull();
+    expect(r.confidence).toBe('none');
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('整页 HTML 里的「just a moment...」特异词 + 长正文 → 仍判挑战（不因正文长而放行，降级 medium）', () => {
+    const r = assessChallenge({
+      status: 200,
+      html:
+        '<html><body>Just a moment...<script>' +
+        '<p>filler filler filler</p>'.repeat(120),
+      contentChars: 3000,
+    });
+    expect(r.hit?.kind).toBe('cloudflare');
+    expect(r.confidence).toBe('medium');
+    expect(r.falseAlarm).toBe(false);
+  });
+});
+
 describe('assessChallenge — 不漏检', () => {
   it('CF 非交互挑战（可见文案）→ high cloudflare', () => {
     const r = assessChallenge({
