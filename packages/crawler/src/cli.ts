@@ -11,6 +11,7 @@ import { backfill } from './commands/backfill.js';
 import { report } from './commands/report.js';
 import { runValidate, runFieldDocs } from './commands/validate.js';
 import { sweep } from './commands/sweep.js';
+import { runDiagnose } from './commands/diagnose.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags, normalizeAliases } from './util/args.js';
 import { isRenderMode, RENDER_MODES } from './config/types.js';
@@ -129,6 +130,18 @@ async function main() {
   } else if (cmd === 'sweep') {
     // 批量反爬复探（docs/14 C 类）：不依赖站点 YAML，只测「可达/挑战页/内容量」
     await sweep(flags);
+  } else if (cmd === 'diagnose') {
+    // 站点可达性/反爬归因：多通道对照 + 指纹体检，给「该换姿势还是该换 IP」的可复现结论
+    const d = flags.domain;
+    if (typeof d !== 'string' || d === '') throw new Error('diagnose 需要 --domain <domain>');
+    await runDiagnose({
+      domain: d,
+      url: typeof flags.url === 'string' ? flags.url : undefined,
+      modes: typeof flags.mode === 'string' ? flags.mode.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      rounds: typeof flags.rounds === 'string' ? Number(flags.rounds) : undefined,
+      fingerprint: flags.fingerprint !== false,
+      json: flags.json === true || flags.json === 'true',
+    });
   } else if (cmd === 'schedule') {
     const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
     if (flags.daemon === true || flags.daemon === 'true') {
@@ -157,7 +170,7 @@ async function main() {
 function printHelp(cmd?: string): void {
   const known = new Set([
     'seed', 'probe', 'gen-site', 'gen-site-batch', 'gen-site-template',
-    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report', 'sweep',
+    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report', 'sweep', 'diagnose',
   ]);
   const all = cmd === undefined || cmd === 'help' || !known.has(cmd);
   if (all) {
@@ -171,6 +184,7 @@ function printHelp(cmd?: string): void {
     console.log('  schedule            定时抓取（--daemon 常驻；默认跑一次）');
     console.log('  seed                从 Excel 提取种子并入库');
     console.log('  field-docs          打印内建字段字典');
+    console.log('  diagnose            站点可达性/反爬归因（多通道对照 + 指纹体检 + 处置建议，只读不落库）');
   }
   console.log('\n通用参数（crawl / probe / validate / gen-site 均支持，站点标识统一 --domain）：');
   console.log('  --domain <d>        站点域名（等价旧名 --site，仍可用）');
@@ -200,6 +214,10 @@ function printHelp(cmd?: string): void {
   }
   if (all || cmd === 'schedule') {
     console.log('\nschedule：--daemon（常驻守护，按季度首月 1 日 03:00 触发，北京时间口径）');
+  }
+  if (all || cmd === 'diagnose') {
+    console.log('\ndiagnose：--domain <d>（必填） --url <url> --mode <ssr|chromium-headless|chromium-headful|chrome-headful|chrome-headless> --rounds <n> --fingerprint/--no-fingerprint --json');
+    console.log('  cdp:<url> 也可作 --mode，连你本机开着的 Chrome（须 --remote-debugging-port=9222），可复现「用户视角」并带走过盾 cookie');
   }
   if (all) console.log('\n提示：`pnpm <cmd> --help` 只打印该命令的参数。');
 }

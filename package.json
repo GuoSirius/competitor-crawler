@@ -13,6 +13,7 @@
     "db:push": "pnpm --filter @competitor-crawler/shared exec drizzle-kit push",
     "probe": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts probe",
     "sweep": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts sweep",
+    "diagnose": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts diagnose",
     "gen-site": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts gen-site",
     "gen-site:batch": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts gen-site-batch",
     "gen-site:template": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts gen-site-template",
