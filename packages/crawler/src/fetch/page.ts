@@ -204,8 +204,11 @@ function envMs(raw: string | undefined, fallback: number): number {
 }
 export const BROWSER_MAX_WAIT_MS = envMs(process.env.CRAWL_BROWSER_MAX_WAIT, 30_000); // 硬上限：长连接/时钟类页面兜底，防无限等
 const BROWSER_NETWORK_WAIT_MS = envMs(process.env.CRAWL_BROWSER_NETWORK_WAIT, 18_000); // networkidle 未发生时，至少观察这么久才准提前返回
-const CHALLENGE_WAIT_ROUNDS = 5; // 挑战页自动放行轮数（CF 5 秒盾通常 3~8s 放行）
-const CHALLENGE_WAIT_MS = 6_000; // 每轮等待
+// 挑战页自动放行轮数（CF 托管挑战通常 3~8s 放行）；可用 env 放宽（慢站/跨境重导航耗时）。
+// 必须以 process.env.X 点号访问（envContract 契约测试静态扫描此形态）。
+export const CHALLENGE_WAIT_ROUNDS = envMs(process.env.CRAWL_CHALLENGE_ROUNDS, 8);
+/** 每轮间隔：CF 托管挑战通常 3~8s 落 cookie，跨境/弱网更慢 → CRAWL_CHALLENGE_WAIT_MS */
+export const CHALLENGE_WAIT_MS = envMs(process.env.CRAWL_CHALLENGE_WAIT_MS, 6_000);
 /** goto 超时可调（跨境慢站 45s 可能不够）：CRAWL_GOTO_TIMEOUT */
 export const GOTO_TIMEOUT_MS = envMs(process.env.CRAWL_GOTO_TIMEOUT, 45_000);
 
@@ -257,16 +260,36 @@ export async function waitForBrowserSettle(page: import('playwright').Page): Pro
 
 /**
  * 挑战页处理（三层递进）：
- * 1. 非交互型挑战（CF「Just a moment」）：轮询等待自动放行（5 轮×6s）——
- *    sweep 实测教训：reCAPTCHA / PerimeterX / Imperva / IP-ban 属交互型，等多久都不放行；
+ * 1. 非交互型挑战（CF「Just a moment」）：**重新导航 + 轮询重判**（默认 8 轮×5s）——
+ *    ⚠️ 2026-10-05 关键修复：旧实现是「原地 waitForTimeout + settle 干等」，从不重新请求。
+ *    但 Cloudflare 托管挑战的过盾机制是**挑战页 JS 写入 cf_clearance 后跳转回原 URL**，
+ *    不重新导航就永远停在挑战页（实测 12 轮 60s + cookie 已生成，页面始终 403）。
+ *    现在每轮都带 cookie 重新 goto，并在放行后**立即持久化 storageState**；
  * 2. 交互型挑战 + 有头 + CRAWL_INTERACTIVE≠false：**等待人工过盾**（最长 180s）——
  *    用户在弹出的浏览器窗口里点一次验证码/滑块，程序检测到挑战消失即通过；
  * 3. 过盾成功（自动或人工）→ **storageState 持久化**到 `.runtime/state/<host>.json`，
  *    后续所有轮次自动加载 cookie，不再触发挑战（人工过盾一次、长期复用）。
  */
-function isAutoPassableChallenge(hit: ChallengeHit): boolean {
+/**
+ * 这个挑战页能不能「等它自己过」。
+ *
+ * ⚠️ 2026-10-05 修的真实流程 bug：旧实现只按文案判
+ * （`just a moment|checking your browser|...`），而 `assessChallenge` 的**响应头分支优先级最高**——
+ * Cloudflare 托管挑战最稳的证据是 `cf-mitigated: challenge` 头，实测 BioLegend 就是这一档：
+ * 命中头时 `matched` 形如 `cf-mitigated: challenge`，不含任何文案关键词 →
+ * 旧判据返回 false → **整个重试循环被跳过，直接抛 ChallengeError 判死**。
+ * 这就是「用户明明能打开、我却一直说被拦」的一个真实成因。
+ *
+ * 现在两路都认：
+ * - 头证据（`cf-mitigated` / `cf-chl-*`）= 托管挑战的权威标记；
+ * - 文案证据（`just a moment` 等）覆盖「头被剥掉但页面确实是挑战页」的情况。
+ * 其余 kind（captcha/px/imperva/aliyun）默认需人工交互，仍走第 2 层。
+ */
+export function isAutoPassableChallenge(hit: ChallengeHit): boolean {
   if (hit.kind !== 'cloudflare') return false; // 其余类型（captcha/px/imperva/aliyun）均需人工交互
-  return /just a moment|checking your browser|enable javascript and cookies/i.test(hit.matched);
+  return /^cf-mitigated|^cf-chl|cf_clearance|just a moment|checking your browser|enable javascript and cookies/i.test(
+    hit.matched,
+  );
 }
 
 function interactive(): boolean {
@@ -331,12 +354,40 @@ async function waitForChallengePass(
     return html;
   }
   for (let i = 0; hit && isAutoPassableChallenge(hit) && i < CHALLENGE_WAIT_ROUNDS; i++) {
-    progress?.log(`挑战页[${hit.kind}] 等待自动放行 ${i + 1}/${CHALLENGE_WAIT_ROUNDS}（${hit.matched}）`);
+    progress?.log(`挑战页[${hit.kind}] 等待自动放行 ${i + 1}/${CHALLENGE_WAIT_ROUNDS}（${hit.matched}）—— 等盾 JS 落 cookie 后重新请求`);
+    // 先在**挑战页上**留时间让它的 JS 跑完（cf_clearance 就是这一步写进 cookie 的）；
+    // 立刻重导航会打断 JS 执行，永远等不到 cookie。
     await page.waitForTimeout(CHALLENGE_WAIT_MS);
+    // ⚠️ 必须重新导航：不重新请求就永远停在挑战页（见上面函数注释的实测）
+    try {
+      const retry = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT_MS });
+      // 重试后的状态码/风控头纳入判定（cf-mitigated 会在放行后消失）
+      if (retry) {
+        resp = { ...resp, status: retry.status(), headers: await retry.allHeaders() };
+      }
+    } catch {
+      /* 重试失败按原响应继续判 */
+    }
     await waitForBrowserSettle(page);
     html = await page.content();
     text = await pageInnerText(page);
     hit = assessChallenge({ ...resp, html, innerText: text, domWidget: await hasCaptchaWidget(page) }).hit;
+    // 盾已过但只拿到软拦空壳（内容 <200 字符、无挑战特征）时给个明确说法，
+    // 否则上层会把这个「可疑正常页」当成成功，白跑满轮次。
+    if (!hit && !/<\w+/.test(html)) {
+      progress?.log(`自动放行后页面仍是空壳（${html.length}B），判定为软风控放行`);
+    }
+  }
+  // 自动放行（包括上面重新导航后不再命中）→ 立刻持久化 cookie，后续轮次免再过盾
+  if (!hit) {
+    const sp0 = statePathOf(url);
+    try {
+      mkdirSync(dirname(sp0), { recursive: true });
+      await ctx.storageState({ path: sp0 });
+      progress?.log(`自动过盾成功，会话已持久化 → ${sp0}（后续轮次自动复用，不再弹盾）`);
+    } catch {
+      /* 持久化失败不影响本次结果 */
+    }
   }
   // 交互型挑战：有头 + 允许交互时，等用户在浏览器窗口里人工过盾
   let waitedHuman = false;
@@ -366,12 +417,16 @@ async function waitForChallengePass(
     }
   }
   if (hit) {
-    // 两种失败要说清：等满 180s 仍未过盾 vs 压根没给机会（headless / CRAWL_INTERACTIVE=false）
-    progress?.log(
-      waitedHuman
-        ? `挑战页[${hit.kind}] 人工过盾等满 ${Math.round((HUMAN_WAIT_ROUNDS * HUMAN_WAIT_MS) / 1000)}s 仍未通过（多为交互型滑块/IP 已限流）：建议换出口 IP 或隔时段再试`
-        : `挑战页[${hit.kind}] 未进入人工过盾（headless=${headlessEnv()} / CRAWL_INTERACTIVE=${process.env.CRAWL_INTERACTIVE ?? '默认true'}）；如需过盾请 CRAWL_BROWSER_HEADLESS=false 重跑`,
-    );
+    // 失败要说清三件事：等没等到机会、是哪种拦截、下一步该动什么
+    // （IP 级封禁与「指纹不过关」的处置完全不同，混为一谈就只能干等）
+    const st = resp?.status;
+    const ipBlocked = st !== undefined && st >= 400 && /attention required|sorry, you have been blocked/i.test(text);
+    const advice = ipBlocked
+      ? '返回的是 WAF **封禁页**（Attention Required / blocked），重试与改指纹都无效 → 换出口 IP（YAML 配 proxy）或放弃该站'
+      : waitedHuman
+        ? '人工过盾等满仍未通过（多为交互型滑块）→ 换出口 IP 或隔时段再试'
+        : '未进入人工过盾（headless=true 或 CRAWL_INTERACTIVE=false）→ 用 CRAWL_BROWSER_HEADLESS=false 重跑';
+    progress?.log(`挑战页[${hit.kind}] 未通过（${hit.matched}）${st ? ` HTTP ${st}` : ''}：${advice}`);
     throw new ChallengeError(hit.kind, url, hit.matched);
   }
   return html;

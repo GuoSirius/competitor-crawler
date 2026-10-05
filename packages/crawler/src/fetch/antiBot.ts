@@ -117,6 +117,81 @@ export async function maximizeWindow(page: import('playwright').Page): Promise<v
 }
 
 /**
+ * 浏览器侧指纹体检（`pnpm diagnose` 用）：把「页面读到的指纹」逐项摊开，
+ * 用来回答「站点凭什么判我是 bot」——指纹不自洽是最可控的一类原因。
+ *
+ * 与 Node 侧的 UA 校核互补：这里给运行时真值，那里给配置自洽性，两者都零副作用。
+ *
+ * ## 怎么读这张表（2026-10-05 用原生 Chrome 对照过真值，别再凭常识猜）
+ *
+ * | 字段 | 本机真值 | 判读 |
+ * |---|---|---|
+ * | `plugins` | **5** | 0 = 被注入脚本抹掉了或环境异常 |
+ * | `mimeTypes` | **2**（`application/pdf` / `text/pdf`） | 0 = 同上。**不是 5**，别按旧注释判 |
+ * | `hardwareConcurrency` / `deviceMemory` | **16 / 16** | 被改成 8 这类"整齐小值"才是破绽 |
+ * | `webdriver` | false | true = `--disable-blink-features` 没生效 |
+ * | `chromeRuntimeId` | `undefined` | **正常**：普通网页上下文本就没有 runtime，非缺陷 |
+ * | `notifications` | `'prompt'` | 抛错才是特征（真浏览器不会抛） |
+ */
+export async function auditFingerprint(page: import('playwright').Page): Promise<Record<string, unknown>> {
+  try {
+    return await page.evaluate(async () => ({
+      ua: navigator.userAgent.slice(0, 70),
+      platform: navigator.platform,
+      languages: [...navigator.languages].join(','),
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      deviceMemory: (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? null,
+      mimeTypes: navigator.mimeTypes.length, // 真值 2（不是 5）；0 才是强 bot 信号
+      mimeNames: [...navigator.mimeTypes].map((m) => m.type).join(','),
+      plugins: navigator.plugins.length, // 真值 5
+      pluginNames: [...navigator.plugins].map((p) => p.name).join(' | '),
+      webdriver: navigator.webdriver,
+      // 普通网页上下文恒 undefined，仅作「是否装了扩展环境」的旁证
+      chromeRuntimeId: (window as unknown as { chrome?: { runtime?: { id?: string } } }).chrome?.runtime?.id ?? '(none)',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      viewport: `${innerWidth}x${innerHeight}`,
+      screen: `${screen.width}x${screen.height}`,
+      devicePixelRatio,
+      pdfViewerEnabled: navigator.pdfViewerEnabled ?? null,
+      // 真浏览器对权限查询 resolve 成 'prompt'/'denied'；抛错本身是自动化特征。
+      // ⚠️ 必须 await —— 直接 String(Promise) 只会打出 '[object Promise]'，体检就白做了。
+      notifications: await (async () => {
+        try {
+          const r = await navigator.permissions?.query({ name: 'notifications' as PermissionName });
+          return r ? r.state : 'ERR:no-permissions-api';
+        } catch (e) {
+          return `ERR:${(e as Error).name}`;
+        }
+      })(),
+    }));
+  } catch (e) {
+    return { error: (e as Error).message.slice(0, 80) };
+  }
+}
+
+/**
+ * Node 侧指纹校核（不用开浏览器）：UA 声明的平台必须和 sec-ch-ua-platform / locale / timezone 自洽，
+ * 否则「说自己是 Windows 却用 Linux 时区」这种组合会被 WAF 一眼看穿。返回问题清单（空=通过）。
+ */
+export function auditStealthSource(env: StealthEnv = DEFAULT_STEALTH_ENV, secChUaPlatform = '"Windows"'): string[] {
+  const issues: string[] = [];
+  const ua = env.userAgent || DEFAULT_UA_FALLBACK;
+  const plat = /Windows/.test(ua) ? 'Windows' : /Macintosh/.test(ua) ? 'Macintosh' : /Linux/.test(ua) ? 'Linux' : '?';
+  if (plat !== '?' && !secChUaPlatform.split(',').some((p) => plat.toLowerCase() === p.replace(/"/g, '').trim().toLowerCase())) {
+    issues.push(`UA 平台 ${plat} 与 sec-ch-ua-platform ${secChUaPlatform} 不一致`);
+  }
+  const tz = env.timezone ?? DEFAULT_STEALTH_ENV.timezone;
+  if (tz === 'UTC' || tz === 'Etc/UTC') issues.push(`时区 ${tz} 是最典型的机器特征（默认 Asia/Shanghai）`);
+  const loc = env.locale ?? DEFAULT_STEALTH_ENV.locale;
+  if (loc && !/^zh|^en/i.test(loc)) issues.push(`语言 ${loc} 与站点地域/时区不匹配`);
+  return issues;
+}
+
+/** DEFAULT_UA 定义在 page.ts（避免循环依赖），这里做一致性兜底取值 */
+const DEFAULT_UA_FALLBACK =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+/**
  * 传给 playwright `newContext()` 的环境选项。
  *
  * `opts.headless` 决定「有头最大化」是否生效：有头 + maximize（默认 true）时
@@ -175,13 +250,27 @@ function langOnly(locale: string): string {
  * 刻意不用 `playwright-stealth` 之类的第三方库——我们的注入需求是可控子集，
  * 且第三方库版本一变行为就不透明；这里全部显式写在项目内，行为可审计。
  *
- * 原则：
+ * ## 第一原则：只补缺，绝不篡改（2026-10-05 从踩坑里换来的）
+ *
+ * 上一版把 `hardwareConcurrency`/`deviceMemory` 硬编码成 8、`plugins` 造 4 个、
+ * `mimeTypes` 造 4 个 `application/pdf`。在真实 Chrome 上实测（`pnpm diagnose` +
+ * 原生内核对照）真值是 **核数 16 / 内存 16 / plugins 5 / mimeTypes 2
+ * （`application/pdf` + `text/pdf`）**——于是那份"反检测"脚本自己制造了 4 处破绽：
+ *   - 报 8 核而 UA/JS 环境都是 16 核机器 → 典型的自动化降配特征；
+ *   - plugins 少一个、`mimeTypes` 数量与 plugins 对不上（4 vs 4 但真实是 5 vs 2）
+ *     → 内部不自洽，比"缺特征"更扎眼；
+ *   - 额外造了个 `window.chrome.runtime`，而普通网页上下文里它本就不存在。
+ *
+ * 所以现在每个补丁都是 **`if (!真实值) 才补`**：内核已经给出的（真值）一律不碰，
+ * 只在自动化环境确实缺（0 / undefined / 抛错）时补一个合理值。`plugins`/`mimeTypes`
+ * 只有在**读出来是空的**情况下才造，且严格按真值的名称与 type 配对。
+ *
+ * ## 其余约定
  * 1. `webdriver` 强制 false（不是 undefined：真实浏览器读出来就是 false，
  *    旧实现写 undefined 反而更扎眼）；
  * 2. Canvas/WebGL 噪声用**固定 seed** 的确定性偏移，不是每次随机——
  *    每页随机会让「回访用户指纹不一致」成为新特征；
- * 3. 只补"真实浏览器本来就有"的东西（chrome 对象、plugins、mimeTypes、
- *    permissions.queryInterface），不做过度伪造（过度伪造=指纹在剧烈变化）。
+ * 3. `pnpm diagnose` 的指纹体检就是本条的验收工具：改完跑一次看数值有没有变合理。
  */
 export function stealthInitSource(profile: StealthProfile = 'mid'): string {
   if (profile === 'none') return '';
@@ -189,25 +278,44 @@ export function stealthInitSource(profile: StealthProfile = 'mid'): string {
   return `(() => {
   try {
     Object.defineProperty(navigator, 'webdriver', { get: () => false, configurable: true });
-    // window.chrome 句柄（真浏览器有，自动化环境常缺失）
-    if (!window.chrome) {
-      window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){} };
+    // window.chrome 句柄：只补 window.chrome 本身。
+    // 注意**不造 runtime**——普通网页上下文里 chrome.runtime 本来就是 undefined，
+    // 凭空造一个反而多出一条"不该存在"的结构（见函数注释的第一原则）。
+    if (!window.chrome) window.chrome = {};
+    if (typeof window.chrome.loadTimes !== 'function') window.chrome.loadTimes = function(){};
+    if (typeof window.chrome.csi !== 'function') window.chrome.csi = function(){};
+    // plugins / mimeTypes：**仅当读出来是空的才造**，且按真实 Chrome 的名称/type 严格配对
+    // （plugins 5 项全为 PDF viewer；mimeTypes 只有 2 项 —— application/pdf 与 text/pdf）。
+    const P = ['PDF Viewer','Chrome PDF Viewer','Chromium PDF Viewer',
+      'Microsoft Edge PDF Viewer','WebKit built-in PDF'];
+    const M = ['application/pdf','text/pdf'];
+    const has = (obj, key) => { try { return obj && obj.length > 0; } catch (e) { return false; } };
+    if (!has(navigator, 'plugins')) {
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => P.map((name, i) => ({ name, filename: 'internal-pdf-viewer', description: name,
+          length: 1, item: () => null, [Symbol.iterator]: undefined, i })),
+        configurable: true });
     }
-    if (!window.chrome.runtime) window.chrome.runtime = {};
-    window.chrome.runtime.onMessage = undefined;
-    // plugins / mimeTypes：返回非空且像真实 Chrome（3~5 项）
-    const plugins = [['PDF Viewer','application/pdf'],['Chrome PDF Viewer','application/pdf'],
-      ['Chromium PDF Viewer','application/pdf'],['Microsoft Edge PDF Viewer','application/pdf'],
-      ['WebKit built-in PDF','application/pdf']].slice(0, 4);
-    Object.defineProperty(navigator, 'plugins', {
-      get: () => plugins.map((p, i) => ({ name: p[0], filename: 'internal-pdf-viewer',
-        description: p[0], length: 1, item: () => null, [Symbol.iterator]: undefined, i })),
-      configurable: true });
-    Object.defineProperty(navigator, 'mimeTypes', { get: () => [], configurable: true });
-    Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN','zh'], configurable: true });
-    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8, configurable: true });
-    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8, configurable: true });
-    Object.defineProperty(navigator, 'platform', { get: () => 'Win32', configurable: true });
+    if (!has(navigator, 'mimeTypes')) {
+      Object.defineProperty(navigator, 'mimeTypes', {
+        get: () => M.map((type, i) => ({ type, suffixes: type === 'text/pdf' ? 'pdf' : 'pdf',
+          description: 'Portable Document Format', src: null, enabledPlugin: null,
+          filename: 'internal-pdf-viewer', length: 1, item: () => null, [Symbol.iterator]: undefined, i })),
+        configurable: true });
+    }
+    // 硬件特征：**只在内核报 0 / 缺失时补**，绝不改成固定常量。
+    // 硬编码成 8 会让 16 核机器自曝（真值由内核给，Playwright newContext 不会清）。
+    const patchNum = (key, fallback) => {
+      let v = 0;
+      try { v = navigator[key] || 0; } catch (e) { v = 0; }
+      if (!v) Object.defineProperty(navigator, key, { get: () => fallback, configurable: true });
+    };
+    patchNum('hardwareConcurrency', 8);
+    patchNum('deviceMemory', 8);
+    // platform：真实 Windows Chrome 恒 'Win32'，只在读不到时补
+    let plat = '';
+    try { plat = navigator.platform || ''; } catch (e) { plat = ''; }
+    if (!plat) Object.defineProperty(navigator, 'platform', { get: () => 'Win32', configurable: true });
     // 权限查询：真浏览器会返回 'prompt'/'denied' 而非抛错
     if (!navigator.permissions || !navigator.permissions.query) {
       navigator.permissions = navigator.permissions || {};

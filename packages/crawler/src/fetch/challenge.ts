@@ -155,9 +155,14 @@ export function assessChallenge(i: ChallengeInput): Assessment {
   if (statusBlock) notes.push(`状态码 ${status}（WAF 拦截档）`);
 
   // ── 状态码拦截优先于软拦判定：403/412 这类是 WAF 的明确答复，不能因为响应体短被当成空壳 ──
+  // ⚠️ matched 要优先带**真实命中的特征**（头/文案），只在没有任何具体信号时才回退成 "HTTP <码>"。
+  // 2026-10-05 实测踩坑：原实现无条件写 `HTTP 403/503`，把已经判明的文案信号
+  // （"Just a moment..." → 托管挑战，可等盾自动过）覆盖成了无信息量的状态码，
+  // 导致上层 isAutoPassableChallenge 判 false → 托管挑战被一刀切判死。
   if (hdr === null && statusBlock) {
+    // statusBlock 分支里 textHit 仍可能命中具体特征（specific/broad/medium/html*）
     return {
-      hit: { kind: textHit?.kind ?? 'unknown', matched: `HTTP ${status}` },
+      hit: { kind: textHit?.kind ?? 'unknown', matched: textHit?.matched ?? `HTTP ${status}` },
       confidence: 'high',
       falseAlarm: false,
       suspicious: false,
