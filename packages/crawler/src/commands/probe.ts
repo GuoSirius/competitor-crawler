@@ -9,6 +9,7 @@ import { detectSpecPriceShape } from '../adapter/shapeDetect.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
 import { recordAlert } from '../util/alerts.js';
+import { printFetchAdvice } from '../util/fetchAdvice.js';
 import { Progress } from '../util/progress.js';
 
 export interface ProbeOpts {
@@ -116,11 +117,20 @@ export async function probe(opts: ProbeOpts): Promise<void> {
     const sectionItems: Array<{ detailUrl: string; name?: string; sectionKey?: string }> = [];
     for (const listUrl of listUrls) {
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 抓取列表页 ${listUrl}`);
-      const html = await fetchPage(listUrl, listMode, progress, undefined, {
-        stealth: section.antiBot,
-        headless: section.antiBot?.headless,
-        waitSelector: section.listTraversal?.waitSelector, // 接口渲染站：等列表容器真出现
-      });
+      // 抓取失败（反爬挑战 / 网络层）在这里就给「下一步做什么」，别让它冒成裸堆栈——
+      // 0 条也可能是「页面根本没抓到」，两种情况处置完全不同（2026-10-05 统一口径）。
+      let html: string;
+      try {
+        html = await fetchPage(listUrl, listMode, progress, undefined, {
+          stealth: section.antiBot,
+          headless: section.antiBot?.headless,
+          waitSelector: section.listTraversal?.waitSelector, // 接口渲染站：等列表容器真出现
+        });
+      } catch (e) {
+        console.error(`\n❌ [section=${section.key}] 列表页抓取失败：${listUrl}`);
+        printFetchAdvice(e, opts.domain, '  ');
+        continue;
+      }
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 解析列表页…`);
       const items = parseListWithConfig(html, section.parseList, section.key);
 
@@ -246,6 +256,8 @@ export async function probe(opts: ProbeOpts): Promise<void> {
           }
         } catch (e) {
           console.log(`  ⚠️ 详情页探测失败（跳过）：${(e as Error).message}`);
+          console.error(`  [详情页] ${(e as Error).message}`);
+          printFetchAdvice(e, opts.domain, '  ');
         }
       }
     }
