@@ -102,9 +102,14 @@ export async function fetchPage(
   try {
     html = await ssrFetch(url, progress, headers, proxy);
   } catch (e) {
-    // auto：静态被拦（403/挑战页）通常是 WAF 首包拦截，直接上浏览器比重试更划算
-    if (mode === 'auto' && !(e instanceof ChallengeError)) {
-      progress?.log('静态抓取被拦，回退 Playwright 渲染…');
+    // ⚠️ 2026-10-05 修的第 4 个真 bug：旧判据是 `mode === 'auto' && !(e instanceof ChallengeError)`，
+    // 把 ChallengeError（含 Cloudflare 托管挑战）**排除在回退之外** → auto 默认路径撞上挑战页
+    // 直接抛错判死，从不给浏览器过盾的机会。可挑战页是「无 JS 不可能过」的：
+    // `cf_clearance` 得由盾页 JS 写进 cookie，静态通道再试一百次也过不去。
+    // 这正是「用户浏览器能开、抓取说不可达」的主要成因之一（影响默认模式 auto）。
+    // ssr 模式（明确只要静态）仍严格抛错，诊断通道的口径才对得上。
+    if (mode === 'auto') {
+      progress?.log('静态抓取被拦，回退 Playwright 渲染（挑战页需 JS 过盾）…');
       return browserFetch(url, progress, opts);
     }
     throw e;
@@ -344,7 +349,15 @@ function statePathOf(url: string): string {
 const HUMAN_WAIT_ROUNDS = 36; // 人工过盾等待：36 × 5s = 180s
 const HUMAN_WAIT_MS = 5_000;
 
-async function waitForChallengePass(
+/**
+ * 挑战页处理（三层递进）：`browserFetch` 与 `listTraversal` 的浏览器分支**共用这一份**。
+ *
+ * 导出原因（2026-10-05 第 5 个真 bug）：`traverseList` 的浏览器分支原来只 goto + settle，
+ * 首页撞上挑战页时 `page.content()` 拿到的就是挑战页 HTML → onPage 解析 0 条 →
+ * 翻页循环按「末页」break → 整轮**静默 0 条**，日志里却是「跑完了」，谁也看不出是被拦。
+ * 翻页比取 HTML 更像真人操作、过盾概率更高，这一层恰恰不能省。
+ */
+export async function waitForChallengePass(
   page: import('playwright').Page,
   ctx: import('playwright').BrowserContext,
   url: string,

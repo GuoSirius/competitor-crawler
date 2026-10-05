@@ -1,5 +1,13 @@
 import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
-import { fetchPage, waitForBrowserSettle, headlessEnv, GOTO_TIMEOUT_MS, BROWSER_MAX_WAIT_MS, type RenderMode } from './page.js';
+import {
+  fetchPage,
+  waitForBrowserSettle,
+  waitForChallengePass,
+  headlessEnv,
+  GOTO_TIMEOUT_MS,
+  BROWSER_MAX_WAIT_MS,
+  type RenderMode,
+} from './page.js';
 import { maximizeWindow, stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
 import { humanClick, humanPause } from './human.js';
 import { Progress } from '../util/progress.js';
@@ -237,6 +245,12 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     // 浏览器通道首屏异步挂载（ATCC/Coveo 等在 load 后才渲染结果卡）：DOM 稳定自适应等待，
     // 否则首次 page.content() 拿到空壳 → 解析 0 条直接终止
     await waitForBrowserSettle(page);
+    // ⚠️ 过盾必须在取第一页内容**之前**：挑战页 settle 出来的也是「稳定」的，
+    // 直接进循环就是拿挑战页 HTML 解析 0 条、按末页 break（2026-10-05 第 5 个真 bug）。
+    // 与 browserFetch 共用同一份处理（重导航 + cookie 复用 + 人工过盾）。
+    // 过不掉就抛（而不是静默 0 条）：上层的 crawl 会记 SITE_CHALLENGED、sweep 会标 CHALLENGED，
+    // 比「跑完一轮、日志干净、数据库空的」好排查得多。
+    await waitForChallengePass(page, ctx, url, opts.progress);
 
     while (pages < max) {
       const html = await page.content();
