@@ -312,6 +312,18 @@ export function stealthInitSource(profile: StealthProfile = 'mid'): string {
     };
     patchNum('hardwareConcurrency', 8);
     patchNum('deviceMemory', 8);
+    // languages：Playwright 的 locale='zh-CN' 只让内核报 ['zh-CN']，而真实 Windows Chrome
+    // 读出来是 ['zh-CN','zh']（语言 + 无区域简写）。差这一个尾巴就是「locale 被改过」的痕迹。
+    // 同理只在**缺 zh 主语言**时补，不覆盖内核给的其他语言。
+    try {
+      const langs = navigator.languages ? [...navigator.languages] : [];
+      if (langs.length === 0) {
+        Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh'], configurable: true });
+      } else if (langs.length === 1 && /-/.test(langs[0])) {
+        const base = langs[0].split('-')[0];
+        Object.defineProperty(navigator, 'languages', { get: () => [langs[0], base], configurable: true });
+      }
+    } catch (e) {}
     // platform：真实 Windows Chrome 恒 'Win32'，只在读不到时补
     let plat = '';
     try { plat = navigator.platform || ''; } catch (e) { plat = ''; }

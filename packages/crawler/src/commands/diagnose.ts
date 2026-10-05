@@ -21,6 +21,9 @@
  *
  * 零副作用：只读页面、不落库、不写站点配置。
  */
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { repoRoot } from '@competitor-crawler/shared';
 import { loadSiteConfig, resolveSections } from '../config/loader.js';
 import type { StealthEnv } from '../fetch/antiBot.js';
 import {
@@ -50,14 +53,26 @@ function countItems(html: string): number {
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-/** 起一套通道并拿到 page；返回 handle 由调用方负责 close（避免 ctx 被提前关掉） */
+/** 会话持久化路径：与 fetch/page.ts 的 statePathOf 保持一致（同一份载体，不能各写各的） */
+function statePathOf(url: string): string {
+  return join(repoRoot, '.runtime', 'state', `${new URL(url).hostname}.json`);
+}
+
+/**
+ * 起一套通道并拿到 page；返回 handle 由调用方负责 close（避免 ctx 被提前关掉）。
+ *
+ * 关键：**带上了会话持久化**（`storageState`），与正式 crawl 走 browserFetch 的行为一致。
+ * 否则诊断会对「人工已过盾、cookie 存在 `.runtime/state/<host>.json`」的站点报 403，
+ * 而正式抓取其实能通 —— 又变成「代码说不行、你明明能开」的死循环。
+ */
 async function openChannel(
   channel: string,
+  url: string,
 ): Promise<{ page: import('playwright').Page; close: () => Promise<void> }> {
   const { chromium } = await import('playwright');
   const args = stealthArgs({ headless: false });
   if (channel.startsWith('cdp:')) {
-    // 连用户自己开着的 Chrome：100% 复现「用户视角」，且能带走已过盾的 cookie
+    // 连用户自己开着的 Chrome：100% 复现「用户视角」，且天然带着他过盾后的 cookie
     const browser = await chromium.connectOverCDP(channel.slice(4));
     const ctx = browser.contexts()[0] ?? (await browser.newContext());
     const page = (await ctx.pages())[0] ?? (await ctx.newPage());
@@ -72,9 +87,11 @@ async function openChannel(
     headless,
   });
   const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, userAgent: UA, maximize: !headless };
+  const sp = statePathOf(url);
   const ctx = await browser.newContext({
     ...stealthContextOptions(env, { headless }),
     userAgent: UA,
+    ...(existsSync(sp) ? { storageState: sp } : {}),
   });
   const page = await ctx.newPage();
   if (!headless) await maximizeWindow(page);
@@ -90,7 +107,7 @@ async function runChannel(
   const row: DiagRow = { channel, ms: 0 };
   let close: (() => Promise<void>) | null = null;
   try {
-    const h = await openChannel(channel);
+    const h = await openChannel(channel, url);
     close = h.close;
     const { page } = h;
     const { assessChallenge } = await import('../fetch/challenge.js');
@@ -213,7 +230,7 @@ export async function runDiagnose(opts: DiagnoseOpts): Promise<void> {
     const issues = auditStealthSource(DEFAULT_STEALTH_ENV);
     let close: (() => Promise<void>) | null = null;
     try {
-      const h = await openChannel('chromium-headful');
+      const h = await openChannel('chromium-headful', urls[0]!);
       close = h.close;
       await h.page.goto(urls[0]!, { waitUntil: 'domcontentloaded', timeout: 45_000 }).catch(() => null);
       fp = await auditFingerprint(h.page);
