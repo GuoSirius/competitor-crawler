@@ -147,7 +147,14 @@ async function ssrFetchViaProxy(
   }
 }
 
-async function ssrFetch(
+/**
+ * 静态通道：Node 原生 fetch 取 HTML（不执行 JS、不开浏览器）。
+ *
+ * 导出给 `pnpm diagnose` 的 `ssr` 诊断通道复用 —— **必须是同一份实现**，否则诊断结论
+ * 与正式抓取对不上（2026-10-05 踩过：diagnose 里自己写了一份裸 fetch，还误开了浏览器，
+ * 报出来的 "ssr 403" 其实是有头浏览器的结果，会把结论带偏成「姿势问题」）。
+ */
+export async function ssrFetch(
   url: string,
   progress?: Progress,
   headers?: Record<string, string>,

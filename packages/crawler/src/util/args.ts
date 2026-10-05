@@ -1,20 +1,29 @@
 /**
  * 极简命令行参数解析（复用，避免各命令各写一遍）。
- * 支持 `--key value` 与 `--flag`（布尔 true）。
+ * 支持 `--key value`、`--flag`（布尔 true）、`--no-flag`（布尔 false）。
+ *
+ * `--no-` 前缀（2026-10-05 补）：`--no-fingerprint` / `--no-proxy` 这类「默认开、可关」的开关
+ * 此前会被原样记成 key=`no-fingerprint`，各命令都得自己判一次字符串，既漏又散。
+ * 这里在解析层统一翻成 `{ '<name>': false }`，命令侧只需读 `flags.fingerprint === false`。
+ * 幂等：`--no-foo=false` 不做二次取反（显式给了值就按值走）。
  */
 export function parseFlags(argv: string[]): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith('--')) {
-      const key = a.slice(2);
-      const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--')) {
-        out[key] = next;
-        i++;
-      } else {
-        out[key] = true;
-      }
+    if (!a.startsWith('--')) continue;
+    let key = a.slice(2);
+    let negated = false;
+    if (key.startsWith('no-')) {
+      negated = true;
+      key = key.slice(3);
+    }
+    const next = argv[i + 1];
+    if (next !== undefined && !next.startsWith('--')) {
+      out[key] = next;
+      i++;
+    } else {
+      out[key] = !negated;
     }
   }
   return out;

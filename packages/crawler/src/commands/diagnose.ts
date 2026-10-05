@@ -30,6 +30,7 @@ import {
   auditFingerprint, auditStealthSource, maximizeWindow,
   stealthArgs, stealthContextOptions, DEFAULT_STEALTH_ENV,
 } from '../fetch/antiBot.js';
+import { waitForBrowserSettle, ssrFetch, ChallengeError } from '../fetch/page.js';
 
 /** 一条通道跑出来的结果 */
 export interface DiagRow {
@@ -42,6 +43,8 @@ export interface DiagRow {
   ms: number;
   server?: string;
   error?: string;
+  /** 口径提示（如「状态码为推断」），避免把推断值当实测值读 */
+  note?: string;
 }
 
 /** 产品锚点启发式（与 sweep 同口径，保证历史可比；只看数不看内容） */
@@ -105,6 +108,35 @@ async function runChannel(
 ): Promise<DiagRow> {
   const t0 = Date.now();
   const row: DiagRow = { channel, ms: 0 };
+
+  // ── ssr 通道：真正的「不开浏览器」静态抓取 ──
+  // ⚠️ 2026-10-05 修的诊断工具自身缺陷：早先把 ssr 也走了 openChannel（实际开了有头浏览器），
+  // 报出来的 "ssr 403" 其实是有头结果 → 结论被带偏成「姿势问题，有头能通」。
+  // 走 page.ts 导出的 ssrFetch（与正式抓取同一份实现，绝不两套逻辑各自漂移）。
+  if (channel === 'ssr') {
+    try {
+      const html = await ssrFetch(url);
+      row.len = html.length;
+      row.title = (/<title[^>]*>([^<]{0,120})/i.exec(html)?.[1] ?? '').trim().slice(0, 40);
+      row.items = countItems(html);
+      row.status = 200; // 走到这里说明没抛 ChallengeError / 网络错
+      row.challenge = '-';
+    } catch (e) {
+    if (e instanceof ChallengeError) {
+      row.challenge = `${e.kind}:${e.message.replace(/^CHALLENGED\[[^\]]+\]\s*/, '').split(' @ ')[0]!.slice(0, 40)}`;
+      // ssrFetch 只抛 kind、不带状态码（它内部已判过挑战），403 是**推断值**。
+      // 如实标注，别让「403」看起来像真读到了状态码。
+      row.status = 403;
+      row.note = '状态码为推断（ssrFetch 遇挑战页只抛 kind）';
+    } else {
+        row.error = (e as Error).message.split('\n')[0]?.slice(0, 90);
+      }
+    } finally {
+      row.ms = Date.now() - t0;
+    }
+    return row;
+  }
+
   let close: (() => Promise<void>) | null = null;
   try {
     const h = await openChannel(channel, url);
@@ -219,6 +251,7 @@ export async function runDiagnose(opts: DiagnoseOpts): Promise<void> {
         `items=${String(row.items ?? '-')}`.padEnd(11),
         `${row.ms}ms`.padEnd(9),
         row.challenge ?? '',
+        row.note ? `（${row.note}）` : '',
       ];
       console.log(cells.join(''));
     }
@@ -232,8 +265,16 @@ export async function runDiagnose(opts: DiagnoseOpts): Promise<void> {
     try {
       const h = await openChannel('chromium-headful', urls[0]!);
       close = h.close;
-      await h.page.goto(urls[0]!, { waitUntil: 'domcontentloaded', timeout: 45_000 }).catch(() => null);
-      fp = await auditFingerprint(h.page);
+      // 指纹体检必须在**稳定页面**上读：goto 失败/正在跳转时 evaluate 会抛
+      // "Execution context was destroyed"（实测网络层失败站必现），读到的值毫无意义。
+      // 故先 goto 再 settle；仍失败就退到 about:blank 读内核基线指纹。
+      const ok = await h.page.goto(urls[0]!, { waitUntil: 'domcontentloaded', timeout: 45_000 }).then(() => true).catch(() => false);
+      if (ok) await waitForBrowserSettle(h.page);
+      else {
+        await h.page.goto('about:blank').catch(() => {});
+        fp = { ...(await auditFingerprint(h.page)), note: `目标页不可达（${urls[0]}），以下为 about:blank 上的内核基线指纹` };
+      }
+      if (!fp) fp = await auditFingerprint(h.page);
     } catch (e) {
       fp = { error: (e as Error).message.slice(0, 80) };
     } finally {
