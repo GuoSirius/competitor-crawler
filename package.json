@@ -35,7 +35,8 @@
     "changelog:rebuild": "node scripts/changelog-rebuild.mjs",
     "release": "node scripts/release.mjs",
     "validate": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts validate",
-    "field-docs": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts field-docs"
+    "field-docs": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts field-docs",
+    "plan:a": "node scripts/plan-a/launch.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "latest",

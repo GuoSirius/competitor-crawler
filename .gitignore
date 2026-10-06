@@ -25,5 +25,7 @@ data/exports/
 .tmp/
 # 断点续跑状态（crawl 运行期生成，成功自动清理、失败保留供 --resume）
 .crawl-state/
+# 运行期会话状态（storageState cookie / 过盾会话），含真实 cookie，绝不入库
+.runtime/
 # WorkBuddy 本机工作记忆（day-log / 项目约定），属本机状态不入库
 .workbuddy/
