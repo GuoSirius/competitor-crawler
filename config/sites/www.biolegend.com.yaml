@@ -1,0 +1,9 @@
+# BioLegend —— C 类「托管挑战」桩
+# 2026-10-06：沙箱直连复验被 CF 托管挑战（cf-mitigated: challenge）拦，指纹全绿非 IP 封禁。
+# 用户本机（开 VPN）能开 → 走 CRAWL_PROXY 复现用户视角。本桩仅供 diagnose 验证代理可达，
+# 待本机 `pnpm diagnose --domain www.biolegend.com` 确认通后补 startUrl/parseList 提升 A/B。
+domain: www.biolegend.com
+company: BioLegend
+currency: USD
+proxy: '${CRAWL_PROXY}'
+contentType: products

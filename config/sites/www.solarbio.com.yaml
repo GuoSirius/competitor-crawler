@@ -1,0 +1,9 @@
+# 索莱宝 Solarbio —— C 类「网络层」桩
+# 2026-10-06：沙箱直连复验全通道网络层失败（curl --noproxy 直连 15s 超时 / 走代理 502 / Node fetch failed
+# 三路一致）；走 CRAWL_PROXY 复验因沙箱访问不到本机 VPN 端口失败。用户本机（开 VPN）能开 →
+# 走代理复现。本桩仅供 diagnose 验证代理可达，待本机确认通后补 startUrl/parseList 提升 A/B。
+domain: www.solarbio.com
+company: 索莱宝（Solarbio）
+currency: CNY
+proxy: '${CRAWL_PROXY}'
+contentType: products
