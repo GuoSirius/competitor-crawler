@@ -171,7 +171,7 @@ export async function probe(opts: ProbeOpts): Promise<void> {
           // 已配置接口 → 实测（这才是「配好了没」的判据）
           const hasApi = Boolean(section.parseDetail.api?.length);
           if (hasApi) {
-            const results = await applyApiSources(np, it.detailUrl, section.parseDetail.api!);
+            const results = await applyApiSources(np, it.detailUrl, section.parseDetail.api!, section.antiBot?.proxy);
             for (const r of results) {
               console.log(
                 r.ok

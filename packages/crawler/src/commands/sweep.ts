@@ -2,6 +2,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dataDir } from '@competitor-crawler/shared';
 import { fetchPage, ChallengeError } from '../fetch/page.js';
+import { loadSiteConfig, expandProxyVar } from '../config/loader.js';
 import type { ChallengeKind } from '../fetch/antiBot.js';
 import { Progress } from '../util/progress.js';
 
@@ -86,12 +87,21 @@ const PRODUCT_HREF_RE = /href="([^"]*(?:\/product|\/goods|\/p\/|\/item|\/detail|
 async function sweepOne(t: SweepTarget, mode: 'ssr' | 'browser', headless: boolean): Promise<SweepRow> {
   const progress = new Progress();
   const t0 = Date.now();
+  // 代理：按目标 URL 主机名找站点 YAML，有 proxy 就走（复现用户 VPN 视角）；无对应配置则直连。
+  // 否则 C 类复探会拿沙箱直连 IP 去抓，被 CF 按 IP 拦的站永远扫不出「可达」。
+  let proxy: string | undefined;
+  try {
+    const host = new URL(t.url).hostname;
+    proxy = expandProxyVar(loadSiteConfig(host).proxy) || undefined;
+  } catch {
+    /* 无对应站点配置 → 直连 */
+  }
   const base: SweepRow = {
     company: t.company, url: t.url, mode, result: 'ERR', bytes: 0, title: '', anchors: 0,
     productAnchors: 0, seconds: 0,
   };
   try {
-    const html = await fetchPage(t.url, mode, progress, undefined, { headless });
+    const html = await fetchPage(t.url, mode, progress, undefined, { headless, stealth: { proxy } });
     // 挑战判定已内置于 fetchPage（分层检测：响应头/可见文本/DOM 控件/状态码），
     // 这里不再用旧正则重复分类——重复分类曾把 BD/赛业等带 reCAPTCHA 组件的正常页误标 CHALLENGED。
     // 只保留伪放行标记（sweep 实测：MCE browser 返回 39B 空壳却被判 OK）。

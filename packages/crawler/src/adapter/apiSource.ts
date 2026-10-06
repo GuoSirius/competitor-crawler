@@ -26,6 +26,7 @@ export async function applyApiSources(
   np: NormalizedProduct,
   detailUrl: string,
   sources: ApiSourceConfig[],
+  proxy?: string,
 ): Promise<ApiSourceResult[]> {
   // 插值上下文：详情页已抽到的字段（含 row 兜底）+ 详情链接
   const ctx: Record<string, unknown> = {
@@ -49,6 +50,7 @@ export async function applyApiSources(
         method: s.method,
         headers: s.headers,
         body: s.body ? interpolate(s.body, ctx) : undefined,
+        proxy,
       });
       const picked = renameKeys(walkPath(json, s.rootPath), s.pick);
       if (picked == null) {

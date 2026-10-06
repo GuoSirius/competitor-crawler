@@ -1,6 +1,6 @@
 import yaml from 'yaml';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
-import { loadSiteConfig, saveSiteConfig } from '../config/loader.js';
+import { loadSiteConfig, saveSiteConfig, expandProxyVar } from '../config/loader.js';
 import { chat } from '../llm/client.js';
 import { loadPrompt } from '../llm/prompts.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
@@ -48,12 +48,17 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
     throw new Error('gen-site 需要 --list-url <url>，或在已存在的 config/sites/<domain>.yaml 中配置 startUrl');
   }
 
-  progress.update(`[gen-site] ${opts.domain} 抓取列表页 ${listUrl}`);
-  const listHtml = await fetchPage(listUrl, mode, progress);
+  // 生成阶段复用桩文件的代理决策：桩里写了 `proxy: '${CRAWL_PROXY}'`，就经代理抓取（复现用户浏览器视角），
+  // 否则直连。否则 gen-site 永远拿沙箱直连 IP 去抓，被 CF 等按 IP 拦截的站会在生成阶段就被挡，
+  // 与「用户浏览器能开」的体感对不上（PromoCell 旧桩因此生成失败）。YAML 是代理唯一裁决方。
+  const genProxy = expandProxyVar(existing?.proxy) || undefined;
+
+  progress.update(`[gen-site] ${opts.domain} 抓取列表页 ${listUrl}${genProxy ? '（经代理）' : ''}`);
+  const listHtml = await fetchPage(listUrl, mode, progress, undefined, { stealth: { proxy: genProxy } });
   let detailHtml = '';
   if (opts.detailUrl) {
-    progress.update(`[gen-site] 抓取详情页 ${opts.detailUrl}`);
-    detailHtml = await fetchPage(opts.detailUrl, mode, progress);
+    progress.update(`[gen-site] 抓取详情页 ${opts.detailUrl}${genProxy ? '（经代理）' : ''}`);
+    detailHtml = await fetchPage(opts.detailUrl, mode, progress, undefined, { stealth: { proxy: genProxy } });
   }
 
   const userMsg = [
@@ -245,6 +250,9 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: Site
   }
   // 补全关键字段，保证产出可直接被 probe / crawl 消费
   cfg.domain = opts.domain;
+  // 代理：已存在桩写了 proxy（如走 CRAWL_PROXY）就保留，模型不感知代理、不会产出该字段，
+  // 否则生成后代理配置丢失 → 后续 crawl 又退回直连被拦（PromoCell 旧桩生成后丢失代理）。
+  cfg.proxy = existing?.proxy ?? cfg.proxy;
   // startUrl：CLI --list-url > 已存在 YAML 的 startUrl > 模型产出（最后兜底）。
   // 关键：写回的 startUrl 必须等于 gen-site 实际抓取的入口（opts.listUrl ?? existing.startUrl），
   // 否则 probe/crawl 会抓到与生成时不同的页面；模型产出的 startUrl 仅作缺省兜底。

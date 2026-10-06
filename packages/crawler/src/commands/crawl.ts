@@ -1049,7 +1049,7 @@ async function collectSection(args: {
       const detailUrl = normalized.detailUrl ?? it.detailUrl;
       // 形态 D：人工登记的异步接口数据源（config/sites/<domain>.yaml 的 parseDetail.api）
       if (section.parseDetail.api?.length) {
-        await applyApiSourcesLogged(normalized, detailUrl, section.parseDetail.api, progress);
+        await applyApiSourcesLogged(normalized, detailUrl, section.parseDetail.api, progress, section.antiBot?.proxy);
       }
       // 形态 E：模型兜底（仅 section 显式配置 parseDetail.modelFallback 时调用；只补空，不覆盖上面两步）
       if (isModelFallbackEnabled(section.parseDetail.modelFallback)) {
@@ -1188,8 +1188,9 @@ async function applyApiSourcesLogged(
   detailUrl: string,
   sources: ApiSourceConfig[],
   progress: Progress,
+  proxy?: string,
 ): Promise<void> {
-  const results = await applyApiSources(np, detailUrl, sources);
+  const results = await applyApiSources(np, detailUrl, sources, proxy);
   for (const r of results) {
     progress.update(
       r.ok

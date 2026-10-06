@@ -24,7 +24,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoRoot } from '@competitor-crawler/shared';
-import { loadSiteConfig, resolveSections } from '../config/loader.js';
+import { loadSiteConfig, resolveSections, expandProxyVar } from '../config/loader.js';
 import type { StealthEnv } from '../fetch/antiBot.js';
 import {
   auditFingerprint, auditStealthSource, maximizeWindow,
@@ -71,6 +71,7 @@ function statePathOf(url: string): string {
 async function openChannel(
   channel: string,
   url: string,
+  proxy?: string,
 ): Promise<{ page: import('playwright').Page; close: () => Promise<void> }> {
   const { chromium } = await import('playwright');
   const args = stealthArgs({ headless: false });
@@ -89,7 +90,7 @@ async function openChannel(
     ...(kind === 'chrome' ? { channel: 'chrome' as const } : {}),
     headless,
   });
-  const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, userAgent: UA, maximize: !headless };
+  const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, userAgent: UA, maximize: !headless, proxy: proxy ?? '' };
   const sp = statePathOf(url);
   const ctx = await browser.newContext({
     ...stealthContextOptions(env, { headless }),
@@ -104,7 +105,7 @@ async function openChannel(
 async function runChannel(
   channel: string,
   url: string,
-  opts: { rounds?: number; waitMs?: number } = {},
+  opts: { rounds?: number; waitMs?: number; proxy?: string } = {},
 ): Promise<DiagRow> {
   const t0 = Date.now();
   const row: DiagRow = { channel, ms: 0 };
@@ -115,7 +116,7 @@ async function runChannel(
   // 走 page.ts 导出的 ssrFetch（与正式抓取同一份实现，绝不两套逻辑各自漂移）。
   if (channel === 'ssr') {
     try {
-      const html = await ssrFetch(url);
+      const html = await ssrFetch(url, undefined, undefined, opts.proxy);
       row.len = html.length;
       row.title = (/<title[^>]*>([^<]{0,120})/i.exec(html)?.[1] ?? '').trim().slice(0, 40);
       row.items = countItems(html);
@@ -139,7 +140,7 @@ async function runChannel(
 
   let close: (() => Promise<void>) | null = null;
   try {
-    const h = await openChannel(channel, url);
+    const h = await openChannel(channel, url, opts.proxy);
     close = h.close;
     const { page } = h;
     const { assessChallenge } = await import('../fetch/challenge.js');
@@ -235,13 +236,22 @@ export interface DiagnoseOpts {
  */
 export async function runDiagnose(opts: DiagnoseOpts): Promise<void> {
   const urls = candidateUrls(opts.domain, opts.url);
+  // 代理：按站点 YAML 的 proxy 字段（YAML 是唯一裁决方），复现「用户开 VPN 能开」的视角。
+  // 否则 diagnose 全通道都测直连，对需要代理的站（BioLegend/PromoCell 等）结论必然失真。
+  let proxy: string | undefined;
+  try {
+    const cfg = loadSiteConfig(opts.domain);
+    proxy = expandProxyVar(cfg.proxy) || undefined;
+  } catch {
+    /* 无站点 YAML → 直连 */
+  }
   const modes = opts.modes?.length ? opts.modes : ['ssr', 'chromium-headless', 'chromium-headful', 'chrome-headful', 'chrome-headless'];
   const rows: DiagRow[] = [];
 
   for (const url of urls) {
-    console.log(`\n▸ ${url}`);
+    console.log(`\n▸ ${url}${proxy ? '（经代理）' : ''}`);
     for (const ch of modes) {
-      const row = await runChannel(ch, url, { rounds: opts.rounds ?? 0 });
+      const row = await runChannel(ch, url, { rounds: opts.rounds ?? 0, proxy });
       rows.push(row);
       if (opts.json) continue;
       const cells = [
