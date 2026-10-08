@@ -1,0 +1,118 @@
+# 站点适配器：Leinco Technologies（2026-10-08 实测接入）
+# 平台：WordPress Avada + WooCommerce，产品列表 = Algolia InstantSearch（前端公开凭证
+#   appId Q2AIR8WGBN / index dev_leinco，都在页面自家的 /assets/algolia-all.js 里）。
+# ⚠️ 必须 render: browser：
+#   - ssr 通道被 Imperva WAF 拦（CHALLENGED[imperva]），plan:a 过盾 cookie 已持久化；
+#   - 产品 hits 是跨域 XHR（algolia.net）→ 曾被引擎 stealth extraHTTPHeaders bug 卡成空壳
+#     （docs/14 §4.1-bug⑥，54fe192 修复后正常）。
+# 结构：
+#   列表 li.ais-Hits-item（30/页，defaultHitsPerPage=30）
+#     整卡一个 <a href=".../p/<slug>/">   → 详情链接
+#     .ptitle                              → 产品名（含 Clone 与规格后缀）
+#     .grid-col.sku      Prod No. 值       → 货号（如 I-2027；值在 span:not(.mobileTitle)）
+#     .grid-col.clone    Clone 值          → 克隆号
+#     .grid-col.pricing                    → 「View Details」（列表无价格）
+# 翻页：ais-Pagination 渲染标准链接 ?page=N（1-based）→ pagination-url。
+#   shop 全站 8349 hits / 279 页；单分类页数十页内。API 总数 8349（POST /1/indexes/dev_leinco/query 实测）。
+# 详情：Avada 单产品页 + WooCommerce Product Table（wcpt-table）
+#   h2.product_title（display:none 但文本完整）→ 名称
+#   tr.wcpt-row[data-wcpt-price] 的 data-wcpt-price  → 基础价（USD，变量产品为起始价）
+#   wcpt-item-row：span.att-name（字段名）+ 相邻 value div → Clone/Product Type/Isotype/
+#   Applications/Species Reactivity 等 → captureRest 兜底进 row
+#   ⚠️ 详情无独立价格元素（列表也无），价格只有 wcpt-row 的 data 属性 → 仅在详情可取
+domain: www.leinco.com
+company: Leinco
+role: competitor
+currency: USD
+render: browser
+
+parseList:
+  itemSelector: li.ais-Hits-item
+  fields:
+    detailUrl: { sel: "a", attr: href }
+    name: { sel: ".ptitle", text: true }
+    sku: { sel: ".grid-col.sku span:not(.mobileTitle)", text: true }
+    clone: { sel: ".grid-col.clone span:not(.mobileTitle)", text: true }
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?page={page}"
+  pageStart: 1
+  maxPages: 100
+  waitSelector: "li.ais-Hits-item a" # 内容级：等 Algolia hits 真渲染（跨域 XHR 完成后）
+
+parseDetail:
+  fields:
+    name: { sel: "h2.product_title", text: true }
+    price:
+      sel: "tr.wcpt-row[data-wcpt-price]"
+      attr: data-wcpt-price
+      number: true
+    priceText: { sel: "tr.wcpt-row[data-wcpt-price]", attr: data-wcpt-price }
+  captureRest: true
+
+sections:
+  - key: primary-monoclonal-antibodies
+    category: 单克隆抗体（一抗）
+    startUrls: ["https://www.leinco.com/primary-monoclonal-antibodies/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: secondary-antibody-products
+    category: 二抗
+    startUrls: ["https://www.leinco.com/secondary-antibody-products/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: bulk-in-vivo-functional-grade-antibodies
+    category: 体内功能级抗体（大包装）
+    startUrls: ["https://www.leinco.com/bulk-in-vivo-functional-grade-antibodies/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: recombinant-human-biosimilar-antibodies
+    category: 重组人源类似物抗体
+    startUrls: ["https://www.leinco.com/recombinant-human-biosimilar-antibodies-for-research/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: isotype-control-antibodies
+    category: 同型对照抗体
+    startUrls: ["https://www.leinco.com/isotype-control-antibodies/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: streptavidin-and-ultraavidin
+    category: 链霉亲和素与 UltraAvidin
+    startUrls: ["https://www.leinco.com/streptavidin-and-ultraavidin/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: ivd-antigens-and-conjugates
+    category: IVD 抗原与结合物
+    startUrls: ["https://www.leinco.com/ivd-antigens-and-conjugates/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: assay-substrates-reagents
+    category: 检测底物与试剂
+    startUrls: ["https://www.leinco.com/assay-substrates-reagents/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: recombinant-proteins-growth-factors-cytokines
+    category: 重组蛋白/生长因子/细胞因子
+    startUrls: ["https://www.leinco.com/recombinant-proteins-growth-factors-cytokines/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: elisa-kits
+    category: ELISA 试剂盒
+    startUrls: ["https://www.leinco.com/elisa-kits/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: biological-buffers
+    category: 生物缓冲液
+    startUrls: ["https://www.leinco.com/biological-buffers/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: sheath-fluid-flow-support-reagents
+    category: 鞘液与流式支持试剂
+    startUrls: ["https://www.leinco.com/sheath-fluid-flow-support-reagents/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: flow-cytometry-antibodies-reagents
+    category: 流式抗体与试剂
+    startUrls: ["https://www.leinco.com/antibodies-and-reagents-for-flow-cytometry/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: browse-antigens
+    category: 抗原
+    startUrls: ["https://www.leinco.com/browse-antigens/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: serum-free-media
+    category: 无血清培养基
+    startUrls: ["https://www.leinco.com/serum-free-media/"]
+    match: { detailUrlIncludes: ["/p/"] }
+  - key: immune-checkpoint-antibody
+    category: 免疫检查点抗体
+    startUrls: ["https://www.leinco.com/immune-checkpoint-antibody/"]
+    match: { detailUrlIncludes: ["/p/"] }
