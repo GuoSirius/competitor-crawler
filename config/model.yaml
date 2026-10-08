@@ -8,11 +8,12 @@ local:
   model: qwen2.5:14b-instruct
 
 cloud:
-  # 默认值=实际在用的 apihub 中转（旧值 dashscope 已过时，勿改回）；
-  # .env 的 MODEL_CLOUD_BASE_URL / MODEL_CLOUD_API_KEY / MODEL_CLOUD_MODEL 优先覆盖此处
+  # 三项默认值与 .env 实际生效组合保持一致（apihub 中转 + agnes-2.5-flash）；
+  # 旧值 dashscope + qwen-max 已过时勿改回。.env 的 MODEL_CLOUD_BASE_URL /
+  # MODEL_CLOUD_API_KEY / MODEL_CLOUD_MODEL 优先覆盖此处
   baseURL: https://apihub.agnes-ai.com/v1
   apiKey: ${MODEL_CLOUD_API_KEY} # 占位符：interpolateEnv 插值，apiKey 明文不进 yaml
-  model: qwen-max
+  model: agnes-2.5-flash
 
 # 通用参数（会被 .env 中的 MODEL_TEMPERATURE / MODEL_MAX_RETRIES 覆盖）
 temperature: 0
