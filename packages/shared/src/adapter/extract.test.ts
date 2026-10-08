@@ -249,3 +249,37 @@ describe('多字段一次抽取（列表页/详情页真实形态）', () => {
     });
   });
 });
+
+describe('bool 强转（标量第四类型）', () => {
+  const html = `
+    <span class="stock">现货</span>
+    <span class="oos">缺货</span>
+    <span class="flag">true</span>
+    <span class="off">false</span>
+    <span class="num1">1</span>
+    <span class="num0">0</span>
+    <span class="cn-no">无货号</span>
+    <span class="junk">促销中</span>`;
+
+  it('中文词表：现货→true / 缺货→false', () => {
+    expect(extract(html, { a: { sel: '.stock', bool: true } })).toEqual({ a: true });
+    expect(extract(html, { a: { sel: '.oos', bool: true } })).toEqual({ a: false });
+  });
+
+  it('英文/数字：true/false/1/0', () => {
+    expect(extract(html, { a: { sel: '.flag', bool: true } })).toEqual({ a: true });
+    expect(extract(html, { a: { sel: '.off', bool: true } })).toEqual({ a: false });
+    expect(extract(html, { a: { sel: '.num1', bool: true } })).toEqual({ a: true });
+    expect(extract(html, { a: { sel: '.num0', bool: true } })).toEqual({ a: false });
+  });
+
+  it('表外文本返回 null（宁可空也不猜），且不受含真值字词的普通文本误伤', () => {
+    expect(extract(html, { a: { sel: '.junk', bool: true } })).toEqual({ a: null });
+    expect(extract(html, { a: { sel: '.cn-no', bool: true } })).toEqual({ a: null });
+  });
+
+  it('list + bool 组合：库存标签数组逐项强转', () => {
+    const h = `<i class="tag">现货</i><i class="tag">售罄</i><i class="tag">促销中</i>`;
+    expect(extract(h, { tags: { sel: '.tag', bool: true, list: true } })).toEqual({ tags: [true, false] });
+  });
+});

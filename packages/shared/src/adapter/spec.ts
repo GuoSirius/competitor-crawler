@@ -37,6 +37,13 @@ export interface FieldSpec {
    * 用于页面 `<script>` 内联 JSON（形态 C）或接口响应（形态 D）。
    */
   json?: boolean;
+  /**
+   * true=把文本/属性值强转成布尔（在 `number` 之外补齐第四种标量类型）。
+   * 真值：true/1/yes/y/on/是/有/有货/现货/在售/正常/缺省可购；假值：false/0/no/n/off/否/无/缺货/停售/下架/售罄。
+   * 不在表内的值返回 null（宁可空也不猜，错误映射会在比价侧变成脏数据）。
+   * 典型场景：列表卡的「现货/缺货」角标、详情页「有货」状态位。
+   */
+  bool?: boolean;
   /** `json` 为 true 时生效：按点号路径定位，如 `data.list` / `props.skus` */
   jsonPath?: string;
   /**

@@ -41,7 +41,7 @@ function resolveMatches(node: DomRead, spec: FieldSpec): DomRead[] {
   return spec.sel === SELF_SEL ? [node] : node.list(spec.sel);
 }
 
-/** 按 spec 的附加处理（json > number > 原样）转换叶子值 */
+/** 按 spec 的附加处理（json > bool > number > 原样）转换叶子值 */
 function coerce(v: string | null, spec: FieldSpec): unknown {
   if (v == null) return v;
   if (spec.json) {
@@ -49,9 +49,22 @@ function coerce(v: string | null, spec: FieldSpec): unknown {
     if (parsed == null) return null;
     return renameKeys(walkPath(parsed, spec.jsonPath), spec.pick);
   }
+  if (spec.bool) return toBool(v);
   if (spec.number) return toNumber(v);
   return v;
 }
+
+/** 「现货/有货/true/1」→ true；「缺货/下架/false/0」→ false；不在表内返回 null（宁可空也不猜） */
+export function toBool(raw: string): boolean | null {
+  const v = raw.trim().toLowerCase();
+  if (BOOL_TRUTHY.test(v)) return true;
+  if (BOOL_FALSY.test(v)) return false;
+  return null;
+}
+
+/** 真值词表：精确段匹配（`^(...)$`），避免「无货号」这类含「无」的正常文本误判 */
+const BOOL_TRUTHY = /^(true|1|yes|y|on|是|有|有货|现货|在售|正常)$/;
+const BOOL_FALSY = /^(false|0|no|n|off|否|无|缺货|停售|下架|售罄)$/;
 
 /** 「1,280.00」/「￥1,280.00 元」→ 1280；无法解析返回 null */
 export function toNumber(raw: string): number | null {
