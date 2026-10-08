@@ -11,7 +11,7 @@
 //
 // 说明：
 //   - 读取 Chrome 插件导出的 Netscape 格式（含 `#HttpOnly_` 前缀的数据行）。
-//   - 输出 .runtime/state/<domain>.json（与方案A 的 dump-cookies.mjs 产物同路径，crawl 共用）。
+//   - 输出 .runtime/state/<domain>.json（与方案A 的 CDP 持久化产物同路径，crawl 共用）。
 //   - <domain> 必须与 crawl 时的站点域名一致（即 config/sites/<domain>.yaml 的 host），
 //     crawl 会按该域名读取 .runtime/state/<domain>.json。
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';

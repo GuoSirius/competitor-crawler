@@ -17,7 +17,7 @@
 //   CHROME_USER_DATA_DIR  自定义用户数据目录（默认 <repo>/.runtime/cdp-profile，隔离常驻 Chrome）
 //   PLAN_A_PERSIST=1      等价于 --persist
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
@@ -41,6 +41,52 @@ function resolvePnpm() {
   return 'pnpm.cmd'; // 兜底
 }
 const PNPM = resolvePnpm();
+
+// 通过 CDP 直接读取已认证 Chrome 里的 cookie（用 Node 内置 WebSocket，无需 playwright），
+// 写出 Playwright storageState JSON 供 crawl / diagnose 复用。放到 launch.mjs 里是为了：
+//   - 不依赖独立脚本文件（仓库路径含中文时，脚本绝对路径会让 Windows 下 .cmd 包装触发 EINVAL）；
+//   - 不依赖 crawler 的 playwright 依赖解析（独立脚本放在 scripts/ 下时，Node 从 scripts/ 向上找不到 packages/crawler 的 playwright）。
+function cdpGetCookies(port) {
+  return new Promise((resolve, reject) => {
+    http.get(`http://127.0.0.1:${port}/json/version`, (r) => {
+      let body = '';
+      r.on('data', (d) => (body += d));
+      r.on('end', () => {
+        let wsUrl;
+        try { wsUrl = JSON.parse(body).webSocketDebuggerUrl; } catch { /* ignore */ }
+        if (!wsUrl) return reject(new Error('CDP /json/version 未返回 webSocketDebuggerUrl'));
+        const ws = new WebSocket(wsUrl);
+        let done = false;
+        const finish = (cookies) => { done = true; try { ws.close(); } catch { /* ignore */ } resolve(cookies); };
+        ws.on('open', () => {
+          ws.send(JSON.stringify({ id: 1, method: 'Network.enable' }));
+          ws.send(JSON.stringify({ id: 2, method: 'Network.getCookies' }));
+        });
+        ws.on('message', (data) => {
+          let msg; try { msg = JSON.parse(data.toString()); } catch { return; }
+          if (msg.id === 2 && msg.result && Array.isArray(msg.result.cookies)) finish(msg.result.cookies);
+        });
+        ws.on('error', (e) => { if (!done) reject(e); });
+        ws.on('close', () => { if (!done) reject(new Error('CDP 连接在拿到 cookie 前关闭')); });
+        setTimeout(() => { if (!done) { try { ws.close(); } catch { /* ignore */ } reject(new Error('CDP 读取 cookie 超时')); } }, 15000);
+      });
+    }).on('error', reject);
+  });
+}
+
+function toPlaywrightCookie(c) {
+  const out = {
+    name: c.name,
+    value: c.value,
+    domain: c.domain,
+    path: c.path || '/',
+    httpOnly: !!c.httpOnly,
+    secure: !!c.secure,
+  };
+  if (typeof c.expires === 'number' && c.expires > 0) out.expires = c.expires;
+  if (c.sameSite) out.sameSite = c.sameSite.charAt(0).toUpperCase() + c.sameSite.slice(1);
+  return out;
+}
 
 // 兼容两种配置方式：
 //   ① 系统环境变量 CHROME_BIN（用户原意，配一次即可）
@@ -88,6 +134,10 @@ if (!domain) {
   console.error('✗ 请在参数里给出站点域名，例如：pnpm plan:a www.biolegend.com');
   process.exit(1);
 }
+if (!/^[a-zA-Z0-9.-]+$/.test(domain)) {
+  console.error(`✗ domain 非法（仅允许字母/数字/.-）：${domain}`);
+  process.exit(1);
+}
 
 console.log(`▸ 启动 Chrome（远程调试端口 ${PORT}）…`);
 console.log(`  Chrome: ${CHROME_BIN}`);
@@ -133,17 +183,25 @@ const deadline = Date.now() + 20000;
 
   if (PERSIST) {
     console.log('\n▸ 把过盾后的 cookie 持久化到 storageState（供 crawl 复用）…');
-    const helper = resolve(__dirname, 'dump-cookies.mjs');
-    const dump = spawn(PNPM, ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', helper, PORT, domain], { cwd: repoRoot, stdio: 'inherit' });
-    const code = await new Promise((ok) => {
-      dump.on('error', (e) => { console.error('✗ 无法启动 pnpm：' + e.message); ok(1); });
-      dump.on('exit', (c) => ok(c ?? 0));
-    });
-    if (code !== 0) { console.error('  cookie 持久化失败，跳过；仍继续跑 diagnose 验证。'); }
+    try {
+      const raw = await cdpGetCookies(PORT);
+      const cookies = raw.map(toPlaywrightCookie);
+      const stateDir = resolve(repoRoot, '.runtime', 'state');
+      mkdirSync(stateDir, { recursive: true });
+      const outPath = resolve(stateDir, `${domain}.json`);
+      writeFileSync(outPath, JSON.stringify({ cookies, origins: [] }, null, 2), 'utf8');
+      const cf = cookies.filter((c) => /^(cf_clearance|__cf_bm|cf_)/i.test(c.name)).map((c) => c.name);
+      console.log(`✓ 已持久化 ${cookies.length} 条 cookie → ${outPath}`);
+      console.log(cf.length ? `  含 CF 关键 cookie: ${cf.join(', ')}` : '  ⚠️ 未发现 cf_clearance —— 请确认已在该 Chrome 窗口通过 Cloudflare 验证');
+    } catch (e) {
+      console.error('  ✗ cookie 持久化失败：' + e.message + '；仍继续跑 diagnose 验证。');
+    }
   }
 
   console.log(`\n▸ 通过 CDP 连接该浏览器，对 ${domain} 跑 diagnose（自动复用你过盾的 cookie）…\n`);
-  const diag = spawn(PNPM, ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', 'src/cli.ts', 'diagnose', '--domain', domain, '--mode', mode], { cwd: repoRoot, stdio: 'inherit' });
+  // shell:true 必须：Windows 下 pnpm 实为 pnpm.cmd，Node 裸 spawn 经 cmd /c 包装会因中文路径触发 EINVAL；
+  // domain 已用正则校验（仅字母/数字/.-），不存在命令注入。
+  const diag = spawn(PNPM, ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', 'src/cli.ts', 'diagnose', '--domain', domain, '--mode', mode], { cwd: repoRoot, stdio: 'inherit', shell: true });
   diag.on('error', (e) => {
     console.error('\n✗ 无法启动 pnpm（' + e.message + '），请手动执行：');
     console.error(`  pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts diagnose --domain ${domain} --mode ${mode}`);
