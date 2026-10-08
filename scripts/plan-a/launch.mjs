@@ -16,7 +16,7 @@
 //   CDP_PORT              远程调试端口（默认 9222）
 //   CHROME_USER_DATA_DIR  自定义用户数据目录（默认 <repo>/.runtime/cdp-profile，隔离常驻 Chrome）
 //   PLAN_A_PERSIST=1      等价于 --persist
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,22 @@ import readline from 'node:readline';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..'); // scripts/plan-a -> scripts -> repoRoot
+
+// 解析 pnpm 真实可执行文件。Windows 下裸 `spawn('pnpm')` 会 ENOENT：pnpm 实际是
+// `pnpm.cmd`（npm 全局装）或 `pnpm.exe`（standalone），CreateProcess 不做 PATHEXT 扩展名解析，
+// 必须给到带扩展名的文件名或完整路径。`where` 在 Windows 上可用，返回 PATH 中首个匹配。
+function resolvePnpm() {
+  if (process.platform !== 'win32') return 'pnpm';
+  for (const cand of ['pnpm.cmd', 'pnpm.exe']) {
+    try {
+      const r = spawnSync('where', [cand], { windowsHide: true, encoding: 'utf8' });
+      const out = (r.stdout || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean)[0];
+      if (out) return out;
+    } catch { /* ignore */ }
+  }
+  return 'pnpm.cmd'; // 兜底
+}
+const PNPM = resolvePnpm();
 
 // 兼容两种配置方式：
 //   ① 系统环境变量 CHROME_BIN（用户原意，配一次即可）
@@ -118,7 +134,7 @@ const deadline = Date.now() + 20000;
   if (PERSIST) {
     console.log('\n▸ 把过盾后的 cookie 持久化到 storageState（供 crawl 复用）…');
     const helper = resolve(__dirname, 'dump-cookies.mjs');
-    const dump = spawn('pnpm', ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', helper, PORT, domain], { cwd: repoRoot, stdio: 'inherit' });
+    const dump = spawn(PNPM, ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', helper, PORT, domain], { cwd: repoRoot, stdio: 'inherit' });
     const code = await new Promise((ok) => {
       dump.on('error', (e) => { console.error('✗ 无法启动 pnpm：' + e.message); ok(1); });
       dump.on('exit', (c) => ok(c ?? 0));
@@ -127,7 +143,7 @@ const deadline = Date.now() + 20000;
   }
 
   console.log(`\n▸ 通过 CDP 连接该浏览器，对 ${domain} 跑 diagnose（自动复用你过盾的 cookie）…\n`);
-  const diag = spawn('pnpm', ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', 'src/cli.ts', 'diagnose', '--domain', domain, '--mode', mode], { cwd: repoRoot, stdio: 'inherit' });
+  const diag = spawn(PNPM, ['--filter', '@competitor-crawler/crawler', 'exec', 'tsx', 'src/cli.ts', 'diagnose', '--domain', domain, '--mode', mode], { cwd: repoRoot, stdio: 'inherit' });
   diag.on('error', (e) => {
     console.error('\n✗ 无法启动 pnpm（' + e.message + '），请手动执行：');
     console.error(`  pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts diagnose --domain ${domain} --mode ${mode}`);

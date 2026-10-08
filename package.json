@@ -36,7 +36,8 @@
     "release": "node scripts/release.mjs",
     "validate": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts validate",
     "field-docs": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts field-docs",
-    "plan:a": "node scripts/plan-a/launch.mjs"
+    "plan:a": "node scripts/plan-a/launch.mjs",
+    "plan:b": "node scripts/plan-b/cookie-txt-to-state.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "latest",
