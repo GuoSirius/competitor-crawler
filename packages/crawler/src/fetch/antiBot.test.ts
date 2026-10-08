@@ -61,7 +61,10 @@ describe('stealth 环境构建', () => {
     const o = stealthContextOptions();
     expect(o.timezoneId).toBe('Asia/Shanghai');
     expect(o.locale).toBe('zh-CN');
-    expect(o.extraHTTPHeaders?.['sec-ch-ua-platform']).toBe('"Windows"');
+    // 刻意不设 extraHTTPHeaders：Playwright 会把它附加到所有请求（含跨域 XHR），
+    // 伪造头触发 CORS preflight 失败 → Algolia 接口渲染站整块空壳（Leinco 实测）。
+    // 浏览器原生头（版本与 UA 自洽）永远比伪造的自洽。
+    expect('extraHTTPHeaders' in o).toBe(false);
     // 有头默认最大化 → 不覆写 viewport/screen（视口跟随真实窗口，screen 交给真实显示器）
     expect(o.viewport).toBeNull();
     expect(o.screen).toBeUndefined();

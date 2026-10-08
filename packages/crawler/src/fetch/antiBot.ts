@@ -229,19 +229,15 @@ export function stealthContextOptions(
     // 部分国内站证书链不全（索莱宝 elabox.cn / 美森 ctcc.online 实测 ERR_CERT_AUTHORITY_INVALID）
     // ——是证书问题不是反爬；抓取场景不涉及支付，忽略之，否则整站误判为不可达
     ignoreHTTPSErrors: true,
-    extraHTTPHeaders: {
-      'Accept-Language': `${e.locale},${langOnly(e.locale)};q=0.9`,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'Upgrade-Insecure-Requests': '1',
-    },
+    // ⚠️ 刻意**不设** extraHTTPHeaders（2026-10-08 Leinco 实测换来的）：
+    // Playwright 会把这里的内容附加到 context 的**每一个**请求（含跨域 XHR/fetch）。
+    // 写死的 sec-ch-ua 等头进入跨域 fetch 后触发 CORS preflight 失败 → Algolia 接口
+    // 渲染站（Leinco/Beckman 这类）产品列表整块渲染不出来（hits=0 空壳）。
+    // 真实 Chrome 原生就带 sec-ch-ua / Accept-Language（且版本与 UA 自洽），
+    // locale 选项已覆盖 Accept-Language —— 浏览器自己的头永远比伪造的自洽，
+    // 「只补缺，绝不篡改」同样适用于 HTTP 头。ssr 通道（Node fetch 无浏览器头）的头
+    // 在 ssrFetch 内独立维护，不受此处影响。
   };
-}
-
-function langOnly(locale: string): string {
-  return locale.split('-')[0] ?? 'en';
 }
 
 /**
