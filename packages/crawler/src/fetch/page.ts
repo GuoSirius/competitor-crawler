@@ -123,6 +123,26 @@ export async function fetchPage(
 }
 
 /**
+ * 启动浏览器内核：优先 Playwright 内置 Chromium；未下载（没跑 `playwright install`）时
+ * 自动回退系统 Chrome（`channel: 'chrome'`）。
+ *
+ * 背景：没装内置内核的机器上 `chromium.launch` 直接抛「Executable doesn't exist」，
+ * 把本可完成的 browser 渲染整个卡死；而系统 Chrome 几乎必装（plan:a 过盾也用它），
+ * 回退后指纹反而更接近真人。判定 = `executablePath()` 是否存在于磁盘，零配置、不加环境变量。
+ */
+async function launchChromium(headless: boolean, args: string[]): Promise<import('playwright').Browser> {
+  const { chromium } = await import('playwright');
+  let bundledOk = false;
+  try {
+    const bundled = chromium.executablePath();
+    bundledOk = Boolean(bundled) && existsSync(bundled);
+  } catch {
+    bundledOk = false;
+  }
+  return chromium.launch({ args, headless, ...(bundledOk ? {} : { channel: 'chrome' as const }) });
+}
+
+/**
  * 代理模式下复用的浏览器实例：Node 原生 fetch 不认代理（既不读 http_proxy 环境变量，
  * 也没有 ProxyAgent —— undici 不是本项目依赖），所以走代理的 ssr 请求改用
  * Playwright 的 APIRequestContext（它天然吃 context 的 proxy 配置）。仅在配了代理时创建。
@@ -134,10 +154,9 @@ async function ssrFetchViaProxy(
   headers: Record<string, string>,
   proxy: string,
 ): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-  const { chromium } = await import('playwright');
   if (!proxyBrowser || !proxyBrowser.isConnected()) {
     // ssr 通道不执行 JS，headless 更省资源（反爬维度上与浏览器通道无关）
-    proxyBrowser = await chromium.launch({ headless: true, args: stealthArgs({ headless: true }) });
+    proxyBrowser = await launchChromium(true, stealthArgs({ headless: true }));
   }
   const ctx = await proxyBrowser.newContext({ proxy: { server: proxy } });
   try {
@@ -454,10 +473,9 @@ export async function waitForChallengePass(
 
 async function browserFetch(url: string, progress?: Progress, opts: FetchOpts = {}): Promise<string> {
   progress?.log(`GET ${url} (browser/playwright)`);
-  const { chromium } = await import('playwright');
   const headless = opts.headless ?? headlessEnv();
   const env: StealthEnv = { ...DEFAULT_STEALTH_ENV, ...(opts.stealth ?? {}) };
-  const browser = await chromium.launch({ args: stealthArgs({ headless, maximize: env.maximize }), headless });
+  const browser = await launchChromium(headless, stealthArgs({ headless, maximize: env.maximize }));
   try {
     // 会话复用：曾人工过盾的站点直接带 cookie 进场（.runtime/state/<host>.json）
     const sp = statePathOf(url);
@@ -541,9 +559,8 @@ async function browserFetch(url: string, progress?: Progress, opts: FetchOpts = 
  */
 export async function fetchScreenshot(url: string, progress?: Progress): Promise<Buffer> {
   progress?.log(`PLAYWRIGHT 截图 ${url}`);
-  const { chromium } = await import('playwright');
   // 截图只用于「模型读图」，固定视口保证版面稳定（不受 maximize / 显示器尺寸影响）
-  const browser = await chromium.launch({ headless: true, args: stealthArgs({ headless: true }) });
+  const browser = await launchChromium(true, stealthArgs({ headless: true }));
   try {
     const page = await newStealthPage(browser, { width: 1440, height: 900 });
     // 浏览器渲染站截图同样需要等渲染完成，否则截到的是空壳（与 browserFetch 同一套稳定检测）
