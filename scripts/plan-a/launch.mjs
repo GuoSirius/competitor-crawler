@@ -17,7 +17,7 @@
 //   CHROME_USER_DATA_DIR  自定义用户数据目录（默认 <repo>/.runtime/cdp-profile，隔离常驻 Chrome）
 //   PLAN_A_PERSIST=1      等价于 --persist
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
@@ -25,6 +25,27 @@ import readline from 'node:readline';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..'); // scripts/plan-a -> scripts -> repoRoot
+
+// 兼容两种配置方式：
+//   ① 系统环境变量 CHROME_BIN（用户原意，配一次即可）
+//   ② 项目 .env 文件里的 CHROME_BIN（与 CRAWL_PROXY 同套机制，最稳，不受终端会话/pnpm 透传影响）
+// 优先用系统环境变量，缺失时回退读 .env（仅读取本脚本用到的 5 个键，且不覆盖已有变量）。
+function loadPlanAEnvFromDotEnv() {
+  const envPath = resolve(repoRoot, '.env');
+  if (!existsSync(envPath)) return;
+  const text = readFileSync(envPath, 'utf8');
+  const wanted = ['CHROME_BIN', 'PLAN_A_CHROME', 'PLAN_A_PERSIST', 'CDP_PORT', 'CHROME_USER_DATA_DIR'];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!m) continue; // 跳过注释/空行/无 = 的行
+    const key = m[1];
+    let val = m[2];
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
+    if (wanted.includes(key) && process.env[key] === undefined) process.env[key] = val;
+  }
+}
+
+loadPlanAEnvFromDotEnv();
 
 const CHROME_BIN = process.env.CHROME_BIN || process.env.PLAN_A_CHROME;
 const domain = process.argv[2];
@@ -34,8 +55,13 @@ const USER_DATA = process.env.CHROME_USER_DATA_DIR || resolve(repoRoot, '.runtim
 const target = domain ? `https://${domain}` : 'about:blank';
 
 if (!CHROME_BIN) {
-  console.error('✗ 请通过环境变量 CHROME_BIN 提供本机 Chrome 路径（系统环境变量配一次即可），例如：');
-  console.error('  CHROME_BIN="C:/Program Files/Google/Chrome/Application/chrome.exe" pnpm plan:a www.biolegend.com');
+  console.error('✗ 未读到 CHROME_BIN。两种方式任选其一：');
+  console.error('  ① 系统环境变量：先确认当前终端能看到它 ——');
+  console.error('     cmd:  echo %CHROME_BIN%        PowerShell:  $env:CHROME_BIN');
+  console.error('     若为空：GUI 改完环境变量需【重开终端】才生效（旧会话读不到）；PowerShell 里 $env: 设的仅当前会话有效');
+  console.error('  ② 项目 .env 文件（推荐，最稳，与 CRAWL_PROXY 同处）：在仓库根 .env 加一行');
+  console.error('     CHROME_BIN=C:/Program Files/Google/Chrome/Application/chrome.exe');
+  console.error('  路径示例：C:/Program Files/Google/Chrome/Application/chrome.exe');
   process.exit(1);
 }
 if (!existsSync(CHROME_BIN)) {
