@@ -55,19 +55,21 @@ function cdpGetCookies(port) {
         let wsUrl;
         try { wsUrl = JSON.parse(body).webSocketDebuggerUrl; } catch { /* ignore */ }
         if (!wsUrl) return reject(new Error('CDP /json/version 未返回 webSocketDebuggerUrl'));
+        // 注意：Node 全局 WebSocket 是浏览器风格（WHATWG），事件用 onopen/onmessage/onerror/onclose 属性，
+        // 不是 npm `ws` 包的 .on() 方法。
         const ws = new WebSocket(wsUrl);
         let done = false;
         const finish = (cookies) => { done = true; try { ws.close(); } catch { /* ignore */ } resolve(cookies); };
-        ws.on('open', () => {
+        ws.onopen = () => {
           ws.send(JSON.stringify({ id: 1, method: 'Network.enable' }));
           ws.send(JSON.stringify({ id: 2, method: 'Network.getCookies' }));
-        });
-        ws.on('message', (data) => {
-          let msg; try { msg = JSON.parse(data.toString()); } catch { return; }
+        };
+        ws.onmessage = (ev) => {
+          let msg; try { msg = JSON.parse(ev.data.toString()); } catch { return; }
           if (msg.id === 2 && msg.result && Array.isArray(msg.result.cookies)) finish(msg.result.cookies);
-        });
-        ws.on('error', (e) => { if (!done) reject(e); });
-        ws.on('close', () => { if (!done) reject(new Error('CDP 连接在拿到 cookie 前关闭')); });
+        };
+        ws.onerror = () => { if (!done) reject(new Error('CDP WebSocket 连接错误')); };
+        ws.onclose = () => { if (!done) reject(new Error('CDP 连接在拿到 cookie 前关闭')); };
         setTimeout(() => { if (!done) { try { ws.close(); } catch { /* ignore */ } reject(new Error('CDP 读取 cookie 超时')); } }, 15000);
       });
     }).on('error', reject);
