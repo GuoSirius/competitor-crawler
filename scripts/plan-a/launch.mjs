@@ -5,11 +5,13 @@
 //   1. 用本机 Chrome（CHROME_BIN 环境变量指定）开一个带 --remote-debugging-port 的实例，
 //      自动打开目标站；
 //   2. 你在弹出的窗口里手动通过 Cloudflare 验证，按 Enter 继续；
-//   3. 通过 CDP 连上这个已认证的浏览器会话跑 diagnose —— 全程复用你过盾后的 cookie。
+//   3. 通过 CDP 连上这个已认证的浏览器会话跑 diagnose —— 全程复用你过盾后的 cookie；
+//      全部结束后自动关闭该 Chrome（cookie 已落盘，无需常驻；要保留用 --keep-chrome）。
 //
 // 用法（CHROME_BIN 在系统环境变量里配一次即可）：
 //   pnpm plan:a www.biolegend.com
 //   pnpm plan:a www.biolegend.com --persist      # 过盾后把 cookie 持久化，供 crawl 复用
+//   pnpm plan:a www.biolegend.com --persist --keep-chrome   # 结束时不自动关 Chrome（默认会自动关）
 //
 // 环境变量：
 //   CHROME_BIN            本机 Chrome 可执行文件路径（必填，配一次即可）
@@ -80,6 +82,45 @@ function cdpGetCookies(port) {
   });
 }
 
+// 流程结束后自动关闭过盾用的 Chrome（cookie 已持久化，无需保留）。优先走 CDP 优雅关闭
+// （Browser.close 会连带关掉子进程、释放调试端口），失败再退回 taskkill / SIGKILL 硬杀。
+// 用 --keep-chrome（或 PLAN_A_KEEP_CHROME=1）可保留 Chrome 供手动后续操作。
+function cdpCloseBrowser(port) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/json/version`, (r) => {
+      let body = '';
+      r.on('data', (d) => (body += d));
+      r.on('end', () => {
+        let info;
+        try { info = JSON.parse(body); } catch { return resolve(false); }
+        const url = info.webSocketDebuggerUrl;
+        if (!url) return resolve(false);
+        const ws = new WebSocket(url);
+        let done = false;
+        const fin = () => { if (!done) { done = true; try { ws.close(); } catch { /* ignore */ } resolve(true); } };
+        ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
+        ws.onclose = () => fin();
+        ws.onerror = () => { if (!done) { done = true; resolve(false); } };
+        setTimeout(() => { if (!done) { try { ws.close(); } catch { /* ignore */ } done = true; resolve(false); } }, 3000);
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(3000, () => { try { req.destroy(); } catch { /* ignore */ } resolve(false); });
+  });
+}
+
+function killChrome(child) {
+  if (!child || typeof child.pid !== 'number') return false;
+  try {
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/f', '/t'], { windowsHide: true });
+    } else {
+      process.kill(child.pid, 'SIGKILL');
+    }
+    return true;
+  } catch { return false; }
+}
+
 function toPlaywrightCookie(c) {
   const out = {
     name: c.name,
@@ -118,6 +159,7 @@ loadPlanAEnvFromDotEnv();
 const CHROME_BIN = process.env.CHROME_BIN || process.env.PLAN_A_CHROME;
 const domain = process.argv[2];
 const PERSIST = process.argv.includes('--persist') || process.env.PLAN_A_PERSIST === '1';
+const KEEP_CHROME = process.argv.includes('--keep-chrome') || process.env.PLAN_A_KEEP_CHROME === '1';
 const PORT = process.env.CDP_PORT || '9222';
 const USER_DATA = process.env.CHROME_USER_DATA_DIR || resolve(repoRoot, '.runtime', 'cdp-profile');
 const target = domain ? `https://${domain}` : 'about:blank';
@@ -213,9 +255,16 @@ const deadline = Date.now() + 20000;
     console.error(`  pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts diagnose --domain ${domain} --mode ${mode}`);
     process.exit(1);
   });
-  diag.on('exit', (code) => {
+  diag.on('exit', async (code) => {
     console.log('\n✓ diagnose 结束（退出码 ' + code + '）。');
-    console.log('  该 Chrome 仍在后台运行，用完后请手动关闭它的窗口。');
+    if (KEEP_CHROME) {
+      console.log('  按 --keep-chrome，Chrome 仍在后台运行，用完后请手动关闭它的窗口。');
+    } else {
+      console.log('▸ 自动关闭过盾用的 Chrome（cookie 已持久化，下次 crawl 直接复用）…');
+      const closed = await cdpCloseBrowser(PORT);
+      if (!closed) killChrome(child);
+      console.log('  ✓ 已关闭 Chrome。');
+    }
     if (PERSIST) console.log(`  已持久化 cookie → .runtime/state/${domain}.json，可直接 pnpm crawl --domain ${domain}（browser 通道自动复用）。`);
     console.log(`  若显示已通过（200 / 无挑战），可把 config/sites/${domain}.yaml 从 C 提到 B/A。`);
     process.exit(code ?? 0);
