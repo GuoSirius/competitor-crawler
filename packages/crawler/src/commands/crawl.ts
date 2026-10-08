@@ -7,6 +7,7 @@ import {
   crawls,
   products,
   priceHistory,
+  productDiffs,
   createDb,
   nowSeconds,
   absoluteUrl,
@@ -27,6 +28,7 @@ import { loadCodeAdapter } from '../adapter/adapterLoader.js';
 import type { CodeAdapter, CodeAdapterCtx } from '../adapters/types.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
+import { diffProductFields, type PrevProductSnapshot } from '../diff/index.js';
 import { recordAlert } from '../util/alerts.js';
 import { CrawlState } from './crawlState.js';
 import { traverseList } from '../fetch/listTraversal.js';
@@ -1200,17 +1202,31 @@ async function applyApiSourcesLogged(
   }
 }
 
-/** 读取某公司某栏目下现有产品：identityKey → { id, price }（用于判断 new/updated 与价格变化） */
+/**
+ * 读取某公司某栏目下现有产品：identityKey → 旧值快照。
+ * - id / price：判断 new/updated 与价格变化（价格历史）
+ * - name/sku/priceText/specText/specs/row：字段级 diff（product_diffs，Task #78）
+ */
 async function loadExisting(
   db: Db,
   companyId: number,
   sectionKey: string,
-): Promise<Map<string, { id: number; price: number | null }>> {
+): Promise<Map<string, PrevProductSnapshot & { id: number; price: number | null }>> {
   const rows = await db
-    .select({ id: products.id, identityKey: products.identityKey, price: products.price })
+    .select({
+      id: products.id,
+      identityKey: products.identityKey,
+      price: products.price,
+      name: products.name,
+      sku: products.sku,
+      priceText: products.priceText,
+      specText: products.specText,
+      specs: products.specs,
+      row: products.row,
+    })
     .from(products)
     .where(and(eq(products.companyId, companyId), eq(products.sectionKey, sectionKey)));
-  return new Map(rows.map((r) => [r.identityKey, { id: r.id, price: r.price }]));
+  return new Map(rows.map((r) => [r.identityKey, { ...r }]));
 }
 
 /** 追加一条价格历史（仅写入，消费端待后续接入） */
@@ -1271,7 +1287,7 @@ export async function flushUpsertBatch(
   db: Db,
   dialect: DbDialect,
   batch: PendingProduct[],
-  existed: Map<string, { id: number; price: number | null }>,
+  existed: Map<string, PrevProductSnapshot & { id: number; price: number | null }>,
   summary: CrawlSummary,
   now: number,
   crawlId: number,
@@ -1280,6 +1296,7 @@ export async function flushUpsertBatch(
   sectionKey: string,
 ): Promise<void> {
   const priceRows: PriceRow[] = [];
+  const diffRows: Array<{ productId: number; field: string; oldValue: string | null; newValue: string | null }> = [];
   const runBatch = async (tx: Db) => {
     for (const p of batch) {
       const prev = existed.get(p.identityKey);
@@ -1292,8 +1309,27 @@ export async function flushUpsertBatch(
         priceRows.push({ productId, p, crawlId, now });
         summary.pricePoints++;
       }
+      // 字段级 diff（Task #78）：仅已存在产品有旧值可比；无变更不写行
+      if (prev) {
+        for (const d of diffProductFields(prev, p)) {
+          diffRows.push({ productId, field: d.field, oldValue: d.oldValue, newValue: d.newValue });
+        }
+      }
     }
     await batchRecordPrice(tx, priceRows);
+    if (diffRows.length > 0) {
+      await tx.insert(productDiffs).values(
+        diffRows.map((d) => ({
+          productId: d.productId,
+          field: d.field,
+          oldValue: d.oldValue,
+          newValue: d.newValue,
+          crawlId,
+          capturedAt: now,
+        })),
+      );
+      progress.log(`[crawl] 字段级变更 ${diffRows.length} 处 → product_diffs`);
+    }
   };
   if (dialect === 'sqlite') {
     // better-sqlite3 事务回调必须同步，drizzle insert 是 async → 无法用 db.transaction；逐条 upsert 与旧行为一致

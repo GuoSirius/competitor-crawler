@@ -111,6 +111,19 @@ export const priceHistory = sqliteTable('price_history', {
   capturedAt: integer('captured_at').notNull(),
 }, (t) => [index('idx_price_history_product_time').on(t.productId, t.capturedAt)]);
 
+// 产品字段级变更（Task #78 / docs/04 ⑥ 变化归因的管线基础）：每轮 crawl 更新已有产品时，
+// 与库中旧值做字段级 diff，逐变更字段记一行。old/new 统一 JSON 序列化（标量/数组/对象）；
+// 行内自由字段记作 `row.<key>`。价格维度的细水历史见 price_history，二者互补不互替。
+export const productDiffs = sqliteTable('product_diffs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  productId: integer('product_id').notNull().references(() => products.id),
+  field: text('field').notNull(),
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  crawlId: integer('crawl_id').references(() => crawls.id),
+  capturedAt: integer('captured_at').notNull(),
+}, (t) => [index('idx_product_diffs_product_time').on(t.productId, t.capturedAt)]);
+
 // 告警
 export const alerts = sqliteTable('alerts', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -158,5 +171,5 @@ export const contents = sqliteTable('contents', {
   index('idx_content_published').on(t.publishedAt), // 按发布时间排序
 ]);
 
-export const schema = { companies, categories, products, crawls, priceHistory, alerts, contents };
+export const schema = { companies, categories, products, crawls, priceHistory, productDiffs, alerts, contents };
 export type Schema = typeof schema;

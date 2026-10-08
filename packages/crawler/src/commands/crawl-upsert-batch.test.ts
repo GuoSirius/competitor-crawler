@@ -7,7 +7,7 @@ import type { PendingProduct } from './crawl.js';
 const { createTestDb } = await import('../testing/testDb.js');
 await createTestDb('upsert-batch');
 
-const { createDb, companies, products, priceHistory, crawls, eq, inArray, nowSeconds } =
+const { createDb, companies, products, priceHistory, productDiffs, crawls, eq, inArray, nowSeconds } =
   await import('@competitor-crawler/shared');
 const { flushUpsertBatch } = await import('./crawl.js');
 const { Progress } = await import('../util/progress.js');
@@ -67,6 +67,25 @@ function mkProduct(i: number, price: number | null): PendingProduct {
   };
 }
 
+/** 读全量旧值快照（与 crawl.loadExisting 同列），供 existed 注入：字段级 diff 需要旧 name/sku/row 等 */
+async function loadExistedFull() {
+  const existing = await db
+    .select({
+      id: products.id,
+      identityKey: products.identityKey,
+      price: products.price,
+      name: products.name,
+      sku: products.sku,
+      priceText: products.priceText,
+      specText: products.specText,
+      specs: products.specs,
+      row: products.row,
+    })
+    .from(products)
+    .where(eq(products.companyId, companyId));
+  return new Map(existing.map((r) => [r.identityKey, r]));
+}
+
 beforeAll(async () => {
   const [c] = await db
     .insert(companies)
@@ -81,9 +100,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // 先删价格历史（外键引用 products.id），再删产品与公司
+  // 先删 diff/价格历史（外键引用 products.id），再删产品与公司
   const ids = (await db.select({ id: products.id }).from(products).where(eq(products.companyId, companyId))).map((r) => r.id);
-  if (ids.length > 0) await db.delete(priceHistory).where(inArray(priceHistory.productId, ids));
+  if (ids.length > 0) {
+    await db.delete(productDiffs).where(inArray(productDiffs.productId, ids));
+    await db.delete(priceHistory).where(inArray(priceHistory.productId, ids));
+  }
   await db.delete(products).where(eq(products.companyId, companyId));
   await db.delete(companies).where(eq(companies.id, companyId));
 });
@@ -116,9 +138,8 @@ describe('flushUpsertBatch — 增量批量落库', () => {
   });
 
   it('幂等：重跑同 identityKey 的批 → 更新而非新增，summary.updated 计数正确', async () => {
-    // 先读现有价格，模拟 loadExisting 注入 existed（用于 updated 计数）
-    const existing = await db.select({ identityKey: products.identityKey, id: products.id, price: products.price }).from(products).where(eq(products.companyId, companyId));
-    const existed = new Map(existing.map((r) => [r.identityKey, { id: r.id, price: r.price }]));
+    // 先读现有全量快照，模拟 loadExisting 注入 existed（用于 updated 计数与字段级 diff）
+    const existed = await loadExistedFull();
 
     const summary = makeSummary();
     // 改 ik-1 价格 10→99（触发价格历史），ik-2 不变
@@ -132,5 +153,43 @@ describe('flushUpsertBatch — 增量批量落库', () => {
     // ik-1 价格变化 → 多记一条价格历史（累计 2+250+1=253）
     const ph = await db.select().from(priceHistory);
     expect(ph.length).toBe(253);
+  });
+});
+
+describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', () => {
+  /** 构造「相对当前库值」的增量批：改 ik-1 的 name 与新增 row.stock，价格等保持不变 */
+  function changedBatch(): PendingProduct[] {
+    const batch = [mkProduct(1, 99), mkProduct(2, 20)];
+    batch[0]!.name = '产品1-改';
+    batch[0]!.row = { stock: '现货' };
+    return batch;
+  }
+
+  it('更新已有产品：变更字段逐条入 product_diffs，未变更字段不写行', async () => {
+    const existed = await loadExistedFull();
+    const before = (await db.select().from(productDiffs)).length;
+    const summary = makeSummary();
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 20, crawlId, progress, 'x.com', sectionKey);
+
+    const added = (await db.select().from(productDiffs)).slice(before);
+    const fields = added.map((r) => r.field).sort();
+    // name 变更 + row.stock 新增；price/priceText/specText/sku/specs 均未变
+    expect(fields).toEqual(['name', 'row.stock']);
+    const nameDiff = added.find((r) => r.field === 'name')!;
+    expect(JSON.parse(nameDiff.oldValue!)).toBe('产品1');
+    expect(JSON.parse(nameDiff.newValue!)).toBe('产品1-改');
+    const stockDiff = added.find((r) => r.field === 'row.stock')!;
+    expect(stockDiff.oldValue).toBeNull();
+    expect(JSON.parse(stockDiff.newValue!)).toBe('现货');
+    expect(nameDiff.crawlId).toBe(crawlId);
+    expect(nameDiff.capturedAt).toBe(nowSeconds() + 20);
+  });
+
+  it('重复跑同样数据：无字段变更 → product_diffs 不新增行', async () => {
+    const existed = await loadExistedFull();
+    const before = (await db.select().from(productDiffs)).length;
+    const summary = makeSummary();
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 30, crawlId, progress, 'x.com', sectionKey);
+    expect((await db.select().from(productDiffs)).length).toBe(before);
   });
 });

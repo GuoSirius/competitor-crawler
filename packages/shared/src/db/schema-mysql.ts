@@ -109,6 +109,18 @@ export const priceHistory = mysqlTable('price_history', {
   capturedAt: int('captured_at').notNull(),
 }, (t) => [index('idx_price_history_product_time').on(t.productId, t.capturedAt)]);
 
+// 产品字段级变更（Task #78 / docs/04 ⑥ 变化归因的管线基础），与 sqlite 同名同语义。
+// old/new 统一 JSON 序列化文本；行内自由字段记作 `row.<key>`。
+export const productDiffs = mysqlTable('product_diffs', {
+  id: int('id').autoincrement().primaryKey(),
+  productId: int('product_id').notNull().references(() => products.id),
+  field: varchar('field', { length: 128 }).notNull(),
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  crawlId: int('crawl_id').references(() => crawls.id),
+  capturedAt: int('captured_at').notNull(),
+}, (t) => [index('idx_product_diffs_product_time').on(t.productId, t.capturedAt)]);
+
 export const alerts = mysqlTable('alerts', {
   id: int('id').autoincrement().primaryKey(),
   crawlId: int('crawl_id').references(() => crawls.id),
@@ -154,5 +166,5 @@ export const contents = mysqlTable('contents', {
   index('idx_content_published').on(t.publishedAt),
 ]);
 
-export const mysqlSchema = { companies, categories, products, crawls, priceHistory, alerts, contents };
+export const mysqlSchema = { companies, categories, products, crawls, priceHistory, productDiffs, alerts, contents };
 export type MysqlSchema = typeof mysqlSchema;

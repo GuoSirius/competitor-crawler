@@ -14,6 +14,7 @@ const EXPECTED_TABLES = [
   'products',
   'crawls',
   'priceHistory',
+  'productDiffs',
   'alerts',
   'contents',
 ] as const;
@@ -25,6 +26,7 @@ const EXPECTED_SQL_NAMES: Record<(typeof EXPECTED_TABLES)[number], string> = {
   products: 'products',
   crawls: 'crawls',
   priceHistory: 'price_history',
+  productDiffs: 'product_diffs',
   alerts: 'alerts',
   contents: 'contents',
 };
@@ -36,7 +38,7 @@ const SCHEMAS: Record<DbDialect, Record<string, unknown>> = {
 };
 
 describe('三方言 schema 一致性（无 DB）', () => {
-  it('每个方言都导出相同的 6 张表', () => {
+  it('每个方言都导出相同的 8 张表', () => {
     for (const dialect of Object.keys(SCHEMAS) as DbDialect[]) {
       const keys = Object.keys(SCHEMAS[dialect]).sort();
       expect(keys).toEqual([...EXPECTED_TABLES].sort());
