@@ -8,8 +8,10 @@ local:
   model: qwen2.5:14b-instruct
 
 cloud:
-  baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
-  apiKey: ${MODEL_CLOUD_API_KEY}
+  # 默认值=实际在用的 apihub 中转（旧值 dashscope 已过时，勿改回）；
+  # .env 的 MODEL_CLOUD_BASE_URL / MODEL_CLOUD_API_KEY / MODEL_CLOUD_MODEL 优先覆盖此处
+  baseURL: https://apihub.agnes-ai.com/v1
+  apiKey: ${MODEL_CLOUD_API_KEY} # 占位符：interpolateEnv 插值，apiKey 明文不进 yaml
   model: qwen-max
 
 # 通用参数（会被 .env 中的 MODEL_TEMPERATURE / MODEL_MAX_RETRIES 覆盖）

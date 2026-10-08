@@ -44,9 +44,10 @@ describe('resolveModelConfig - cloud', () => {
     expect(resolveModelConfig('cloud').apiKey).toBe('sk-right');
   });
 
-  it('未配置 BASE_URL 时回退官方默认端点', () => {
+  it('未配置 BASE_URL 时回退 model.yaml 的 cloud 默认端点', () => {
     vi.stubEnv('MODEL_CLOUD_API_KEY', 'k');
-    expect(resolveModelConfig('cloud').baseURL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1');
+    // 与 config/model.yaml 的 cloud.baseURL 同步（2026-10-08 起默认 apihub 中转，dashscope 已过时）
+    expect(resolveModelConfig('cloud').baseURL).toBe('https://apihub.agnes-ai.com/v1');
   });
 
   it('云端缺 API Key 时抛出可操作的报错', () => {
