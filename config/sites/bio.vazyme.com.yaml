@@ -1,0 +1,231 @@
+# 站点适配器：诺唯赞 Vazyme（2026-10-08 实测接入）
+# 平台：faststatics 模块化 CMS，产品网格由客户端 ES 查询渲染。
+# ⚠️ 三层结构（用户确认）：枢纽页 → 中间聚合页（各子模块 size:6 截断 + 「更多>>」）→ 最后一级=真实列表。
+#   startUrls 即 v5 BFS 枚举的 187 个最后一级分类页（判据=无「更多>>」按钮，中间分类全部忽略）。
+# 结构（最后一级页）：
+#   div.p_loopitem   → 卡片（含产品卡与子分类卡两种，靠 match.detailUrlIncludes 过滤）
+#     a[href*=/product/] 第一处 → 产品名（p.e_text-3.s_title）
+#     .cbox-2-1 .e_text-8 a     → 货号（如 P051-01/02）
+# 翻页：p_page 控件 URL 型（<id>-12-<page>.html，内部 id 与入口别名不同）→ 用 pagination-html
+#   点击 a.page_next；末页 disabled class 引擎自动收尾（clickNext 判定）。
+domain: bio.vazyme.com
+company: 诺唯赞（Vazyme）
+role: competitor
+currency: CNY
+render: browser
+
+parseList:
+  itemSelector: div.p_loopitem
+  fields:
+    detailUrl: { sel: "a[href*='/product/']", attr: href }
+    name: { sel: "p.e_text-3.s_title a[href*='/product/']", text: true }
+    sku: { sel: ".cbox-2-1 .e_text-8 a", text: true }
+
+listTraversal:
+  strategy: pagination-html
+  nextSelector: "a.page_next"
+  maxPages: 50
+  waitSelector: "div.p_loopitem a[href*='/product/']" # 等 ES 查询渲染出真产品卡
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku: { sel: ".cbox-28-1 p", text: true } # 货号盒（P051-01）
+    price: { sel: "p:contains('¥')", text: true, regex: '[\d,]+\.?\d*', number: true }
+    priceText: { sel: "p:contains('¥')", text: true }
+    specText: { sel: "li.p_active .specValueT", text: true } # 当前选中规格（100 U）
+  captureRest: true
+
+sections:
+  - key: products
+    category: 诺唯赞产品
+    startUrls:
+      - https://bio.vazyme.com/products_4/1217037988630515712.html
+      - https://bio.vazyme.com/products_4/164.html
+      - https://bio.vazyme.com/products_4/153.html
+      - https://bio.vazyme.com/products_4/1217037994297020416.html
+      - https://bio.vazyme.com/products_4/162.html
+      - https://bio.vazyme.com/products_4/154.html
+      - https://bio.vazyme.com/products_4/81.html
+      - https://bio.vazyme.com/products_4/1217037994670313472.html
+      - https://bio.vazyme.com/products_4/97.html
+      - https://bio.vazyme.com/products_4/117.html
+      - https://bio.vazyme.com/products_4/130.html
+      - https://bio.vazyme.com/products_4/135.html
+      - https://bio.vazyme.com/products_4/1217037994741616640.html
+      - https://bio.vazyme.com/products_4/157.html
+      - https://bio.vazyme.com/products_4/1217037991176458240.html
+      - https://bio.vazyme.com/products_4/83.html
+      - https://bio.vazyme.com/products_4/77.html
+      - https://bio.vazyme.com/products_4/103.html
+      - https://bio.vazyme.com/products_4/104.html
+      - https://bio.vazyme.com/products_4/176.html
+      - https://bio.vazyme.com/products_4/136.html
+      - https://bio.vazyme.com/products_4/82.html
+      - https://bio.vazyme.com/products_4/102.html
+      - https://bio.vazyme.com/products_4/148.html
+      - https://bio.vazyme.com/products_4/165.html
+      - https://bio.vazyme.com/products_4/167.html
+      - https://bio.vazyme.com/products_4/79.html
+      - https://bio.vazyme.com/products_4/191.html
+      - https://bio.vazyme.com/products_4/185.html
+      - https://bio.vazyme.com/products_4/90.html
+      - https://bio.vazyme.com/products_4/1217037986604666880.html
+      - https://bio.vazyme.com/products_4/1217037987242201088.html
+      - https://bio.vazyme.com/products_4/1217037986717913088.html
+      - https://bio.vazyme.com/products_4/183.html
+      - https://bio.vazyme.com/products_4/1217037994322186240.html
+      - https://bio.vazyme.com/products_4/1217037995072966656.html
+      - https://bio.vazyme.com/products_4/20.html
+      - https://bio.vazyme.com/products_4/155.html
+      - https://bio.vazyme.com/products_4/161.html
+      - https://bio.vazyme.com/products_4/170.html
+      - https://bio.vazyme.com/products_4/80.html
+      - https://bio.vazyme.com/products_4/78.html
+      - https://bio.vazyme.com/products_4/193.html
+      - https://bio.vazyme.com/products_4/189.html
+      - https://bio.vazyme.com/products_4/190.html
+      - https://bio.vazyme.com/products_4/94.html
+      - https://bio.vazyme.com/products_4/126.html
+      - https://bio.vazyme.com/products_4/179.html
+      - https://bio.vazyme.com/products_4/1217037987212840960.html
+      - https://bio.vazyme.com/products_4/198.html
+      - https://bio.vazyme.com/products_4/146.html
+      - https://bio.vazyme.com/products_4/143.html
+      - https://bio.vazyme.com/products_4/184.html
+      - https://bio.vazyme.com/products_4/1217037993571405824.html
+      - https://bio.vazyme.com/products_4/1217037993676263424.html
+      - https://bio.vazyme.com/products_4/1217037994414460928.html
+      - https://bio.vazyme.com/products_4/21.html
+      - https://bio.vazyme.com/products_4/55.html
+      - https://bio.vazyme.com/products_4/158.html
+      - https://bio.vazyme.com/products_4/197.html
+      - https://bio.vazyme.com/products_4/169.html
+      - https://bio.vazyme.com/products_4/173.html
+      - https://bio.vazyme.com/products_4/1217037989121249280.html
+      - https://bio.vazyme.com/products_4/84.html
+      - https://bio.vazyme.com/products_4/187.html
+      - https://bio.vazyme.com/products_4/196.html
+      - https://bio.vazyme.com/products_4/98.html
+      - https://bio.vazyme.com/products_4/99.html
+      - https://bio.vazyme.com/products_4/95.html
+      - https://bio.vazyme.com/products_4/96.html
+      - https://bio.vazyme.com/products_4/105.html
+      - https://bio.vazyme.com/products_4/109.html
+      - https://bio.vazyme.com/products_4/110.html
+      - https://bio.vazyme.com/products_4/121.html
+      - https://bio.vazyme.com/products_4/118.html
+      - https://bio.vazyme.com/products_4/180.html
+      - https://bio.vazyme.com/products_4/1217037987422556160.html
+      - https://bio.vazyme.com/products_4/124.html
+      - https://bio.vazyme.com/products_4/178.html
+      - https://bio.vazyme.com/products_4/129.html
+      - https://bio.vazyme.com/products_4/137.html
+      - https://bio.vazyme.com/products_4/149.html
+      - https://bio.vazyme.com/products_4/147.html
+      - https://bio.vazyme.com/products_4/145.html
+      - https://bio.vazyme.com/products_4/229.html
+      - https://bio.vazyme.com/products_4/182.html
+      - https://bio.vazyme.com/products_4/1217037993600765952.html
+      - https://bio.vazyme.com/products_4/1217037993512685568.html
+      - https://bio.vazyme.com/products_4/1217037993642708992.html
+      - https://bio.vazyme.com/products_4/1217037994385100800.html
+      - https://bio.vazyme.com/products_4/1217037994473181184.html
+      - https://bio.vazyme.com/products_4/1217037994502541312.html
+      - https://bio.vazyme.com/products_4/1217037994561261568.html
+      - https://bio.vazyme.com/products_4/1217037991268732928.html
+      - https://bio.vazyme.com/products_49/31.html
+      - https://bio.vazyme.com/products_4/211.html
+      - https://bio.vazyme.com/products_4/56.html
+      - https://bio.vazyme.com/products_4/156.html
+      - https://bio.vazyme.com/products_4/160.html
+      - https://bio.vazyme.com/products_4/166.html
+      - https://bio.vazyme.com/products_4/168.html
+      - https://bio.vazyme.com/products_4/172.html
+      - https://bio.vazyme.com/products_4/174.html
+      - https://bio.vazyme.com/products_4/1217037989364518912.html
+      - https://bio.vazyme.com/products_4/85.html
+      - https://bio.vazyme.com/products_4/86.html
+      - https://bio.vazyme.com/products_4/87.html
+      - https://bio.vazyme.com/products_4/192.html
+      - https://bio.vazyme.com/products_4/188.html
+      - https://bio.vazyme.com/products_4/195.html
+      - https://bio.vazyme.com/products_4/194.html
+      - https://bio.vazyme.com/products_4/186.html
+      - https://bio.vazyme.com/products_4/91.html
+      - https://bio.vazyme.com/products_4/92.html
+      - https://bio.vazyme.com/products_4/93.html
+      - https://bio.vazyme.com/products_4/101.html
+      - https://bio.vazyme.com/products_4/111.html
+      - https://bio.vazyme.com/products_4/114.html
+      - https://bio.vazyme.com/products_4/112.html
+      - https://bio.vazyme.com/products_4/113.html
+      - https://bio.vazyme.com/products_4/127.html
+      - https://bio.vazyme.com/products_4/116.html
+      - https://bio.vazyme.com/products_4/115.html
+      - https://bio.vazyme.com/products_4/119.html
+      - https://bio.vazyme.com/products_4/120.html
+      - https://bio.vazyme.com/products_4/1217037987485470720.html
+      - https://bio.vazyme.com/products_4/1217037987456110592.html
+      - https://bio.vazyme.com/products_4/1217037987154120704.html
+      - https://bio.vazyme.com/products_4/123.html
+      - https://bio.vazyme.com/products_4/142.html
+      - https://bio.vazyme.com/products_4/144.html
+      - https://bio.vazyme.com/products_4/138.html
+      - https://bio.vazyme.com/products_4/1217037991298093056.html
+      - https://bio.vazyme.com/products_4/206.html
+      - https://bio.vazyme.com/products_4/207.html
+      - https://bio.vazyme.com/products_4/1217037993705623552.html
+      - https://bio.vazyme.com/products_4/1217037994032779264.html
+      - https://bio.vazyme.com/products_4/1217037994003419136.html
+      - https://bio.vazyme.com/products_4/1217037993969864704.html
+      - https://bio.vazyme.com/products_4/1217037993852424192.html
+      - https://bio.vazyme.com/products_4/1217037993823064064.html
+      - https://bio.vazyme.com/products_4/1217037993764343808.html
+      - https://bio.vazyme.com/products_4/1217037994120859648.html
+      - https://bio.vazyme.com/products_4/1217037994208940032.html
+      - https://bio.vazyme.com/products_4/1217037994443821056.html
+      - https://bio.vazyme.com/products_4/1217037994800336896.html
+      - https://bio.vazyme.com/products_4/1217037994829697024.html
+      - https://bio.vazyme.com/products_4/1217037994863251456.html
+      - https://bio.vazyme.com/products_35/208.html
+      - https://bio.vazyme.com/products_4/57.html
+      - https://bio.vazyme.com/products_4/297.html
+      - https://bio.vazyme.com/products_4/298.html
+      - https://bio.vazyme.com/products_4/200.html
+      - https://bio.vazyme.com/products_4/288.html
+      - https://bio.vazyme.com/products_4/289.html
+      - https://bio.vazyme.com/products_4/159.html
+      - https://bio.vazyme.com/products_4/163.html
+      - https://bio.vazyme.com/products_4/244.html
+      - https://bio.vazyme.com/products_4/241.html
+      - https://bio.vazyme.com/products_26/302.html
+      - https://bio.vazyme.com/products_4/282.html
+      - https://bio.vazyme.com/products_4/295.html
+      - https://bio.vazyme.com/products_4/266.html
+      - https://bio.vazyme.com/products_4/133.html
+      - https://bio.vazyme.com/products_4/134.html
+      - https://bio.vazyme.com/products_4/1217037987539996672.html
+      - https://bio.vazyme.com/products_4/262.html
+      - https://bio.vazyme.com/products_4/264.html
+      - https://bio.vazyme.com/products_4/141.html
+      - https://bio.vazyme.com/products_4/139.html
+      - https://bio.vazyme.com/products_4/205.html
+      - https://bio.vazyme.com/products_4/204.html
+      - https://bio.vazyme.com/products_4/222.html
+      - https://bio.vazyme.com/products_4/296.html
+      - https://bio.vazyme.com/products_26/303.html
+      - https://bio.vazyme.com/products_4/199.html
+      - https://bio.vazyme.com/products_4/1217037993793703936.html
+      - https://bio.vazyme.com/products_4/290.html
+      - https://bio.vazyme.com/products_4/291.html
+      - https://bio.vazyme.com/products_4/292.html
+      - https://bio.vazyme.com/products_4/293.html
+      - https://bio.vazyme.com/products_4/294.html
+      - https://bio.vazyme.com/products_4/203.html
+      - https://bio.vazyme.com/products_4/201.html
+      - https://bio.vazyme.com/products_4/250.html
+      - https://bio.vazyme.com/products_4/270.html
+      - https://bio.vazyme.com/products_4/242.html
+    match:
+      detailUrlIncludes: ["/product/"]
