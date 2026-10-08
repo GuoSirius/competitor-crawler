@@ -48,16 +48,20 @@ const PNPM = resolvePnpm();
 //   - 不依赖 crawler 的 playwright 依赖解析（独立脚本放在 scripts/ 下时，Node 从 scripts/ 向上找不到 packages/crawler 的 playwright）。
 function cdpGetCookies(port) {
   return new Promise((resolve, reject) => {
-    http.get(`http://127.0.0.1:${port}/json/version`, (r) => {
+    // 先列目标，挑一个 page target。注意：浏览器级 WS（/json/version 的 webSocketDebuggerUrl）的
+    // Network 域不可靠——直接在那上面 Network.getCookies 常常不返回预期响应；必须连到具体 target 的 WS。
+    http.get(`http://127.0.0.1:${port}/json`, (r) => {
       let body = '';
       r.on('data', (d) => (body += d));
       r.on('end', () => {
-        let wsUrl;
-        try { wsUrl = JSON.parse(body).webSocketDebuggerUrl; } catch { /* ignore */ }
-        if (!wsUrl) return reject(new Error('CDP /json/version 未返回 webSocketDebuggerUrl'));
-        // 注意：Node 全局 WebSocket 是浏览器风格（WHATWG），事件用 onopen/onmessage/onerror/onclose 属性，
-        // 不是 npm `ws` 包的 .on() 方法。
-        const ws = new WebSocket(wsUrl);
+        let targets;
+        try { targets = JSON.parse(body); } catch { return reject(new Error('/json 解析失败')); }
+        if (!Array.isArray(targets) || targets.length === 0) return reject(new Error('/json 未返回目标'));
+        const page = targets.find((t) => t.type === 'page' && t.webSocketDebuggerUrl)
+          || targets.find((t) => t.webSocketDebuggerUrl);
+        if (!page || !page.webSocketDebuggerUrl) return reject(new Error('找不到可用的 page target'));
+        // Node 全局 WebSocket 是浏览器风格（WHATWG）：事件用 onopen/onmessage/onerror/onclose 属性，不是 .on()。
+        const ws = new WebSocket(page.webSocketDebuggerUrl);
         let done = false;
         const finish = (cookies) => { done = true; try { ws.close(); } catch { /* ignore */ } resolve(cookies); };
         ws.onopen = () => {
