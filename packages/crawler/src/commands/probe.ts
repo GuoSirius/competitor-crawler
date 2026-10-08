@@ -5,6 +5,7 @@ import { validateSiteConfig, formatIssues } from '../config/validate.js';
 import type { SiteConfig, ResolvedSection } from '../config/types.js';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
+import { loadCodeAdapter } from '../adapter/adapterLoader.js';
 import { detectSpecPriceShape } from '../adapter/shapeDetect.js';
 import { applyApiSources } from '../adapter/apiSource.js';
 import { applyModelFallback, isModelFallbackEnabled } from '../llm/fallbackAdapter.js';
@@ -132,7 +133,13 @@ export async function probe(opts: ProbeOpts): Promise<void> {
         continue;
       }
       progress.update(`[probe] ${opts.domain} [section=${section.key}] 解析列表页…`);
-      const items = parseListWithConfig(html, section.parseList, section.key);
+      const rawItems = parseListWithConfig(html, section.parseList, section.key);
+      // 代码适配器钩子（与 crawl 同管线，否则 probe 验证不了依赖 postParseList 的站点，
+      // 如 PromoCell 的 detailUrl 需由产品名 slug 计算）：loadCodeAdapter 有缓存，重复调用零开销
+      const adapter = await loadCodeAdapter(opts.domain);
+      const items = adapter?.postParseList
+        ? await adapter.postParseList(rawItems, { domain: opts.domain, sectionKey: section.key, contentType: section.contentType })
+        : rawItems;
 
       sectionTotal += items.length;
       grandTotal += items.length;

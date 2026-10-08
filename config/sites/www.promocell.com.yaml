@@ -1,10 +1,67 @@
-# PromoCell —— C 类「CF 托管挑战」桩
-# 2026-10-06：经 CRAWL_PROXY(17890) 复验，ssr/browser 全通道命中 Cloudflare「Just a moment / cf-mitigated: challenge」，
-# 8~12 轮自动过盾均失败 → 属**托管挑战**而非 IP 封禁（与 BioLegend 同类）。
-# 用户本机（开 VPN + 真人浏览器已过盾、持 cf_clearance cookie）能开 → 自动化需带该 cookie（storageState）或人工过盾，
-# 不能靠换出口 IP 解决。维持 C 类，待人工过盾 / 提供 storageState 后再补 startUrl/parseList 提升 A/B。
+# 站点适配器：PromoCell（2026-10-08 实测接入，替代 C 类桩）
+# 平台：Magento 2（hyva/jet 主题 + Alpine.js）+ Cloudflare 托管挑战。
+# ⚠️ 列表卡为「服务端渲染骨架」：img.product-image-photo 的 alt=产品名是服务端直出的，
+#   但名称文本与链接是 Alpine :href/x-html 绑定、products:[] 数据数组为空（实测 25s 长等 +
+#   usercentrics 同意点击均不 hydrate，XHR 亦无产品数据请求）→ **详情 URL 无法从 HTML 抽取**。
+#   Magento 惯例 url_key=产品名 slug（getProductUrl = BASE_URL + url_key + '.html'），
+#   已实测 3 个构造 URL 中 2 个 200（第 3 个是连续导航触发的 CF 限速，非 URL 错误），
+#   故 detailUrl 由代码适配器 www.promocell.com.ts 的 postParseList 按名称 slug 构造。
+# 分类入口：导航 PRODUCTS 树提取的 24 个叶子/分类列表页（.tmp/promocell-categories.txt）。
 domain: www.promocell.com
 company: PromoCell
+role: competitor
 currency: EUR
+render: browser # CF 托管挑战，ssr 通道 403；有头 + storageState 过盾
 proxy: '${CRAWL_PROXY}'
-contentType: products
+
+parseList:
+  itemSelector: div.product.product-item
+  fields:
+    # 占位：卡片 HTML 无真实 href（Alpine :href 绑定未 hydrate），由适配器按 name 重写
+    detailUrl: { sel: "img.product-image-photo", attr: alt }
+    name: { sel: "img.product-image-photo", attr: alt }
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?p={page}" # Magento 标准分页（?p=2、?p=3…）
+  maxPages: 60
+  waitSelector: "img.product-image-photo" # 服务端直出，goto 即有
+
+parseDetail:
+  fields:
+    name: { sel: "h1.page-title", text: true }
+    price: { sel: ".price-box .price", text: true, regex: '[\d]+[,.]\d+', number: true } # EU 格式，适配器按 EU 规则重算
+    priceText: { sel: ".price-box .price", text: true }
+    # sku 无独立节点（货号在主图文件名 /C/-/C-12200.jpg），由适配器 postParseDetail 提取
+  captureRest: true
+
+sections:
+  - key: products
+    category: PromoCell 产品
+    match:
+      detailUrlIncludes: [".html"]
+    startUrls:
+      - https://promocell.com/fr_fr/products/cell-types/cancer-cells/
+      - https://promocell.com/fr_fr/products/cell-types/cardiac-myocytes-cell-expansion/
+      - https://promocell.com/fr_fr/products/cell-types/chondrocytes/
+      - https://promocell.com/fr_fr/products/cell-types/dendritic-cells/
+      - https://promocell.com/fr_fr/products/cell-types/endothelial-cells/
+      - https://promocell.com/fr_fr/products/cell-types/epithelial/
+      - https://promocell.com/fr_fr/products/cell-types/fibroblasts/
+      - https://promocell.com/fr_fr/products/cell-types/follicle-dermal-papilla-cells/
+      - https://promocell.com/fr_fr/products/cell-types/keratinocytes/
+      - https://promocell.com/fr_fr/products/cell-types/macrophages/
+      - https://promocell.com/fr_fr/products/tissue-sources/aorta/
+      - https://promocell.com/fr_fr/products/tissue-sources/adipose-tissue/
+      - https://promocell.com/fr_fr/products/tissue-sources/blood/
+      - https://promocell.com/fr_fr/products/tissue-sources/bone/
+      - https://promocell.com/fr_fr/products/tissue-sources/bone-marrow/
+      - https://promocell.com/fr_fr/products/tissue-sources/cartilage/
+      - https://promocell.com/fr_fr/products/tissue-sources/coronary-artery/
+      - https://promocell.com/fr_fr/products/tissue-sources/heart/
+      - https://promocell.com/fr_fr/products/tissue-sources/kidney/
+      - https://promocell.com/fr_fr/products/tissue-sources/lung/
+      - https://promocell.com/fr_fr/products/animal-component-free-and-xeno-free/
+      - https://promocell.com/fr_fr/products/cancer-media/
+      - https://promocell.com/fr_fr/products/promoexq-portfolio/
+      - https://promocell.com/fr_fr/products/buffers-solutions/

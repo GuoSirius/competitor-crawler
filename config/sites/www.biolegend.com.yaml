@@ -1,9 +1,42 @@
-# BioLegend —— C 类「托管挑战」桩
-# 2026-10-06：沙箱直连复验被 CF 托管挑战（cf-mitigated: challenge）拦，指纹全绿非 IP 封禁。
-# 用户本机（开 VPN）能开 → 走 CRAWL_PROXY 复现用户视角。本桩仅供 diagnose 验证代理可达，
-# 待本机 `pnpm diagnose --domain www.biolegend.com` 确认通后补 startUrl/parseList 提升 A/B。
+# 站点适配器：BioLegend（2026-10-08 实测接入，替代 C 类桩）
+# 平台：Dynamicweb CMS（Default.aspx?ID=… 模板）+ Cloudflare 托管挑战（sampler 型）。
+# 结构（入口③「只有搜索框→宽泛关键词搜全量」的变体）：search-results 是**服务端渲染**
+#   的产品列表（href/名称直出），空 Keywords = 全量 36002 条 / 1441 页（25 条/页，实测）。
+#   翻页 URL 型 ?PageNum=N；行容器 li.row.list（h2 > a[itemprop=name] 链接+名称）。
+# sitemap.xml 无产品详情直链（全是内容页/分类着陆页），GroupID 页无服务端产品数据 → 不采用。
+# CF 注意：1441 页 browser 通道连发存在限流风险（义翘 antibodies 前车之鉴），正式 crawl
+#   建议配 listRetry + 限速；cookie 过期时需 plan:a 人工过盾后立即使用（cf_clearance ~1.5h）。
 domain: www.biolegend.com
 company: BioLegend
+role: competitor
 currency: USD
+render: browser # CF 托管挑战；ssr 直发即 403 挑战页
 proxy: '${CRAWL_PROXY}'
-contentType: products
+
+parseList:
+  # :has() 过滤无名称链接的纯变体行（同产品多规格行只挂 addToCart 表单）
+  itemSelector: 'li.row.list:has(h2 a[itemprop="name"])'
+  fields:
+    detailUrl: { sel: 'h2 a[itemprop="name"]', attr: href } # /en-us/products/<slug>-<id>
+    name: { sel: 'h2 a[itemprop="name"]', text: true }
+
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "?GroupID=&PageNum={page}&Keywords=" # 与站内翻页链接同构（GroupID 空占位）
+  maxPages: 1500 # 全量 1441 页
+  waitSelector: 'li.row.list h2 a[itemprop="name"]'
+
+parseDetail:
+  fields:
+    name: { sel: "h1", text: true }
+    sku: { sel: 'input[name="productID"]', attr: value } # 站内产品 id（=detail URL 尾部数字）
+    price: { sel: "span[data-price]", attr: data-price, number: true } # 变体表首个价格
+  captureRest: true
+
+sections:
+  - key: products
+    category: BioLegend 产品
+    match:
+      detailUrlIncludes: ["/en-us/products/"]
+    startUrls:
+      - https://www.biolegend.com/en-us/search-results?Keywords=
