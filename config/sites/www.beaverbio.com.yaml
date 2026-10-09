@@ -5,7 +5,8 @@
 #   - 翻页：真实 URL ?page=N（实测 page=2 返回 200 且内容变化）→ pagination-url
 #   - 详情页：h1=产品名；价格在无类名 td（¥6990.00），先 body regex 兜底
 domain: www.beaverbio.com
-company: 海狸（Beaver）
+company: "苏州海狸生物医学工程有限公司"
+companyShort: "Beaver 海狸"
 currency: CNY
 startUrl: "https://www.beaverbio.com/products/index/952.html"
 

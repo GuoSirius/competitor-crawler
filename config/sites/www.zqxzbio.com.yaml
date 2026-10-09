@@ -6,6 +6,8 @@
 #   - 详情页右栏 .pro_more_right：h2=名称；正文含「英文名：… 货号：… 价格：￥…」
 #   - 种子里的品类链接是站点首页，故用 sections[].category 绑定到种子品类
 domain: www.zqxzbio.com
+company: "上海中乔新舟生物科技有限公司"
+companyShort: "ZQXZ 中乔新舟"
 # 站点币种（缺省 CNY）
 currency: CNY
 

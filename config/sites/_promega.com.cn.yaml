@@ -1,0 +1,5 @@
+domain: promega.com.cn
+company: "普洛麦格(北京)生物技术有限公司"
+companyShort: "Promega"
+role: competitor
+# TODO: 待配置抓取规则（probe 后生成 sections）

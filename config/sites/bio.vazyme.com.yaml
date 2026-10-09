@@ -9,7 +9,8 @@
 # 翻页：p_page 控件 URL 型（<id>-12-<page>.html，内部 id 与入口别名不同）→ 用 pagination-html
 #   点击 a.page_next；末页 disabled class 引擎自动收尾（clickNext 判定）。
 domain: bio.vazyme.com
-company: 诺唯赞（Vazyme）
+company: "南京诺唯赞生物科技股份有限公司"
+companyShort: "Vazyme 诺唯赞"
 role: competitor
 currency: CNY
 render: browser

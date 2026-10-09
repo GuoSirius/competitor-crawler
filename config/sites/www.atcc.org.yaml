@@ -6,7 +6,8 @@
 #   - 详情页 h1.pdp-page-content__product-name；价格需登录，未登录无价（不抓 price）
 #   - ⚠️ 翻页：Coveo API 驱动，无 URL 翻页规律 → 每栏目仅首屏 24 条（逆向接口见 docs/14）
 domain: www.atcc.org
-company: ATCC
+company: "American Type Culture Collection"
+companyShort: "ATCC"
 currency: USD
 
 parseList:

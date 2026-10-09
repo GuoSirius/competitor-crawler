@@ -21,7 +21,8 @@
 #   Applications/Species Reactivity 等 → captureRest 兜底进 row
 #   ⚠️ 详情无独立价格元素（列表也无），价格只有 wcpt-row 的 data 属性 → 仅在详情可取
 domain: www.leinco.com
-company: Leinco
+company: "Leinco Technologies, Inc."
+companyShort: "Leinco"
 role: competitor
 currency: USD
 render: browser

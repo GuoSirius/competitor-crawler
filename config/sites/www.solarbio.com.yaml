@@ -3,7 +3,8 @@
 # 三路一致）；走 CRAWL_PROXY 复验因沙箱访问不到本机 VPN 端口失败。用户本机（开 VPN）能开 →
 # 走代理复现。本桩仅供 diagnose 验证代理可达，待本机确认通后补 startUrl/parseList 提升 A/B。
 domain: www.solarbio.com
-company: 索莱宝（Solarbio）
+company: "北京索莱宝科技有限公司"
+companyShort: "Solarbio 索莱宝"
 currency: CNY
 proxy: '${CRAWL_PROXY}'
 contentType: products

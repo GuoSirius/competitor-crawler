@@ -6,7 +6,8 @@
 #     （跨卡片作用域，列表阶段不抽；详情页静态 HTML 无价格）
 #   - 翻页：javascript:void(0)?page=N 前端壳，真实 URL ?page=N&prop_filter={} 服务端生效（实测 200）
 domain: www.boxbio.cn
-company: 盒子生工（Boxbio）
+company: "北京盒子生工科技有限公司"
+companyShort: "Boxbio 盒子生工"
 currency: CNY
 startUrl: "https://www.boxbio.cn/products/762/"
 

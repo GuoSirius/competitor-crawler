@@ -4,7 +4,8 @@
 #   - 列表无价格（价格在详情页）；翻页 /polyclonal-antibodies/&p=N（&p 前无 ?，站点原生写法）
 # 抓取命令：pnpm crawl --domain abclonal.com.cn
 domain: abclonal.com.cn
-company: ABclonal
+company: "武汉爱博泰克生物科技有限公司"
+companyShort: "ABclonal"
 currency: CNY
 render: ssr # 列表/详情均服务端直出
 

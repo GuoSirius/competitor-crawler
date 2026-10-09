@@ -12,7 +12,8 @@
 #     c869 粉末缓冲液 2 / c534 细胞分离 2 / c29 人血清 1
 #     c20 细胞培养基、c23 细胞培养试剂、c25 诊断 → 0（空分类，不配）
 domain: www.capricorn-scientific.com
-company: Capricorn Scientific
+company: "Capricorn Scientific GmbH"
+companyShort: "Capricorn"
 currency: EUR
 
 parseList:

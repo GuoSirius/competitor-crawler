@@ -7,7 +7,8 @@
 # 复核修正（2026-10-04）：docs/14 原记「browser OK 但主页是营销页」——主页确实是营销页，
 #   但真实产品列表入口是 catalog-30-N.html（页面自带 <h2>产品列表</h2> 区块），可直接 SSR 抓。
 domain: www.cusabio.cn
-company: 华美生物（CUSABIO）
+company: "武汉华美生物工程有限公司"
+companyShort: "CUSABIO 华美生物"
 currency: CNY
 
 parseList:

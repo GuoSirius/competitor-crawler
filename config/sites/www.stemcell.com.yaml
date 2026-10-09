@@ -16,7 +16,8 @@
 #   - 规格信息在详情页属性块（species / host_species / application / clone / isotype 等），
 #     走 captureRest 进 row。
 domain: www.stemcell.com
-company: STEMCELL Technologies
+company: "STEMCELL Technologies Inc."
+companyShort: "STEMCELL"
 role: competitor
 currency: USD
 render: ssr

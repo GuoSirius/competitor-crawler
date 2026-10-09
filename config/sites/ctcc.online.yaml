@@ -5,7 +5,8 @@
 #   - 入口=各产品分类列表页（导航产品中心下钻，落地页即列表页）
 # 抓取命令：pnpm crawl --domain ctcc.online
 domain: ctcc.online
-company: 浙江美森细胞科技有限公司
+company: "浙江美森细胞科技有限公司"
+companyShort: "CTCC 美森细胞"
 currency: CNY
 render: browser
 

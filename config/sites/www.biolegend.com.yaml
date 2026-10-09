@@ -7,7 +7,8 @@
 # CF 注意：1441 页 browser 通道连发存在限流风险（义翘 antibodies 前车之鉴），正式 crawl
 #   建议配 listRetry + 限速；cookie 过期时需 plan:a 人工过盾后立即使用（cf_clearance ~1.5h）。
 domain: www.biolegend.com
-company: BioLegend
+company: "BioLegend, Inc."
+companyShort: "BioLegend"
 role: competitor
 currency: USD
 render: browser # CF 托管挑战；ssr 直发即 403 挑战页

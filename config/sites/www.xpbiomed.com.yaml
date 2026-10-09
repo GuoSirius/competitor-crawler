@@ -9,6 +9,8 @@
 #     B2B 站无价格。其余字段进 row 兜底。
 #   - 胎牛血清（lcid=5）仅 1 页 16 商品（page=2 为空）→ pagination-url 抓到第 2 页 0 条即停。
 domain: www.xpbiomed.com
+company: "上海逍鹏生物科技有限公司"
+companyShort: "XP Biomed 逍鹏生物"
 # 站点币种（缺省 CNY）
 currency: CNY
 

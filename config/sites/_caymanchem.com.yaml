@@ -1,0 +1,5 @@
+domain: caymanchem.com
+company: "Cayman Chemical Company"
+companyShort: "Cayman Chemical"
+role: competitor
+# TODO: 待配置抓取规则（probe 后生成 sections）

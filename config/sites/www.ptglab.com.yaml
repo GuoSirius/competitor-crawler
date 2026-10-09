@@ -7,7 +7,8 @@
 #   - ⚠️ 品类过滤用 q= 词近似（elisa 干净；polyclonal 混入 2 条二抗）；
 #     ⚠️ 无 URL 翻页控件 → 每次查询仅首屏 21 条（接口逆向见 docs/14 NEEDS_API_HINT）
 domain: www.ptglab.com
-company: Proteintech
+company: "Proteintech Group, Inc."
+companyShort: "Proteintech (PTG)"
 currency: USD
 
 parseList:

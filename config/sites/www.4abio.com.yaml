@@ -4,7 +4,8 @@
 #   - sku=Cat. No、size=Size，列表直出；无翻页（单页全量）
 # 抓取命令：pnpm crawl --domain www.4abio.com
 domain: www.4abio.com
-company: 四正柏（4A Biotech）
+company: "北京四正柏生物科技有限公司"
+companyShort: "4A Biotech 四正柏"
 currency: CNY
 render: ssr # 列表/详情均服务端直出
 

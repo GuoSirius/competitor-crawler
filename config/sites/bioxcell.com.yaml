@@ -12,7 +12,8 @@
 #   - 详情页是 Magento 标准页（/invivomab-anti-mouse-pd-1-cd279-be0146 形态）
 # 抓取命令：pnpm crawl --domain bioxcell.com
 domain: bioxcell.com
-company: Bio X Cell
+company: "Bio X Cell, Inc."
+companyShort: "Bio X Cell"
 currency: USD
 render: browser # Algolia instant search 前端渲染
 # 不配 antiBot：引擎默认（有头 + 默认 UA）实测能过；换成自定义 UA 会与 antiBot.ts 里

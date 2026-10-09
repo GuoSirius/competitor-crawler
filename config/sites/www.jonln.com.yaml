@@ -4,7 +4,8 @@
 #   - 产品 <a> 的 href 含前导空格（站点 HTML 瑕疵），用 regex 提取干净绝对 URL
 #   - 列表阶段仅名称+详情链接；货号/价格来自详情页（captureRest 兜底进 row）
 domain: www.jonln.com
-company: 江莱生物（Jonln）
+company: "上海江莱生物科技有限公司"
+companyShort: "Jonln 江莱生物"
 currency: CNY
 
 parseList:

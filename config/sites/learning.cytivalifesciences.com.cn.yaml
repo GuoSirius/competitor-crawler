@@ -9,7 +9,8 @@
 #     变体 JSON（{attributes:{attribute_规格}, sku, variation_id…}，规格名 URL 编码）；
 #     切换规格纯前端、无请求 → 静态可抽，specs 数组承载「规格 → 货号」映射
 domain: learning.cytivalifesciences.com.cn
-company: Cytiva
+company: "Cytiva (思拓凡)"
+companyShort: "Cytiva 思拓凡"
 currency: CNY
 
 listTraversal:

@@ -9,7 +9,8 @@
 #   实测列表页/详情页均 200 正常（curl 缺 UA 会 403，浏览器头即可），是此前用裸 fetch 误判。
 #   栏目里只有 sys-col-103 有产品卡（其余 sys-col-101/104/105/109 都是空分类），故单栏目起步。
 domain: www.fudancell.com
-company: 富衡生物（Fudancell）
+company: "上海富衡生物科技有限公司"
+companyShort: "Fudancell 富衡生物"
 currency: CNY
 
 parseList:

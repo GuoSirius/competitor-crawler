@@ -9,7 +9,8 @@
 # 抓取命令：pnpm crawl --domain huabio.cn
 # 扩展：分类聚合页 huabio.cn/collections 共 97 个子分类，逐个加 section（或脚本枚举）
 domain: huabio.cn
-company: 华安生物（HUABIO）
+company: "杭州华安生物技术有限公司"
+companyShort: "HUABIO 华安生物"
 currency: CNY
 render: browser # 产品卡懒加载；ssr 只有导航壳
 

@@ -7,7 +7,8 @@
 #   - 种子 Excel 里的「竞品品类链接」是 support/BiochemicalDetection.htm（支持页，非列表）
 #     —— 种子品类链接不可信、以站点真实分类为准的又一例证
 domain: www.beyotime.com
-company: 碧云天（Beyotime）
+company: "上海碧云天生物技术有限公司"
+companyShort: "Beyotime 碧云天"
 currency: CNY
 
 parseList:

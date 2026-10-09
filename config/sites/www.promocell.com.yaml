@@ -8,7 +8,8 @@
 #   故 detailUrl 由代码适配器 www.promocell.com.ts 的 postParseList 按名称 slug 构造。
 # 分类入口：导航 PRODUCTS 树提取的 24 个叶子/分类列表页（.tmp/promocell-categories.txt）。
 domain: www.promocell.com
-company: PromoCell
+company: "PromoCell GmbH"
+companyShort: "PromoCell"
 role: competitor
 currency: EUR
 render: browser # CF 托管挑战，ssr 通道 403；有头 + storageState 过盾

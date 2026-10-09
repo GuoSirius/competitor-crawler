@@ -5,7 +5,8 @@
 #   - 翻页：真实 URL &page=N
 #   - 注：定制化服务(273/364/259)、科赋思(366)、案例分析(269) 非产品栏目，未接入
 domain: www.excellbio.com
-company: 苏州依科赛生物科技股份有限公司
+company: "苏州依科赛生物科技股份有限公司"
+companyShort: "Excell 依科赛"
 currency: CNY
 
 listTraversal:

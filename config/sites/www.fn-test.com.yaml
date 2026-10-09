@@ -1,11 +1,12 @@
-domain: www.fn-test.cn
-company: 菲恩生物（FineTest）
+domain: www.fn-test.com
+company: "武汉菲恩生物科技有限公司"
+companyShort: "FineTest 菲恩生物"
 role: own
 currency: CNY
 render: auto
 
 # 2026-10-02 实测（stubs 4 站之一，下钻）——推翻 2026-09-24 的旧记录
-#   旧记录：列表页 https://www.fn-test.cn/elisa-kits/ 卡片容器 div.reference-card、疑似 JS 翻页、形态归 D。
+#   旧记录：列表页 https://www.fn-test.com/elisa-kits/ 卡片容器 div.reference-card、疑似 JS 翻页、形态归 D。
 #   实测：/elisa-kits/ 是**营销聚合页**，页面上那 4 个 div.reference-card 是「高分文献」卡片，
 #          **不是产品卡**；product-cat/<cat> 归档页才是真产品列表，且**纯 SSR**（浏览器渲染也只多出导航）。
 #   真实结构（WordPress + 见见站主题）：
@@ -73,41 +74,41 @@ parseDetail:
 sections:
   - key: elisa-human
     category: 人ELISA试剂盒
-    startUrls: ["https://www.fn-test.cn/product-cat/human-elisa-kit/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/human-elisa-kit/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: elisa-mouse
     category: 小鼠ELISA试剂盒
-    startUrls: ["https://www.fn-test.cn/product-cat/mouse-elisa-kit/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/mouse-elisa-kit/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: elisa-rat
     category: 大鼠ELISA试剂盒
-    startUrls: ["https://www.fn-test.cn/product-cat/rat-elisa-kit/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/rat-elisa-kit/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: elisa-universal
     category: 通用型ELISA试剂盒
-    startUrls: ["https://www.fn-test.cn/product-cat/universal-elisa-kit/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/universal-elisa-kit/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: primary-antibody
     category: 一抗
-    startUrls: ["https://www.fn-test.cn/product-cat/primary-antibody/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/primary-antibody/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: secondary-antibody
     category: 二抗
-    startUrls: ["https://www.fn-test.cn/product-cat/second-antibody/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/second-antibody/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: recombinant-proteins
     category: 重组蛋白
-    startUrls: ["https://www.fn-test.cn/product-cat/recombinant-proteins/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/recombinant-proteins/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: ihc-kits
     category: IHC试剂盒
-    startUrls: ["https://www.fn-test.cn/product-cat/ihc-kit/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/ihc-kit/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: cell-assay-kits
     category: 细胞周期与活性检测试剂盒
-    startUrls: ["https://www.fn-test.cn/product-cat/cell-viability-cytotoxicity-kits/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/cell-viability-cytotoxicity-kits/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }
   - key: peptide
     category: 多肽
-    startUrls: ["https://www.fn-test.cn/product-cat/peptide/"]
-    match: { detailUrlIncludes: ["fn-test.cn/product/"] }
+    startUrls: ["https://www.fn-test.com/product-cat/peptide/"]
+    match: { detailUrlIncludes: ["fn-test.com/product/"] }

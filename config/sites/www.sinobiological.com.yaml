@@ -17,7 +17,8 @@
 # 详情页：h1=名称；`span.more[data-catalog]`=货号；`div.price.price_now`=现价（¥169）、
 #         `div.price.price_origin`=原价；`#sku_selec div.unit.active`=当前规格（10 µg）。
 domain: www.sinobiological.com
-company: 义翘神州
+company: "北京义翘神州科技股份有限公司"
+companyShort: "Sino Biological 义翘神州"
 role: competitor
 currency: CNY
 # ⚠️ 必须 browser：结果由 XHR 拼装，ssr 只有筛选器 + 导航（且 ssr 通道易被 CF 挑战）

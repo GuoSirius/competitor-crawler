@@ -5,7 +5,8 @@
 #   - render: browser（ssr 只有壳）
 # 抓取命令：pnpm crawl --domain www.sigmaaldrich.cn
 domain: www.sigmaaldrich.cn
-company: 默克（Merck）
+company: "默克化工技术(上海)有限公司"
+companyShort: "Merck 默克 (Sigma-Aldrich)"
 currency: CNY
 render: browser
 

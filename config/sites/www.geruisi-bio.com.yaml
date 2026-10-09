@@ -7,7 +7,8 @@
 #   - 翻页：javascript:void(0)?page=N 前端壳，但真实 URL ?page=N&prop_filter={} 服务端生效（实测 200）
 #     → pagination-url 策略直连
 domain: www.geruisi-bio.com
-company: 格锐思（Geruisi）
+company: "苏州格锐思生物科技有限公司"
+companyShort: "Geruisi 格锐思"
 currency: CNY
 startUrl: "https://www.geruisi-bio.com/products/463/"
 

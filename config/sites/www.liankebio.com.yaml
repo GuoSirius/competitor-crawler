@@ -5,7 +5,8 @@
 #   - 翻页为真实 URL 路径 /page/N → pagination-url
 #   - 详情页 h1=名称；p.mufeng-ah 含「在售SKU, F1110503, ...」；有 JSON-LD
 domain: www.liankebio.com
-company: 联科生物（Liankebio）
+company: "杭州联科生物技术股份有限公司"
+companyShort: "Liankebio 联科生物"
 currency: CNY
 
 listTraversal:

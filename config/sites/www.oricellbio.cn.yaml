@@ -7,7 +7,8 @@
 # ⚠️ 业务范围待确认：oricellbio.cn 与母公司 cyagen.cn 的归属（见 docs/14 D 类）；
 #   本配置仅爬 oricellbio.cn 自有域，cyagen.cn 不纳入（待周一用户确认）。
 domain: www.oricellbio.cn
-company: 赛业（oricellbio）
+company: "赛业(广州)生物科技有限公司"
+companyShort: "OriCell 赛业"
 currency: CNY
 
 parseList:

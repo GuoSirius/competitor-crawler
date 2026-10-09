@@ -1,0 +1,5 @@
+domain: beckman.com
+company: "Beckman Coulter, Inc."
+companyShort: "Beckman Coulter"
+role: competitor
+# TODO: 待配置抓取规则（probe 后生成 sections）

@@ -15,7 +15,8 @@
 # 详情页字段：h1=名称；价格/货号/品牌取自 ld+json（#0 块 "@type": "Product"，含 sku/mpn/brand/offers.price）。
 # ⚠️ 列表页无价格，价格只在详情页（且随国家/规格浮动，JSON-LD 的 price 为基准价）。
 domain: www.medchemexpress.com
-company: MCE（MedChemExpress）
+company: "MedChemExpress"
+companyShort: "MCE"
 role: competitor
 currency: USD
 # ⚠️ 必须 browser：ssr（Node fetch）被 CF 判机器人返回 403，有头 Chromium 直出 200。

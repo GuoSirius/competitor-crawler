@@ -16,7 +16,8 @@
 # 翻页：前端是 radio+label 组件（无 <a>），但 URL 参数 ?p=N 有效（实测 p2 与 p1 仅重叠 2 条）；
 #       每分类实测 5 页（分页 radio 最大 p5）。
 domain: www.cytion.com
-company: Cytion
+company: "Cytion"
+companyShort: "Cytion"
 role: competitor
 currency: USD
 render: browser

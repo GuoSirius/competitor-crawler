@@ -5,7 +5,8 @@
 #   - 翻页 WooCommerce 标准 /products/page/N/
 # 抓取命令：pnpm crawl --domain www.bioassaysys.com
 domain: www.bioassaysys.com
-company: BioAssay Systems
+company: "BioAssay Systems"
+companyShort: "BioAssay Systems"
 currency: USD
 render: ssr # 列表/详情均服务端直出
 

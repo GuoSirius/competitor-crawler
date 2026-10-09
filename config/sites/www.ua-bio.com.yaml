@@ -11,7 +11,8 @@
 #   - 翻页 el-pagination，下一页 .el-pagination .btn-next（前端点按触发 Vue 加载）
 # 抓取命令：pnpm crawl -- --site www.ua-bio.com --render browser
 domain: www.ua-bio.com
-company: 斯达特（Starter）
+company: "武汉斯达特生物科技有限责任公司"
+companyShort: "Starter 斯达特"
 currency: CNY
 
 parseList:
