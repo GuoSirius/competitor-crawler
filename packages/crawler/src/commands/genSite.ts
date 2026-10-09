@@ -1,5 +1,6 @@
 import yaml from 'yaml';
 import { fetchPage, type RenderMode } from '../fetch/page.js';
+import { assessChallenge } from '../fetch/challenge.js';
 import { loadSiteConfig, saveSiteConfig, expandProxyVar } from '../config/loader.js';
 import { chat } from '../llm/client.js';
 import { loadPrompt } from '../llm/prompts.js';
@@ -34,15 +35,33 @@ const DEFAULT_CURRENCY = 'CNY';
  * 身份字段按「CLI/Excel 传入 > 模型 > 已存在文件」兜底，避免误删用户手填的 currency/role/company 等。
  */
 export async function genSite(opts: GenSiteOpts): Promise<void> {
-  const progress = new Progress();
   let existing: SiteConfig | null = null;
   try {
     existing = loadSiteConfig(opts.domain);
   } catch {
     existing = null;
   }
+  const mode0: RenderMode =
+    (opts.render as RenderMode) ?? (existing?.render as RenderMode) ?? 'auto';
+  try {
+    await genSiteOnce(opts, existing, mode0);
+  } catch (e) {
+    const msg = (e as Error)?.message ?? '';
+    // auto 智能回退（2026-10-09）：auto 静态通道抓到的是「SPA 大壳 / 被拦兜页」时，模型看不到
+    // 商品结构只能报 NEED_MORE_HTML 或「疑似被拦截」——自动改 browser 渲染重试一轮。
+    // 显式 --render ssr/browser 是明确意图，不自动改道（重试后仍失败则抛出原始错误）。
+    if (mode0 === 'auto' && /NEED_MORE_HTML|疑似被拦截/.test(msg)) {
+      console.log('[gen-site] auto 通道拿不到商品结构（SPA 壳/被拦兜页），自动改 browser 渲染重试一轮…');
+      await genSiteOnce(opts, existing, 'browser');
+      return;
+    }
+    throw e;
+  }
+}
 
-  const mode: RenderMode = (opts.render as RenderMode) ?? (existing?.render as RenderMode) ?? 'auto';
+/** 单轮生成（fetch → 诊断前置 → 模型 → 回验 → 写盘）。mode 由调用方给定：auto 失败后可换 browser 再来一轮 */
+async function genSiteOnce(opts: GenSiteOpts, existing: SiteConfig | null, mode: RenderMode): Promise<void> {
+  const progress = new Progress();
 
   // 列表页 URL：优先用 --list-url；桩文件填充场景下回退到已存在 YAML 的 startUrl
   const listUrl = opts.listUrl ?? existing?.startUrl;
@@ -57,6 +76,18 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
 
   progress.update(`[gen-site] ${opts.domain} 抓取列表页 ${listUrl}${genProxy ? '（经代理）' : ''}`);
   const listHtml = await fetchPage(listUrl, mode, progress, undefined, { stealth: { proxy: genProxy } });
+
+  // 诊断前置（2026-10-09）：把「被 WAF 拦/兜页空壳」与「页面真的没商品结构」分开——
+  // 旧流程把被拦页当正常 HTML 喂模型，模型看不到商品只能报 NEED_MORE_HTML，
+  // 把「先过盾/换出口」这个真因伪装成了「列表结构问题」（elabscience.cn 教训）。
+  const blocked = diagnoseBlocked(listHtml);
+  if (blocked) {
+    throw new Error(
+      `列表页疑似被拦截/空壳：${blocked}。这不是列表结构问题——` +
+        `先跑 pnpm diagnose --domain ${opts.domain} 定位（挑战→过盾 / 网络层→查出口 / 其它→换渲染模式），过盾后再 gen-site`,
+    );
+  }
+
   let detailHtml = '';
   if (opts.detailUrl) {
     progress.update(`[gen-site] 抓取详情页 ${opts.detailUrl}${genProxy ? '（经代理）' : ''}`);
@@ -130,8 +161,9 @@ export async function genSite(opts: GenSiteOpts): Promise<void> {
   console.log(`\n下一步验证：pnpm probe --domain ${opts.domain} --list-url ${listUrl}`);
 }
 
-/** 喂给模型的清洗后 HTML 预算（字符）。清洗已去掉 head/style/script，60K 约覆盖绝大多数列表页全文 */
-const MODEL_HTML_BUDGET = 60000;
+/** 喂给模型的清洗后 HTML 预算（字符）。清洗已去掉 head/style/script，100K 覆盖绝大多数列表页全文
+ * （2026-10-09 从 60K 上调：大前端站 60K 窗口常截不到商品区，模型被迫报 NEED_MORE_HTML） */
+const MODEL_HTML_BUDGET = 100000;
 
 /**
  * 清洗并截取喂给模型的 HTML（gen-site 专用，导出供测试）。
@@ -141,8 +173,9 @@ const MODEL_HTML_BUDGET = 60000;
  *
  * 处理两步：
  * ① 去 head/script/style/注释 并压缩空白（head+style 常占原始 HTML 一半以上）；
- * ② 清洗后仍超预算时按「链接密度」选窗口：商品列表区是 <a href> 最密集的区域，
- *    从密度最高的 2KB 块向两侧扩展拼满预算（块边界可能切断标签，模型只需看结构无需闭合）。
+ * ② 清洗后仍超预算时按「容器重复度」选窗口：同一 class 属性串在区域内反复出现（≥3 次）
+ *    ≈ 同构条目容器（商品卡）——比旧「链接密度」更准（导航/页脚链接密但容器不重复），
+ *    从得分最高的 2KB 块向两侧扩展拼满预算（块边界可能切断标签，模型只需看结构无需闭合）。
  * 若窗口里确实没有商品条目，模型会按 prompt 硬规则输出 NEED_MORE_HTML，调用方给出明确指引。
  */
 export function buildModelHtml(html: string, budget = MODEL_HTML_BUDGET): string {
@@ -158,7 +191,18 @@ export function buildModelHtml(html: string, budget = MODEL_HTML_BUDGET): string
   const CHUNK = 2048;
   const chunks: string[] = [];
   for (let i = 0; i < cleaned.length; i += CHUNK) chunks.push(cleaned.slice(i, i + CHUNK));
-  const score = (s: string): number => (s.match(/<a\s/gi)?.length ?? 0);
+  // 评分：容器重复度为主（×1000 压倒链接数），<a> 链接数作次级信号兜底（无 class 的裸链接列表）
+  const score = (s: string): number => {
+    const attrs = s.match(/class=["'][^"']*["']/gi) ?? [];
+    const freq = new Map<string, number>();
+    for (const a of attrs) {
+      const k = a.toLowerCase();
+      freq.set(k, (freq.get(k) ?? 0) + 1);
+    }
+    let repeated = 0;
+    for (const c of freq.values()) if (c >= 3) repeated += c;
+    return repeated * 1000 + (s.match(/<a[\s>]/gi)?.length ?? 0);
+  };
   let best = 0;
   for (let i = 1; i < chunks.length; i++) if (score(chunks[i]) > score(chunks[best])) best = i;
 
@@ -182,6 +226,28 @@ export function buildModelHtml(html: string, budget = MODEL_HTML_BUDGET): string
     if (!grew) break;
   }
   return picked.join('');
+}
+
+/**
+ * 诊断前置（2026-10-09）：抓到的列表 HTML 是「被拦/空壳」还是正常列表页。
+ * 两层信号：① 已知挑战特征（assessChallenge：CF/PX/封禁状态码文案）；
+ * ② 未知自定义 WAF 兜页——清洗后 <a> 链接极少（正常列表页几十上百个链接）。
+ * 返回非 null 即命中（值为判定依据），gen-site 据此抛错并给处置建议，
+ * 不再进模型伪报 NEED_MORE_HTML（把「被拦」伪装成「没货」）。
+ */
+export function diagnoseBlocked(html: string): string | null {
+  const a = assessChallenge({ html });
+  if (a.hit && !a.falseAlarm && a.confidence !== 'none') {
+    return `挑战页信号（${a.hit.kind}：${a.hit.matched}）`;
+  }
+  const body = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ');
+  const links = (body.match(/<a[\s>]/gi) ?? []).length;
+  if (links < 5) {
+    return `清洗后仅 ${links} 个 <a> 链接（正常列表页几十上百），疑似 WAF 兜页/软拦空壳`;
+  }
+  return null;
 }
 
 /** 产出一致性校验结果。hard=跑不起来/解析 0 条（打回重试，重试耗尽拒写盘）；soft=部分字段未命中（接受但标 TODO） */

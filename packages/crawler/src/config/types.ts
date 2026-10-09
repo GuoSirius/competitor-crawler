@@ -20,6 +20,9 @@ export type { ListStrategy };
  */
 export const RENDER_MODES = ['ssr', 'browser', 'auto'] as const;
 
+/** splitThreshold 缺省值：单入口条目超过此数提示拆分类（docs/05 §5.4，2026-10-09 用户定 5000） */
+export const DEFAULT_SPLIT_THRESHOLD = 5000;
+
 /** 类型守卫：值是否为合法渲染模式（YAML 校验 / CLI --render 入口统一用它挡非法值） */
 export function isRenderMode(v: unknown): v is RenderMode {
   return typeof v === 'string' && (RENDER_MODES as readonly string[]).includes(v);
@@ -153,6 +156,12 @@ export interface ListTraversalConfig {
    * 设为 0 表示不重试（与旧行为一致）；设为 2 表示最多重试 2 次。
    */
   listRetry?: number;
+  /**
+   * 单入口条目数告警阈值（「拆分类」约定，2026-10-09 用户定）：单入口抓到条数超过本值时，
+   * crawl 提示「站点可能有翻页天花板（其后均为末页副本），建议按分类/筛选拆成多个 startUrls」。
+   * 缺省 DEFAULT_SPLIT_THRESHOLD(5000)；显式 0 关闭提示。顶层与 section 均可配（section 整体覆盖顶层）。
+   */
+  splitThreshold?: number;
 }
 
 /**

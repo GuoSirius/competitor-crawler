@@ -109,6 +109,69 @@ describe('traverseList — pagination-url', () => {
     expect(res.pages).toBe(3);
   });
 
+  it('卡页守卫：连续 2 页全部已见条目 → 停翻（站点翻页天花板后不再白翻满 maxPages）', async () => {
+    mockFetch.mockResolvedValue('<html></html>');
+    // 站点天花板：第 2 页起返回的都是第 1 页的末页副本（有条目、键全已见）
+    const onPage = vi.fn(async () => ({ count: 2, keys: ['p1a', 'p1b'] }));
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 50 },
+      listMode: 'ssr',
+      maxPages: 50,
+      onPage,
+    });
+
+    // 第1页新增2 → 第2页 0 新增(1/2) → 第3页 0 新增(2/2) → 停
+    expect(res.pages).toBe(3);
+    expect(res.items).toBe(6);
+  });
+
+  it('卡页守卫：每页都有新增 → 正常翻满不误停', async () => {
+    mockFetch.mockResolvedValue('<html></html>');
+    const onPage = vi.fn(async (_h: string, n: number) => ({ count: 2, keys: [`k${n}a`, `k${n}b`] }));
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 4 },
+      listMode: 'ssr',
+      maxPages: 4,
+      onPage,
+    });
+    expect(res.pages).toBe(4);
+    expect(res.items).toBe(8);
+  });
+
+  it('卡页守卫：中间夹一页重复、随后恢复新增 → streak 归零不误停', async () => {
+    mockFetch.mockResolvedValue('<html></html>');
+    const onPage = vi.fn(async (_h: string, n: number) =>
+      n === 2 ? { count: 2, keys: ['k1a', 'k1b'] } : { count: 2, keys: [`k${n}a`, `k${n}b`] },
+    );
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 4 },
+      listMode: 'ssr',
+      maxPages: 4,
+      onPage,
+    });
+    expect(res.pages).toBe(4);
+  });
+
+  it('卡页守卫：调用方不提供 keys → 守卫不介入，保持原 0 条语义', async () => {
+    mockFetch.mockResolvedValue('<html></html>');
+    const onPage = vi.fn(async () => 2);
+
+    const res = await traverseList({
+      url: 'https://x.com/list',
+      traversal: { strategy: 'pagination-url', urlTemplate: '?p={page}', maxPages: 3 },
+      listMode: 'ssr',
+      maxPages: 3,
+      onPage,
+    });
+    expect(res.pages).toBe(3);
+  });
+
   it('某页抓取抛错 → 默认重试 1 次后仍失败则跳过该页并继续翻页（记录缺失页）', async () => {
     const urls: string[] = [];
     mockFetch.mockImplementation(async (url: string) => {

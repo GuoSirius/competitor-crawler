@@ -106,6 +106,9 @@ listTraversal:
   # —— 条目级截取（所有翻页策略生效；CLI --offset / --per-page 可临时覆盖）——
   # offset: 0                    # 每页条目起始偏移（0 起）：跳过每页前 N 条
   # limit: 20                    # 每页最多取条数：offset 之后连取 limit 条（注意与 CLI --limit 详情总数上限不同）
+  # —— 规模化护栏 ——
+  # splitThreshold: 5000         # 拆分类阈值（顶层/section 均可配）：单入口条数超此值时 crawl 提示
+  #                              # 「站点可能有翻页天花板，建议按分类/筛选拆成多个 startUrls」（默认 5000，0=关闭提示）
 
 # ---------- 3) 列表页解析（每个产品条目 → detailUrl + name）----------
 parseList:

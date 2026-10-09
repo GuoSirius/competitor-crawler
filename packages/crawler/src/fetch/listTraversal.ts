@@ -35,8 +35,18 @@ export interface TraverseOpts {
   /**
    * 每页回调：解析该页 HTML，返回本页解析出的条目数（供翻页终止判断）。
    * 返回 0 视为「本页无条目 → 终止翻页」。
+   * 也可返回 `{ count, keys }`：keys = 本页条目身份键数组（canonical(detailUrl) 等）。
+   * 提供键后启用**卡页守卫**——连续 2 页 keys 全部已见（站点「翻页天花板」之后吐末页副本）
+   * → 停翻该入口并日志说明，不再白翻到 maxPages（2026-10-09，docs/05 §5.4）。
    */
-  onPage: (html: string, pageNo: number, pageUrl: string) => number | Promise<number>;
+  onPage: (
+    html: string,
+    pageNo: number,
+    pageUrl: string,
+  ) =>
+    | number
+    | { count: number; keys?: string[] }
+    | Promise<number | { count: number; keys?: string[] }>;
   /**
    * 附加到每页 ssr 请求的头（如代码适配器 preflight 拿到的 Cookie，docs/16 🔴-2）。
    * browser（Playwright）模式由浏览器自管 Cookie，此参数忽略。
@@ -59,6 +69,46 @@ export interface TraverseResult {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** onPage 返回值解包（兼容调用方的旧式纯 number 写法） */
+function unwrapPage(res: number | { count: number; keys?: string[] }): { count: number; keys?: string[] } {
+  return typeof res === 'number' ? { count: res, keys: undefined } : res;
+}
+
+// ── 卡页守卫（2026-10-09，用户定口径：严格 newCount==0 连续 2 页）──────────────
+// 不少站点「号称大几万」，实际翻页有天花板（如 ~6000 条）：天花板之后每页返回的都是
+// 末页副本——有条目、能解析，但全是已见过的。旧终止条件只有「0 条=末页 / maxPages」，
+// 会白翻满页数还制造假覆盖（docs/14 §7）。连续 2 页无新增 → 停翻该入口。
+const STUCK_STOP_STREAK = 2;
+
+/** 卡页检测器（每个列表入口新建一个）：跨页累计已见身份键，判「连续 N 页无新增」 */
+function newStuckGuard(progress?: Progress) {
+  const seen = new Set<string>();
+  let streak = 0;
+  return {
+    /** 传入本页身份键；调用方未提供 keys 时守卫不介入（保持原行为）。返回 true = 应停翻 */
+    stop(keys?: string[]): boolean {
+      if (!keys) return false;
+      let fresh = 0;
+      for (const k of keys) if (!seen.has(k)) seen.add(k), fresh++;
+      if (fresh > 0) {
+        streak = 0;
+        return false;
+      }
+      streak++;
+      if (streak >= STUCK_STOP_STREAK) {
+        progress?.log(
+          `[traverse] 卡页守卫：连续 ${streak} 页无新增条目（累计 ${seen.size} 条）——` +
+            `疑似站点翻页天花板（其后均为末页副本），停止翻该入口；` +
+            `如需拿全天花板之外的数据，请按分类/筛选拆成多个 startUrls（listTraversal.splitThreshold）`,
+        );
+        return true;
+      }
+      progress?.log(`[traverse] 本页 ${keys.length} 条全部已见（第 ${streak}/${STUCK_STOP_STREAK} 次）`);
+      return false;
+    },
+  };
+}
 
 /**
  * 拼装第 `page` 页的 URL（pagination-url 策略用）。
@@ -134,6 +184,7 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     let pages = 0;
     let items = 0;
     const missingPages: number[] = [];
+    const stuck = newStuckGuard(opts.progress);
     for (let p = pageStart; p < pageStart + max; p++) {
       if (pageEnd !== undefined && p > pageEnd) break; // 终止页（闭区间）已翻过
       // 适配器钩子优先（返回空值走默认拼装逻辑，docs/16 🔴-2）
@@ -165,10 +216,12 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
         opts.progress?.log(`[traverse] 第 ${p} 页抓取失败（重试 ${listRetry} 次仍失败），跳过该页继续：${lastErr}`);
         continue;
       }
-      const n = await opts.onPage(html, p, pageUrl);
+      const res = await opts.onPage(html, p, pageUrl);
+      const count = typeof res === 'number' ? res : res.count;
       pages++;
-      items += n;
-      if (n === 0) break; // 本页无条目 → 视为末页
+      items += count;
+      if (count === 0) break; // 本页无条目 → 视为末页
+      if (stuck.stop(typeof res === 'number' ? undefined : res.keys)) break; // 卡页守卫：连续 2 页无新增
     }
     return { pages, items, missingPages };
   }
@@ -181,15 +234,15 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
       headless: opts.antiBot?.headless,
       waitSelector: traversal.waitSelector,
     });
-    const n = await opts.onPage(html, 1, url);
-    return { pages: 1, items: n, missingPages: [] };
+    const r = unwrapPage(await opts.onPage(html, 1, url));
+    return { pages: 1, items: r.count, missingPages: [] };
   }
 
   // ssr：无浏览器，单页
   if (listMode === 'ssr') {
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
-    const n = await opts.onPage(html, 1, url);
-    return { pages: 1, items: n, missingPages: [] };
+    const r = unwrapPage(await opts.onPage(html, 1, url));
+    return { pages: 1, items: r.count, missingPages: [] };
   }
 
   let browser: import('playwright').Browser | null = null;
@@ -207,12 +260,13 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     // Playwright 不可用（未安装内核等）→ 回退单页，保证不整轮失败
     opts.progress?.log(`[traverse] Playwright 不可用，回退单页抓取：${(e as Error).message}`);
     const html = await fetchPage(url, 'ssr', opts.progress, opts.headers, { stealth: opts.antiBot, headless: opts.antiBot?.headless });
-    const n = await opts.onPage(html, 1, url);
-    return { pages: 1, items: n, missingPages: [] };
+    const r = unwrapPage(await opts.onPage(html, 1, url));
+    return { pages: 1, items: r.count, missingPages: [] };
   }
 
   let pages = 0;
   let items = 0;
+  const stuck = newStuckGuard(opts.progress);
   try {
     const ctx = await browser.newContext(
       stealthContextOptions(
@@ -255,12 +309,14 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
     while (pages < max) {
       const html = await page.content();
       const pageUrl = page.url();
-      const n = await opts.onPage(html, pages + 1, pageUrl);
+      const res = await opts.onPage(html, pages + 1, pageUrl);
+      const count = typeof res === 'number' ? res : res.count;
       pages++;
-      items += n;
+      items += count;
 
-      if (n === 0) break; // 本页无条目 → 视为结束
+      if (count === 0) break; // 本页无条目 → 视为结束
       if (pages >= max) break;
+      if (stuck.stop(typeof res === 'number' ? undefined : res.keys)) break; // 卡页守卫：连续 2 页无新增
 
       const strategy = traversal.strategy;
       if (strategy === 'scroll-api') {

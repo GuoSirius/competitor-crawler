@@ -13,6 +13,7 @@ import {
   absoluteUrl,
   domainOf,
   pickIdentityKey,
+  canonicalizeUrl,
   toNumber,
   unixFromBjParts,
   type ListItem,
@@ -37,6 +38,7 @@ import { fetchPage, type RenderMode } from '../fetch/page.js';
 import { Progress, ProgressCounter } from '../util/progress.js';
 import pLimit from 'p-limit';
 import { detailConcurrency } from '../util/limit.js';
+import { DEFAULT_SPLIT_THRESHOLD } from '../config/types.js';
 import type { ApiSourceConfig, ResolvedSection } from '../config/types.js';
 
 type Db = ReturnType<typeof createDb>['db'];
@@ -989,7 +991,11 @@ async function collectSection(args: {
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
         listBar.tick(true, `第${pageNo}页 +${pageItems.length}条 累计${items.length}`);
-        return pageItems.length;
+        // 卡页守卫键（docs/05 §5.4）：canonical(detailUrl) 与落库去重同口径，无链接退回 name
+        const keys = pageItems
+          .map((it) => (it.detailUrl ? canonicalizeUrl(it.detailUrl) : it.name ? `n:${it.name}` : ''))
+          .filter(Boolean);
+        return { count: pageItems.length, keys: keys.length > 0 ? keys : undefined };
       },
     });
     if (res.missingPages.length) missingPages.push(...res.missingPages);
@@ -999,6 +1005,16 @@ async function collectSection(args: {
   // 不去重会导致同一详情被抓两次、`新增` 计数虚高。去重键 = canonical(detailUrl)，与落库口径一致。
   const { items: deduped, duplicates } = dedupeListItems(items);
   const targets = deduped.slice(0, limit);
+  // 拆分类提示（2026-10-09 约定，docs/05 §5.4）：单入口条数超 splitThreshold（默认 5000，显式 0 关闭）时，
+  // 站点大概率有翻页天花板（其后均为末页副本，卡页守卫会停翻）——按分类/筛选拆成多个 startUrls
+  //（各入口独立翻页）才能拿全天花板之外的数据。
+  const splitAt = section.listTraversal.splitThreshold ?? DEFAULT_SPLIT_THRESHOLD;
+  if (section.startUrls.length === 1 && splitAt > 0 && deduped.length > splitAt) {
+    progress.log(
+      `[crawl] [${section.key}] 单入口 ${deduped.length} 条 > splitThreshold ${splitAt}：` +
+        `站点可能有翻页天花板，建议把该栏目按分类/筛选拆成多个 startUrls（各入口独立翻页）提高覆盖`,
+    );
+  }
   // 列表阶段收尾：去重/解析统计一并定格进列表进度行（commit 带 \n，详情进度从其下新行开始）
   const listNotes: string[] = [];
   if (duplicates > 0) listNotes.push(`去重${items.length}→${deduped.length}`);
@@ -1559,7 +1575,10 @@ async function collectContentSection(args: {
         if (adapter?.postParseList) pageItems = await adapter.postParseList(pageItems, ctx);
         items.push(...pageItems);
         listBar.tick(true, `第${pageNo}页 +${pageItems.length}条 累计${items.length}`);
-        return pageItems.length;
+        const keys = pageItems
+          .map((it) => (it.detailUrl ? canonicalizeUrl(it.detailUrl) : it.name ? `n:${it.name}` : ''))
+          .filter(Boolean);
+        return { count: pageItems.length, keys: keys.length > 0 ? keys : undefined };
       },
     });
     if (res.missingPages.length) missingPages.push(...res.missingPages);

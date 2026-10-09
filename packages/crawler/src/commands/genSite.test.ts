@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildModelHtml, extractYaml, parseYamlConfig, validateConfig } from './genSite.js';
+import { buildModelHtml, diagnoseBlocked, extractYaml, parseYamlConfig, validateConfig } from './genSite.js';
 import type { SiteConfig } from '../config/types.js';
 
 const OPTS = { domain: 'example.com', listUrl: 'https://www.example.com/list' };
@@ -15,13 +15,27 @@ describe('genSite 模型产出解析（docs/16 Q2）', () => {
     expect(out).not.toMatch(/\s{2,}/);
   });
 
-  it('buildModelHtml：超预算时按链接密度选窗，窗口包含商品卡而非纯导航', () => {
-    // 前 40KB 只有 1 个链接（导航壳），后面 80 张商品卡每张 2 个链接 → 密度最高的块在卡片区
+  it('buildModelHtml：超预算时按容器重复度选窗，窗口包含商品卡而非纯导航', () => {
+    // 前 40KB 只有 1 个链接（导航壳，无重复 class），后面 80 张商品卡每张都带 .product-card 容器
     const nav = '<div class="nav">' + '<span>x</span>'.repeat(20000) + '<a href="/nav">N</a></div>';
     const cards = Array.from({ length: 80 }, (_, i) => `<div class="product-card"><a href="/p/${i}">P${i}</a><a href="/p/${i}?t">T</a></div>`).join('');
     const out = buildModelHtml(nav + cards, 20000);
     expect(out.length).toBeLessThanOrEqual(20000);
     expect(out).toContain('product-card'); // 窗口命中卡片区，而不是把预算全花在导航上
+  });
+
+  it('diagnoseBlocked：CF 挑战文案 → 命中（不再伪报 NEED_MORE_HTML）', () => {
+    expect(diagnoseBlocked('<html><body>Just a moment...</body></html>')).toMatch(/挑战页信号/);
+  });
+
+  it('diagnoseBlocked：自定义 WAF 兜页（几乎无链接）→ 命中', () => {
+    const html = '<html><body><p>风险警告，请手动点击跳转</p><a href="/">返回</a></body></html>';
+    expect(diagnoseBlocked(html)).toMatch(/疑似 WAF 兜页/);
+  });
+
+  it('diagnoseBlocked：正常列表页（链接多、含宽泛组件词）→ 放行', () => {
+    const links = Array.from({ length: 30 }, (_, i) => `<a href="/p/${i}">P${i}</a>`).join('');
+    expect(diagnoseBlocked(`<html><body>${links}<div class="g-recaptcha"></div></body></html>`)).toBeNull();
   });
 
   it('parseYamlConfig：NEED_MORE_HTML（截断看不到条目）给出针对性指引', () => {

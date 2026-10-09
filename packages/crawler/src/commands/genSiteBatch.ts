@@ -124,8 +124,23 @@ export async function genSiteBatch(opts: GenSiteBatchOpts = {}): Promise<void> {
       await genSite(genOpts);
       ok++;
     } catch (e) {
+      const msg = (e as Error)?.message ?? '';
+      // 失败自动回退（2026-10-09）：ssr/auto 通道的 NEED_MORE_HTML / 被拦兜页类失败，
+      // 强制 browser 渲染重试一次，捞回「非真失败」的站；显式 render=browser 的行已用过浏览器，不重复。
+      if (genOpts.render !== 'browser' && /NEED_MORE_HTML|疑似被拦截/.test(msg)) {
+        console.log(`  ↻ 第${rowNo}行 ${genOpts.domain} 自动改 browser 重试一次…`);
+        try {
+          await genSite({ ...genOpts, render: 'browser' });
+          ok++;
+          continue;
+        } catch (e2) {
+          fail++;
+          console.error(`  ✗ 第${rowNo}行 ${genOpts.domain} 失败（browser 重试仍失败）：${(e2 as Error).message}`);
+          continue;
+        }
+      }
       fail++;
-      console.error(`  ✗ 第${rowNo}行 ${genOpts.domain} 失败：${(e as Error).message}`);
+      console.error(`  ✗ 第${rowNo}行 ${genOpts.domain} 失败：${msg}`);
     }
   }
 
