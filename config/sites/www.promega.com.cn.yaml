@@ -1,0 +1,36 @@
+domain: www.promega.com.cn
+startUrl: https://www.promega.com.cn/products/immunoassay-elisa/lumit-immunoassays/
+company: 普洛麦格(北京)生物技术有限公司
+companyShort: Promega
+currency: CNY
+render: browser
+# 2026-10-09 手写（gen-site 三轮 NEED_MORE_HTML：模型不认 hub 页形态；实测 a.product-tile 卡片含名称/多货号/详情链，列表不显价）
+listTraversal:
+  strategy: none
+  maxPages: 1
+parseList:
+  itemSelector: a.product-tile
+  fields:
+    detailUrl:
+      sel: '$self'
+      attr: href
+    name:
+      sel: h4.product-tile__heading
+      text: true
+    sku:
+      sel: p.product-tile__part-number
+      text: true
+      regex: '[A-Z]{2,6}\d{2,6}'
+    specText: null
+    priceText: null
+parseDetail:
+  fields:
+    name: null
+    englishName: null
+    cloneNumber: null
+    aliases: null
+    oldSkus: null
+    applications: null
+    specs: null
+    introMedia: null
+  captureRest: true
