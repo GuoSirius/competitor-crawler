@@ -1,42 +1,42 @@
-domain: raybiotech.com
-startUrl: https://www.raybiotech.com/elisa-kits-products/sandwich-elisa
-company: RayBiotech, Inc.
+domain: www.genscript.com
+startUrl: https://www.genscript.com/catalog-antibody-products.html
+company: 南京金斯瑞生物科技有限公司
+companyShort: "GenScript 金斯瑞"
 listTraversal:
-  strategy: pagination-url
-  urlTemplate: ?page={page}
+  strategy: pagination-html
+  nextSelector: .pages .nextPage
   maxPages: 50
   fallbackToUi: true
 parseList:
-  itemSelector: li.ais-Hits-item
+  itemSelector: .proLis dl
   fields:
     detailUrl:
-      sel: a[href^="/human-"], a[href^="/mouse-"]
+      sel: .proTitle a.product-name
       attr: href
     name:
-      sel: h3.font-primary
+      sel: .proTitle a.product-name
       text: true
     sku:
-      sel: p.mt-spacing-xs span.font-bold
+      sel: b
+      text: true
+    priceText:
+      sel: .proPricle
       text: true
     specText:
-      sel: ul.flex.flex-col.gap-spacing-3xs li
-      list: true
+      sel: .proGg
+      text: true
 parseDetail:
   fields:
     name:
       sel: null
       text: true
-    englishName:
+    sku:
       sel: null
-    cloneNumber:
+      text: true
+    priceNow:
       sel: null
-    aliases:
-      sel: null
-    oldSkus:
-      sel: null
-    applications:
-      sel: null
-      list: true
+      text: true
+      number: true
     specs:
       sel: null
       list: true
@@ -61,13 +61,5 @@ parseDetail:
         image:
           sel: img
           attr: src
-        video:
-          sel: iframe
-          attr: src
-        description:
-          sel: null
-          text: true
-  captureRest: true
-companyShort: RayBiotech
 currency: USD
 render: browser
