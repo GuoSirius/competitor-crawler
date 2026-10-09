@@ -1,0 +1,90 @@
+# 康宁（Corning）Life Sciences —— 公开可抓，无需登录（用户 2026-10-09 纠正早年「B2B 登录墙」误判）
+# 结构：www 品类页 → www 家族页（列表页，单页无翻页）→ ecatalog b2c /p/<slug> 详情（价格公开）
+#   + 部分家族页直链 ecatalog b2b /p/<slug> 变体表（每行为一个 SKU+价格，无需登录，stealth 自动过盾）。
+# 详情页异构，两套都兼容：
+#   b2c 单品页  -> h1 名称 / p.price 价格 / a[href*=pagePath=p/] 取货号
+#   b2b 变体表  -> h1 家族名 / table.productsTable__table tbody tr 每行一个 SKU（进 specs[]）
+# 列表 itemSelector 同时命中 b2c/b2b 两类 /p/ 链接，统一进详情解析。
+domain: www.corning.com
+company: "康宁（Corning）"
+companyShort: "康宁"
+role: competitor
+currency: USD
+sections:
+  - key: life-sciences
+    startUrls:
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/ascent-fbr-system.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/cellcube-culture-system.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/closed-system-solutions.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/corning-erlenmeyer-shake-flasks.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/hyper-platforms.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/microcarriers.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/bioprocess/single-use-technology.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/cell-Culture/corning-cell-culture-flasks.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/cell-Culture/corning-elplasia-12k-flask.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/agitation-equipment.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/centrifuges.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/constant-temp-equipment.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/corning-axypetpro-multirack.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/corning-bottle-top-dispenser.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/corning-cell-counter.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/corning-lambda-elitetouch-pipettors.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/equipment/corning-stripettor-pro.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/filtration/vacuum-filters.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/general-labware/corning-bottles.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/general-labware/cryogenic-storage.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/general-labware/sample-cooling-systems.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/genomics/automation-tips.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/liquid-handling/centrifuge-tubes.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/liquid-handling/liquid-handling-equipment.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/liquid-handling/pipet-tips-and-accessories.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/liquid-handling/pipets.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/3d-clear-tissue-clearing-reagent.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/corning-msculture-max-media.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/custom-media-sterile-solutions.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/high-quality-water.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/media.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/sera.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/media-sera-reagents/supplements-and-reagents.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/axygen-pcr-microplates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/biochemical-assay-microplates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/cell-based-assay-microplates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/elisa-microplates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/elplasia-plates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/spheroid-microplates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/microplates/stripwell-strips-and-microplates.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/permeable-supports/fluoro-blok.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/permeable-supports/permeable-support-systems.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/permeable-supports/select-insert.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/permeable-supports/transwell-snapwell-netwell-falcon-permeable-supports.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/ECMs-and-biologically-coated-surfaces.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/biocoat.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/ecm-mimetic.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/enhanced-tissue-culture-surfaces.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/matrigel-matrix-for-organoids.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/matrigel-matrix.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/purecoat-ecm-mimetic.html
+      - https://www.corning.com/worldwide/en/products/life-sciences/products/surfaces/synthegel-synthetic-hydrogel-matrix-kits.html
+render: browser
+listTraversal:
+  strategy: none            # 家族页单页列出全部产品，无翻页
+parseList:
+  itemSelector: 'a[href*="ecatalog.corning.com"][href*="/p/"]'
+  fields:
+    detailUrl: { sel: '$self', attr: href }
+    sourceProductId: { sel: '$self', attr: href, regex: 'p/([^/?#]+)' }
+parseDetail:
+  fields:
+    name:      { sel: 'h1', text: true }
+    sku:       { sel: 'a[href*="pagePath=p/"]', attr: href, regex: 'pagePath=p/(\d+)' }
+    price:     { sel: 'p.price', text: true, regex: '\$([\d,]+\.\d{2})', number: true }
+    priceText: { sel: 'p.price', text: true }
+    specs:
+      sel: 'table.productsTable__table tbody tr'
+      list: true
+      map:
+        sku:       { sel: 'td:nth-child(1) span.tablesaw-cell-content', text: true }  # Product Number
+        name:      { sel: 'td:nth-child(2) span.tablesaw-cell-content', text: true }  # Product Name
+        priceText: { sel: 'td:nth-child(6) span.tablesaw-cell-content', text: true }  # Price
+        unitSize:  { sel: 'td:nth-child(7) span.tablesaw-cell-content', text: true }  # Unit Size
+  captureRest: true         # 规格/描述等全量进 row 兜底
