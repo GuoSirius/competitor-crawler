@@ -37,6 +37,8 @@ company: 示例生物科技有限公司      # 站点归属公司名（写入 co
 # competitorType: 多肽合成试剂     # 竞品类型（可选；写入 companies.competitor_type，供筛选/分组）
 # role: competitor                # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
 # ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）
+# companyShort: 普诺赛              # 市场部简称标签（可选，仅展示用；validate 不拦、暂不落库）
+#                                  #   company=规范全名（聚合唯一键，同名=同公司）；companyShort=市场叫法（如「Abcam」「百普赛斯」）
 currency: CNY                    # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
 startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
 
@@ -68,6 +70,18 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 # 生效范围：写在站点顶层 = 整站走；写在某个 section 内 = 仅该栏目走（section.proxy 覆盖站点级）。
 # 不写 = 直连。留空字符串也视为直连。
 # proxy: '${CRAWL_PROXY}'
+
+# ---------- 1.2) 反爬/指纹（绝大多数站无需配，引擎默认值即可）----------
+# 引擎默认：mid 档 stealth + 时区 Asia/Shanghai + 语言 zh-CN + 1920×1080 + 有头最大化。
+# 只有个别站需特调（如境外代理需改时区/语言、CI 服务器需无头）才写下面这个块；
+# 字段全部可选，省略即引擎默认。proxy 也可直接写顶层（见上 1.1），二者等价。
+# antiBot:
+#   profile: mid                 # none=调试裸浏览器 / low / mid(默认) / high=加 Canvas/WebGL 噪声
+#   timezone: Asia/Shanghai      # 用境外代理时应与 IP 属地一致（如 America/New_York）
+#   locale: zh-CN                # 同时决定 Accept-Language
+#   maximize: true              # 有头时窗口最大化铺满（默认 true；要固定小视口调试设 false）
+#   headless: false             # 无头开关（默认 false=有头；CI/服务器设 true）
+#   seed: 12345                 # Canvas/WebGL 噪声种子（同站固定，回访指纹稳定）
 
 # ---------- 1.5) 分类归属（产品挂到 categories 通用分类树；三种来源按优先级取一）----------
 # 优先级：categoryFromPage（动态，最准）> categoryPath（静态数组）> category（单名兜底）
@@ -109,6 +123,10 @@ listTraversal:
   # —— 规模化护栏 ——
   # splitThreshold: 5000         # 拆分类阈值（顶层/section 均可配）：单入口条数超此值时 crawl 提示
   #                              # 「站点可能有翻页天花板，建议按分类/筛选拆成多个 startUrls」（默认 5000，0=关闭提示）
+  # waitSelector: ".product-card"  # 仅 browser 通道：goto 后先等该选择器「可见」再 settle（防抓到加载空壳）
+  #                              #   接口渲染/数据请求晚于 networkidle 时必配（Algolia 等；实测 Bio X Cell 首屏 ~57s 才出卡）
+  #                              #   ★ 用「内容级」选择器（浅层容器在重挂载时会被清空，配浅层会时好时坏）
+  # listRetry: 1                 # 仅 pagination-url：单页抓取失败重试次数（默认 1；0=不重试；规模化防丢页）
 
 # ---------- 3) 列表页解析（每个产品条目 → detailUrl + name）----------
 parseList:
@@ -141,7 +159,7 @@ parseDetail:
     # 3) 取「文本/属性中的一段」：regex 优先第 1 捕获组，无捕获组则取全匹配
     cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' } # 从标题抠克隆号
     productId:   { sel: "a.pd-link", attr: href, regex: '/product/(\d+)' }     # 从 URL 抠产品 id
-    priceNum:    { sel: ".price", text: true, regex: '[\d,]+\.?\d*' }          # 只留数字（含千分位/小数）
+    priceNum:    { sel: ".price", text: true, regex: '[\d,]+\.?\d*', number: true } # 只留数字并转数值（含千分位/小数；number:true 才能参与比价）
 
     # ======================================================================
     # 二、list: true —— 收集所有匹配为「数组」
@@ -164,8 +182,8 @@ parseDetail:
       map:
         spec:          { sel: ".spec", text: true }
         sku:           { sel: ".sku", text: true }        # 形态C 才需要；单货号产品省略此行
-        priceNow:      { sel: ".price-now", text: true, regex: '[\d\.]+' }
-        priceOriginal: { sel: ".price-origin", text: true, regex: '[\d\.]+' }   # 原价/划线价
+        priceNow:      { sel: ".price-now", text: true, regex: '[\d\.]+', number: true } # ★ 价格必加 number:true 落库才是数值（否则比价/涨跌失效）
+        priceOriginal: { sel: ".price-origin", text: true, regex: '[\d\.]+', number: true }   # 原价/划线价
         priceActivity: { sel: ".price-act", text: true }
         pricePromo:    { sel: ".price-promo", text: true }
         buyUrl:        { sel: "a.buy", attr: href }

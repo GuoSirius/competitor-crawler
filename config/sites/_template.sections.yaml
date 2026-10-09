@@ -39,6 +39,8 @@
 domain: example.com
 # 公司归属（写入 companies；同名=同一家公司，多域名共用同一 company）
 company: 示例生物科技有限公司        # 站点归属公司名；省略时回退为 domain
+# companyShort: 普诺赛               # 市场部简称标签（可选，仅展示用；validate 不拦、暂不落库）
+#                                   #   company=规范全名（聚合唯一键）；companyShort=市场叫法（如「Abcam」「百普赛斯」）
 # competitorType: 多肽合成试剂       # 竞品类型（可选；写入 companies.competitor_type）
 # role: competitor                  # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
 # ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）
@@ -63,6 +65,7 @@ listTraversal:
   nextSelector: "a.next"
   maxPages: 50
   fallbackToUi: true
+  # waitSelector: ".product-card" # 仅 browser 通道：goto 后先等该选择器「可见」再 settle（接口渲染/数据晚于 networkidle 时必配）
 
 # 顶层默认「列表规则」：结构相同的栏目可不必各自重复写
 parseList:
@@ -241,6 +244,30 @@ sections:
         name:    { sel: "h1", text: true }
         body:    { sel: ".notice-body", text: true }
       captureRest: true
+
+  # ==========================================================================
+  # 栏目 7：仅列表采集（listOnly）—— 内容无详情页，列表快照即终态
+  # --------------------------------------------------------------------------
+  # · listOnly: true → 跳过详情阶段，列表抽到的 title(=name) + detailUrl + row 直接落 contents 表；
+  # · 适用于「文件下载直链 / 前端渲染单页数据」这类没有详情页可抓的内容；
+  # · 产品管线（products）不支持 listOnly（价格/规格必须有详情阶段）。
+  # ==========================================================================
+  - key: downloads
+    contentType: document               # 落到 contents 表，type=document
+    listOnly: true                      # ★ 关键：仅列表模式
+    startUrls:
+      - "https://example.com/downloads"
+    listTraversal:
+      strategy: pagination-url
+      urlTemplate: "?page={page}"
+      maxPages: 10
+    parseList:
+      itemSelector: ".file-list li"
+      fields:
+        detailUrl: { sel: "a", attr: href }   # 文件直链（落 contents.detail_url）
+        name:      { sel: "a", text: true }   # 文件名（映射到 contents.title）
+        date:      { sel: ".file-date", text: true }
+    # 注意：listOnly 站点不写 parseDetail（写了也无效）
 
 # ============================================================================
 # 附：多规则站点使用说明
