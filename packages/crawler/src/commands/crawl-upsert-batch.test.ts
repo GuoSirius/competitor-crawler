@@ -169,7 +169,8 @@ describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', ()
     const existed = await loadExistedFull();
     const before = (await db.select().from(productDiffs)).length;
     const summary = makeSummary();
-    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 20, crawlId, progress, 'x.com', sectionKey);
+    const capturedAt = nowSeconds() + 20;
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, capturedAt, crawlId, progress, 'x.com', sectionKey);
 
     const added = (await db.select().from(productDiffs)).slice(before);
     const fields = added.map((r) => r.field).sort();
@@ -182,7 +183,7 @@ describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', ()
     expect(stockDiff.oldValue).toBeNull();
     expect(JSON.parse(stockDiff.newValue!)).toBe('现货');
     expect(nameDiff.crawlId).toBe(crawlId);
-    expect(nameDiff.capturedAt).toBe(nowSeconds() + 20);
+    expect(nameDiff.capturedAt).toBe(capturedAt);
   });
 
   it('重复跑同样数据：无字段变更 → product_diffs 不新增行', async () => {

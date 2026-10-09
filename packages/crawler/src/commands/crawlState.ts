@@ -40,6 +40,9 @@ export class CrawlState {
     private data: CrawlStateFile,
   ) {}
 
+  /** 进程内自增序号：与毫秒时间戳组合，保证同一毫秒内连续 create 也不重名（否则两爬虫同毫秒启动会互相覆盖断点文件） */
+  private static seq = 0;
+
   /** 断点目录（可用 dirOverride 覆盖，测试用临时目录） */
   static dir(dirOverride?: string): string {
     return dirOverride ?? path.join(repoRoot, '.crawl-state');
@@ -49,7 +52,8 @@ export class CrawlState {
   static create(opts: Record<string, unknown>, dirOverride?: string): CrawlState {
     const dir = CrawlState.dir(dirOverride);
     fs.mkdirSync(dir, { recursive: true });
-    const runId = new Date().toISOString().replace(/[:.]/g, '-');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const runId = `${stamp}-${(CrawlState.seq++).toString(36)}`;
     const p = path.join(dir, `run-${runId}.json`);
     const now = Math.floor(Date.now() / 1000);
     const state = new CrawlState(p, { runId, startedAt: now, updatedAt: now, opts, domains: {} });
