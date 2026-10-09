@@ -1,0 +1,30 @@
+# Cell Signaling Technology（CST）—— Nuxt SSR+注水 SPA；列表与详情均 browser 渲染。
+# 实测：列表 30 条/页，详情链 /products/<path>/<catalog#>，翻页点击 button[aria-label="Next page"]。
+# 价格不公开（页面仅「To Purchase # xxxx」），故不配 price 字段，由 captureRest 兜底落 row。
+domain: www.cellsignal.com
+company: "Cell Signaling Technology, Inc."
+companyShort: "CST"
+role: competitor
+currency: USD
+startUrl: "https://www.cellsignal.com/browse?tab=product&qs=filter_engaged"
+render: browser
+
+listTraversal:
+  strategy: pagination-html
+  nextSelector: 'button[aria-label="Next page"]'
+  waitSelector: "article.product-item"   # Nuxt 点击翻页后等网格重渲染（防抓到加载态）
+  maxPages: 200                          # 护栏；实际由「连续 2 页 0 新增」卡页守卫终止
+
+parseList:
+  itemSelector: "article.product-item"
+  fields:
+    detailUrl: { sel: "a", attr: href }
+    name:      { sel: "h2", text: true }
+    sku:       { sel: 'div[data-test-id^="product-searchResultItem_"]', attr: "data-test-id", regex: 'product-searchResultItem_(\d+)' }
+
+parseDetail:
+  fields:
+    name:        { sel: "h1", text: true, regex: '^(.*?)\s*#\d+' }   # 去掉结尾的 #货号
+    sku:         { sel: "h1", text: true, regex: '#(\d+)' }
+    description: { sel: "[class*='description' i], [class*='overview' i]", text: true }
+  captureRest: true                      # 规格表 / 应用 / 反应性 等全量进 row 兜底
