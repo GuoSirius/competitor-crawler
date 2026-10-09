@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 1000" width="1360" height="1000"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 500" width="100%"
      font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
   <!--
     match（listUrlIncludes / detailUrlIncludes）v2 —— 换一种讲法：
@@ -16,6 +16,7 @@
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#16A34A"/>
     </marker>
   </defs>
+<g transform="scale(0.5)">
 
   <rect width="1360" height="1000" fill="#FFFFFF"/>
   <text x="40" y="52" font-size="26" font-weight="700" fill="#0F172A">match：listUrlIncludes / detailUrlIncludes 是干嘛的</text>
@@ -85,4 +86,5 @@
 
   <text x="40" y="912" font-size="13.5" fill="#334155">一句话总结：<tspan font-weight="700">match 不决定抓什么、不决定存哪里，只负责在「URL 没带标签」时回答它属于哪个栏目。</tspan>正常爬取永远用不到它。</text>
   <text x="40" y="948" font-size="12.5" fill="#94A3B8">配套：entry-paginate-flow.svg（startUrl / startUrls 入口继承与翻页机制）</text>
+</g>
 </svg>

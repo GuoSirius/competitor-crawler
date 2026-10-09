@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 1580" width="1440" height="1580"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 790" width="100%"
      font-family="'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
   <!--
     竞品爬虫 · 数据流转与处理细节（v2，2026-09-30 刷新）
@@ -37,6 +37,7 @@
       .rb{font-size:10px;fill:#64748b}
     </style>
   </defs>
+<g transform="scale(0.5)">
 
   <rect width="1440" height="1580" fill="url(#bg2)"/>
 
@@ -301,4 +302,5 @@
   <line x1="728" y1="1540" x2="760" y2="1470" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#f)"/>
 
   <text x="36" y="1572" class="bd">说明：本图为「怎么跑、每一步产出什么、哪里可能失败、失败了怎么办」。架构分层与模块职责见 architecture.svg；字段与表结构见 docs/03；告警类型见 docs/07；提示词体系见 docs/04 §4.4。</text>
+</g>
 </svg>
