@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.6.0...v1.7.0) (2026-10-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **fetch:** 旧名 spa 不再被识别（不保留别名），见下一条提交的取值守卫。
+
+### ♻️ 代码重构 (Refactors)
+
+* **sites:** 渲染模式更名同步到全部站点配置与文档 ([5f21d1a](https://github.com/GuoSirius/competitor-crawler/commit/5f21d1a37fc76bf7d55bbaea073176689e04a9b2))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* **antibot:** 移除 context 级 extraHTTPHeaders，避免污染跨域 XHR 触发 CORS 失败 ([54fe192](https://github.com/GuoSirius/competitor-crawler/commit/54fe192cf377c0b33e322bfbd3922b2daf1b6d46))
+* **crawler:** 代理透传补全，genSite/diagnose/sweep/apiSource 均接入站点 YAML proxy ([d61721e](https://github.com/GuoSirius/competitor-crawler/commit/d61721e99fe25232c26514e24654354f07b4f756))
+* **crawler:** 托管挑战被误判死 + 指纹伪造改为只补缺不篡改 ([56e7f90](https://github.com/GuoSirius/competitor-crawler/commit/56e7f90e9f964a02a5f9264ba6fbe4f4e645eb8e))
+* **crawler:** 诊断复用会话 cookie + languages 补主语言简写 ([babc35c](https://github.com/GuoSirius/competitor-crawler/commit/babc35ca05dafdf60108ea32f950354376a79d74))
+* **crawler:** diagnose 的 ssr 通道改走原生 fetch + 解析 --no- 前缀 + 补接入 SOP ([f786424](https://github.com/GuoSirius/competitor-crawler/commit/f786424cef7399853d7ed6391a444addf822f6f0))
+* **fetch:** auto 模式遇挑战页回退浏览器，翻页分支补上过盾 ([1b1a4a3](https://github.com/GuoSirius/competitor-crawler/commit/1b1a4a3e11e655df7fd3f881c5d1c94f45dca600))
+* **plan:** dump cookies via in-process CDP and run pnpm with shell:true on windows ([c0f2d19](https://github.com/GuoSirius/competitor-crawler/commit/c0f2d19bbf42f44846650dafd8a41f429ba2976a))
+* **plan:** read cookies from page target WebSocket instead of browser-level ([427cd1f](https://github.com/GuoSirius/competitor-crawler/commit/427cd1fdb7d1c965a17633570fbb0685e45871a0))
+* **plan:** resolve pnpm ENOENT on windows and add plan:b converter ([77b73dc](https://github.com/GuoSirius/competitor-crawler/commit/77b73dc18df12895c26301087884e8915fe3787c))
+* **plan:** use browser-style WebSocket API for CDP cookie dump ([66cf2ac](https://github.com/GuoSirius/competitor-crawler/commit/66cf2ac5ca24715bbf815283c7564c396b1f6792))
+* **tools:** plan:a 增加从 .env 读取 CHROME_BIN 的回退，优化报错提示 ([2953767](https://github.com/GuoSirius/competitor-crawler/commit/29537677eb4f49c4c070601af59e97cff6213620))
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **model:** cloud 默认 baseURL 改为实际在用的 apihub 中转 ([3de317b](https://github.com/GuoSirius/competitor-crawler/commit/3de317bf54c6ab706628f599c012b18949df266c))
+* **model:** cloud 默认三元组对齐实际生效组合（apihub + agnes-2.5-flash） ([6dd3f6d](https://github.com/GuoSirius/competitor-crawler/commit/6dd3f6dbfe239065ff0c3634f269dcbf80896b97))
+* **sites:** 新增 C 类 4 站代理版 YAML 桩（proxy 走 CRAWL_PROXY） ([a64d088](https://github.com/GuoSirius/competitor-crawler/commit/a64d0889ef9bacc7ba62a8ffd2cccd22426e2503))
+* **tools:** 提升方案A/B脚本为正式 pnpm 命令 plan:a，忽略 .runtime ([6a6acad](https://github.com/GuoSirius/competitor-crawler/commit/6a6acada37ab757d0cc6c297d8cfac43e0ec12ec))
+
+
+### 🚀 新功能 (Features)
+
+* **adapter:** field spec 增加布尔强转，补齐标量第四类型 ([b0b21da](https://github.com/GuoSirius/competitor-crawler/commit/b0b21da93efc5988d1926418edd6977aea5be5b9))
+* **config:** 渲染模式取值守卫（非法值不再静默退化成 auto） ([fc68221](https://github.com/GuoSirius/competitor-crawler/commit/fc682211b245b54620cdea157d96f13e6560ab4f))
+* **crawler:** 新增 diagnose 命令，多通道对照 + 指纹体检给反爬归因 ([0551c5e](https://github.com/GuoSirius/competitor-crawler/commit/0551c5e7340d306da87a83d4f824d236dd836eff))
+* **diff:** product_diffs 表与字段级变更捕获管线 ([bbc3ce8](https://github.com/GuoSirius/competitor-crawler/commit/bbc3ce82e0add8b8cda18030b72fedbe7ca4b216))
+* **fetch:** 按需代理能力（yaml proxy 逐站配置 + CRAWL_PROXY 占位符，ssr/spa 双通道生效） ([b88487d](https://github.com/GuoSirius/competitor-crawler/commit/b88487d731f1ca09430804f29b9410998a4eaae9))
+* **fetch:** 渲染模式 spa 更名 browser（含环境变量与函数） ([2e48a06](https://github.com/GuoSirius/competitor-crawler/commit/2e48a06b0259dce3be702f9420db8ac127c86f91))
+* **fetch:** 有头模式窗口最大化铺满屏幕 ([fae7b3f](https://github.com/GuoSirius/competitor-crawler/commit/fae7b3fe9d2ffb8e79c60d792444279e1eb9e62d))
+* **fetch:** browser 通道在未安装内置 chromium 时自动回退系统 chrome ([19dee06](https://github.com/GuoSirius/competitor-crawler/commit/19dee06b246e40cb6d0a92fbfbfb1257292d9c07))
+* **plan:** auto-close Chrome after plan:a, add --keep-chrome to retain ([db74ddb](https://github.com/GuoSirius/competitor-crawler/commit/db74ddb54078e0829a78dd13cb815b73c7a7b81e))
+* **probe:** 抓取失败统一给可执行建议，不再裸抛堆栈 ([6cf8080](https://github.com/GuoSirius/competitor-crawler/commit/6cf8080fc10cae2e5847ecbdffd79c415a3599d0))
+* **sites:** 接入 cytion（C 类升 A 类，Shopware 列表 4 栏目 60 条，货号+价格齐全） ([30dcabe](https://github.com/GuoSirius/competitor-crawler/commit/30dcabe057e754df56369b17025e9f362a0b313a))
+* **sites:** 接入 PromoCell/BioLegend，probe 管线补代码适配器钩子 ([aa267cf](https://github.com/GuoSirius/competitor-crawler/commit/aa267cf1909d2d0c6a77ffb75ce6b19d2fa5c2a6))
+* **sites:** 接入 stemcell（C 类升 A 类，Magento ?p= 翻页，询价制无价格） ([3ad98cd](https://github.com/GuoSirius/competitor-crawler/commit/3ad98cdd68f0282f4d4afc0a654b32e4a6e28b90))
+* **sites:** 诺唯赞接入（187 最后一级分类 + pagination-html，probe 1436 条） ([761e08e](https://github.com/GuoSirius/competitor-crawler/commit/761e08e83403f5a61d6d65a56153b6c849bf5dfb))
+* **sites:** 中文站强制直连代理（resolveProxy）+ 接入 elabscience 英文站 ([9dd8e21](https://github.com/GuoSirius/competitor-crawler/commit/9dd8e21a80986a8ac231ac09c1702c3737168e87))
+* **sites:** leinco 接入（algolia hits + pagination-url，16 分类） ([b208a7f](https://github.com/GuoSirius/competitor-crawler/commit/b208a7f77822e9c3d4de3697d3dcb03675b2d104))
+
+
+### 📚 文档 (Documentation)
+
+* **14:** 台账更新至 a 类 32 站，新增 5.5 代理口径（中文站强制直连） ([3c3929c](https://github.com/GuoSirius/competitor-crawler/commit/3c3929c2e7f006476719f27729459df3f650cd92))
+* 按 diagnose 复测改判 C 类台账，登记三处真 bug 与判定纪律 ([747dc2a](https://github.com/GuoSirius/competitor-crawler/commit/747dc2a644b636fd8a2ea4f4faceed9c96a1160d))
+* 清理已完成使命的体检报告快照与 plan:a 临时手册 ([be65125](https://github.com/GuoSirius/competitor-crawler/commit/be651253c2cbf28eefae957c6e1b223de825b61e))
+* 台账按配置实况重新干净划分 ABC（A=38/B=6/C=0） ([0133620](https://github.com/GuoSirius/competitor-crawler/commit/0133620fe28d6ffe39c77c20591347f27ae9a920))
+* 台账登记五处真 bug 与 auto/traverseList 修复，改写索莱宝与 Beckman 结论 ([ea3a6f2](https://github.com/GuoSirius/competitor-crawler/commit/ea3a6f2807689e3e5238be6abd981cb9896b3b56))
+* 新增 YAML+适配器管线图并挂入文档 ([dfbc49d](https://github.com/GuoSirius/competitor-crawler/commit/dfbc49d468a08cfceac060e08f1594ebb262917b))
+* 修复 assets SVG 在预览中溢出（响应式 + viewBox 减半 + scale 0.5） ([063d8e3](https://github.com/GuoSirius/competitor-crawler/commit/063d8e3c1344dc23591094785cbe5ad9e89676e6))
+* **sites:** b类12站browser复测结论入账——7站产品卡渲染正常可配 ([7f7d937](https://github.com/GuoSirius/competitor-crawler/commit/7f7d9372b01eb4fc2231d6425a3900823b2c4bba))
+* **sites:** b类下钻结论与plan:a过盾命令清单 ([946558e](https://github.com/GuoSirius/competitor-crawler/commit/946558e50f5eaa3cd74702dde93991c54f5b58df))
+* **sites:** reclassify PromoCell/immocell C→B after user confirms openable ([d559293](https://github.com/GuoSirius/competitor-crawler/commit/d559293994979c8aed0d9d2a177256f7decb2c13))
+
+
+### ✅ 测试 (Tests)
+
+* **crawler:** 修复 capturedAt 偶发断言（时间戳只算一次） ([8c60da0](https://github.com/GuoSirius/competitor-crawler/commit/8c60da04d01c14470511dff94152c4386a22695c))
+
 ## [1.6.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.5.0...v1.6.0) (2026-10-04)
 
 
