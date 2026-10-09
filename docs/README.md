@@ -32,8 +32,9 @@
 |---|---|---|
 | [assets/architecture.svg](assets/architecture.svg) | **总体架构图** | 分了几层、每层干什么、模块与职责边界、关键不变量、质量门禁 |
 | [assets/pipeline-flow.svg](assets/pipeline-flow.svg) | **流程图 / 时序图** | 一条数据从种子到交付的逐节点流转、决策分支、失败隔离与告警自愈闭环、落库口径、适配器钩子介入点 |
+| [assets/yaml-adapter-hooks.svg](assets/yaml-adapter-hooks.svg) | **YAML+代码适配器管线图** | YAML 真相源、引擎装配、四个钩子（preflight/buildPageUrl/postParseList/postParseDetail）触发点、列表/详情管线、落库去重、使用要点 |
 
-> 讲解项目时建议两张配合：先 architecture 讲"有什么"，再 pipeline-flow 跟着数据走一遍"怎么流转、卡住怎么办"。
+> 讲解项目时建议三张配合：先 architecture 讲"有什么"，再 pipeline-flow 跟着数据走一遍"怎么流转、卡住怎么办"，最后 yaml-adapter-hooks 看"YAML 与代码适配器在哪些节点介入、钩子怎么联动"。
 
 ## 约定
 

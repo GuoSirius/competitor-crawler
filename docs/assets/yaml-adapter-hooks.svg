@@ -1,0 +1,129 @@
+<svg viewBox="0 0 680 1428" width="100%" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>YAML 与代码适配器抓取管线全景图</title>
+<desc>展示站点 YAML 配置、引擎装配、四个适配器钩子触发点、列表遍历、详情兜底与落库去重的完整执行流程。图例：蓝=YAML 真相源，绿=引擎执行，橙=适配器钩子，灰=存储与状态。</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</marker>
+</defs>
+<text x="40" y="28" font-size="14" font-weight="500" fill="#26215C">YAML + 代码适配器 · 抓取管线全景</text>
+<text x="40" y="48" font-size="12" fill="#5F5E5A">蓝 = YAML 真相源 · 绿 = 引擎执行 · 橙 = 适配器钩子 · 灰 = 存储与状态</text>
+
+<g>
+<rect x="40" y="64" width="600" height="104" rx="12" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="56" y="84" font-size="13" font-weight="500" fill="#0C447C" dominant-baseline="central">① config/sites/&lt;domain&gt;.yaml —— 唯一真相源</text>
+<text x="56" y="104" font-size="12" fill="#444441" dominant-baseline="central">domain / company / currency / role / render（ssr|browser|auto）/ proxy（'${CRAWL_PROXY}'）</text>
+<text x="56" y="122" font-size="12" fill="#444441" dominant-baseline="central">parseList：itemSelector + fields（sel / attr / text / regex / number / json）</text>
+<text x="56" y="140" font-size="12" fill="#444441" dominant-baseline="central">listTraversal：strategy（pagination-url|pagination-html|scroll-api|none）+ urlTemplate / nextSelector / waitSelector / maxPages</text>
+<text x="56" y="158" font-size="12" fill="#444441" dominant-baseline="central">sections[]（key / startUrls / match.detailUrlIncludes）· parseDetail（fields + captureRest）· categories（path + id_path）</text>
+</g>
+<line x1="340" y1="168" x2="340" y2="190" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="190" width="600" height="88" rx="12" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="56" y="210" font-size="13" font-weight="500" fill="#27500A" dominant-baseline="central">② 引擎装配（每次运行）</text>
+<text x="56" y="230" font-size="12" fill="#444441" dominant-baseline="central">loadSiteConfig → validateSiteConfig → resolveSections</text>
+<text x="56" y="248" font-size="12" fill="#444441" dominant-baseline="central">section 未配 parseList / parseDetail 时自动继承顶层配置（回退链）</text>
+<text x="56" y="266" font-size="12" fill="#444441" dominant-baseline="central">buildTargets：YAML 未配 category 时自动建 &lt;domain&gt;::&lt;key&gt; 锚点分类（正常现象）</text>
+</g>
+<line x1="340" y1="278" x2="340" y2="298" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="298" width="600" height="100" rx="12" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.5"/>
+<text x="56" y="318" font-size="13" font-weight="500" fill="#633806" dominant-baseline="central">③ adapterLoader：显式注册表按域名加载 src/adapters/&lt;domain&gt;.ts（可选）</text>
+<text x="56" y="338" font-size="12" fill="#444441" dominant-baseline="central">无文件 = 纯 YAML 行为，零回归；加载失败按「无适配器」继续；有缓存单例</text>
+<rect x="56" y="352" width="134" height="32" rx="8" fill="#FAC775" stroke="#BA7517" stroke-width="0.5"/>
+<text x="123" y="368" font-size="12" fill="#412402" text-anchor="middle" dominant-baseline="central">钩子① preflight</text>
+<rect x="200" y="352" width="134" height="32" rx="8" fill="#FAC775" stroke="#BA7517" stroke-width="0.5"/>
+<text x="267" y="368" font-size="12" fill="#412402" text-anchor="middle" dominant-baseline="central">钩子② buildPageUrl</text>
+<rect x="344" y="352" width="134" height="32" rx="8" fill="#FAC775" stroke="#BA7517" stroke-width="0.5"/>
+<text x="411" y="368" font-size="12" fill="#412402" text-anchor="middle" dominant-baseline="central">钩子③ postParseList</text>
+<rect x="488" y="352" width="134" height="32" rx="8" fill="#FAC775" stroke="#BA7517" stroke-width="0.5"/>
+<text x="555" y="368" font-size="12" fill="#412402" text-anchor="middle" dominant-baseline="central">钩子④ postParseDetail</text>
+</g>
+<line x1="340" y1="398" x2="340" y2="418" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="418" width="600" height="48" rx="12" fill="#FFFFFF" stroke="#BA7517" stroke-width="0.5"/>
+<rect x="40" y="418" width="6" height="48" rx="3" fill="#BA7517"/>
+<text x="60" y="434" font-size="13" font-weight="500" fill="#633806" dominant-baseline="central">钩子① preflight —— 站点级前置（整轮爬取执行一次）</text>
+<text x="60" y="452" font-size="12" fill="#444441" dominant-baseline="central">典型：过 WAF / 换 Cookie；返回的附加请求头只并入 ssr 通道，browser 模式浏览器自管 Cookie</text>
+</g>
+<line x1="340" y1="466" x2="340" y2="486" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="486" width="600" height="454" rx="16" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="56" y="508" font-size="13" font-weight="500" fill="#0C447C" dominant-baseline="central">④ 列表遍历循环：for 每个栏目 section → for 每个入口 startUrl（各入口独立翻页）</text>
+<g>
+<rect x="56" y="524" width="568" height="66" rx="8" fill="#FFFFFF" stroke="#BA7517" stroke-width="0.5"/>
+<text x="72" y="542" font-size="12" font-weight="500" fill="#633806" dominant-baseline="central">钩子② buildPageUrl（仅 pagination-url 策略生效）</text>
+<text x="72" y="560" font-size="12" fill="#444441" dominant-baseline="central">返回空 → 默认逻辑：urlTemplate 替换 {page}，base = 当前入口 URL</text>
+<text x="72" y="578" font-size="12" fill="#444441" dominant-baseline="central">其余策略：pagination-html 点 nextSelector（disabled 收尾）· scroll-api · none（默认单页）</text>
+</g>
+<g>
+<rect x="56" y="602" width="568" height="88" rx="8" fill="#FFFFFF" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="72" y="620" font-size="12" font-weight="500" fill="#27500A" dominant-baseline="central">fetchPage —— 渲染回退链：页面级 → 栏目级 → 站点级 → auto</text>
+<text x="72" y="638" font-size="12" fill="#444441" dominant-baseline="central">auto 撞挑战一律回退 browserFetch；有头默认 + stealth（只补缺不篡改）+ storageState 会话复用</text>
+<text x="72" y="656" font-size="12" fill="#444441" dominant-baseline="central">挑战链：等盾 JS 落 cookie → 带 cookie 重新 goto 重判 → 放行即持久化到 .runtime/state/&lt;host&gt;.json</text>
+<text x="72" y="674" font-size="12" fill="#444441" dominant-baseline="central">CRAWL_INTERACTIVE=1 时弹窗等人工过盾 180s（cf_clearance 时效约 1.5h，过完立即用）</text>
+</g>
+<g>
+<rect x="56" y="702" width="568" height="40" rx="8" fill="#FFFFFF" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="72" y="722" font-size="12" fill="#444441" dominant-baseline="central">waitSelector 必须内容级；settle 后复查一轮，元素消失则再等一轮（防整块重挂载）</text>
+</g>
+<g>
+<rect x="56" y="754" width="568" height="52" rx="8" fill="#FFFFFF" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="72" y="772" font-size="12" font-weight="500" fill="#27500A" dominant-baseline="central">parseListWithConfig（cheerio）：itemSelector 选卡 → fields 逐字段抽值</text>
+<text x="72" y="790" font-size="12" fill="#444441" dominant-baseline="central">detailUrl 用 absoluteUrl 以列表页为 base 绝对化（与 crawl 口径一致）</text>
+</g>
+<g>
+<rect x="56" y="818" width="568" height="52" rx="8" fill="#FFFFFF" stroke="#BA7517" stroke-width="0.5"/>
+<rect x="56" y="818" width="6" height="52" rx="3" fill="#BA7517"/>
+<text x="74" y="836" font-size="12" font-weight="500" fill="#633806" dominant-baseline="central">钩子③ postParseList：过滤非产品 / 补 raw 字段 / 改写 detailUrl（去重之前）</text>
+<text x="74" y="854" font-size="12" fill="#444441" dominant-baseline="central">PromoCell 实例：产品名 → slug → /fr_fr/&lt;slug&gt;.html（列表 HTML 无真实 href，靠这里构造）</text>
+</g>
+<g>
+<rect x="56" y="882" width="568" height="44" rx="8" fill="#FFFFFF" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="72" y="904" font-size="12" fill="#444441" dominant-baseline="central">规模化三件套：满 200 条就地 flushUpsertBatch · listRetry（missingPages → SITE_UNREACHABLE）· --resume（.crawl-state/）</text>
+</g>
+</g>
+<line x1="340" y1="940" x2="340" y2="960" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="960" width="600" height="208" rx="16" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="56" y="982" font-size="13" font-weight="500" fill="#27500A" dominant-baseline="central">⑤ 详情管线（每条 ListItem）</text>
+<g>
+<rect x="56" y="994" width="568" height="40" rx="8" fill="#FFFFFF" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="72" y="1014" font-size="12" fill="#444441" dominant-baseline="central">fetchPage（detailRender）→ parseDetailWithConfig（fields + captureRest 全量快照）</text>
+</g>
+<g>
+<rect x="56" y="1042" width="568" height="52" rx="8" fill="#FFFFFF" stroke="#BA7517" stroke-width="0.5"/>
+<rect x="56" y="1042" width="6" height="52" rx="3" fill="#BA7517"/>
+<text x="74" y="1060" font-size="12" font-weight="500" fill="#633806" dominant-baseline="central">钩子④ postParseDetail：跨节点派生 / 字段归一（在 api 源与模型兜底之前，只补空不覆盖）</text>
+<text x="74" y="1078" font-size="12" fill="#444441" dominant-baseline="central">PromoCell 实例：主图文件名补 sku（/C/-/C-12200.jpg）· EU 价格重算（72,00€ 误析 7200 → 72）</text>
+</g>
+<g>
+<rect x="56" y="1102" width="568" height="52" rx="8" fill="#FFFFFF" stroke="#3B6D11" stroke-width="0.5"/>
+<text x="72" y="1120" font-size="12" fill="#444441" dominant-baseline="central">兜底链：详情优先、列表回填空缺 → auditMismatch（normEqual）两边非空且不等 → fieldMismatches++ + &lt;field&gt;_list 溯源</text>
+<text x="72" y="1138" font-size="12" fill="#444441" dominant-baseline="central">再往后：api 源（D-async 形态）只补空 → 模型兜底（E 形态，可关）</text>
+</g>
+</g>
+<line x1="340" y1="1168" x2="340" y2="1188" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="1188" width="600" height="72" rx="12" fill="#F1EFE8" stroke="#888780" stroke-width="0.5"/>
+<text x="56" y="1206" font-size="13" font-weight="500" fill="#444441" dominant-baseline="central">⑥ 落库与去重（upsert products / priceHistory / contents）</text>
+<text x="56" y="1224" font-size="12" fill="#444441" dominant-baseline="central">去重键 (company_id, dedupe_key, section_key)；dedupe_key = COALESCE(source_product_id, canonical(detail_url))</text>
+<text x="56" y="1242" font-size="12" fill="#444441" dominant-baseline="central">sku 绝不参与去重 · 告警 recordAlert · validate 在 probe / crawl 自动跑（仅提示不阻断）</text>
+</g>
+<line x1="340" y1="1260" x2="340" y2="1280" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<g>
+<rect x="40" y="1280" width="600" height="128" rx="12" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text x="56" y="1300" font-size="13" font-weight="500" fill="#0C447C" dominant-baseline="central">使用要点</text>
+<text x="56" y="1318" font-size="12" fill="#444441" dominant-baseline="central">选择器 / 翻页 / 字段抽取能写 YAML 就写 YAML（真相源）；需要计算、构造 URL、过滤才加钩子（加性不替换）</text>
+<text x="56" y="1336" font-size="12" fill="#444441" dominant-baseline="central">新适配器三步：src/adapters/&lt;domain&gt;.ts 默认导出 → adapterLoader.ts 注册表登记（测试枚举防漏）→ probe 验证</text>
+<text x="56" y="1354" font-size="12" fill="#444441" dominant-baseline="central">probe 与 crawl 同管线：probe 也调钩子③ postParseList；详情探测调钩子④</text>
+<text x="56" y="1372" font-size="12" fill="#444441" dominant-baseline="central">排查顺序：pnpm validate（配置）→ pnpm probe --site &lt;domain&gt;（解析实测）→ pnpm diagnose --domain &lt;domain&gt;（反爬归因）</text>
+</g>
+</svg>
