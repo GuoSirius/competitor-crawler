@@ -1,0 +1,51 @@
+# 站点适配器：百普赛斯（www.acrobiosystems.com，Nuxt + 阿里云 WAF）
+# 结构（2026-10-09 配通）：
+#   - Nuxt SSR：分类页/搜索页服务端就能吐出产品表格（不用等异步接口）；
+#     但 **SSL 通道被阿里云 WAF 拦**（curl/裸 fetch 拿到 aliyun_waf 验证页），
+#     必须 browser + 已过盾会话 —— 会话由 `pnpm plan:a <domain> --persist` 落盘到
+#     .runtime/state/<host>.json，crawl/probe 的 browser 通道自动复用（见 docs/11 §11.4.1）。
+#   - 入口用**搜索页空关键词**全量（512 页），列：靶点 / 货号(Cat. No.) / 描述 / 种属…
+#     比逐分类页稳：分类页结构不统一（kits 有 el-table，protein/antibody/beads 无表格）。
+#   - 翻页 = 点 Next 按钮（button.search-pager-btn，第二个；Previous 禁用态会误点，
+#     故用相邻兄弟选择器锁定 Next）。512 页全量较慢，后续按品类关键词拆分可降页数。
+#   - 行内第一个 /products/ 链接即详情页链接（货号列），与列序无关。
+# 抓取命令：pnpm crawl --domain www.acrobiosystems.com
+domain: www.acrobiosystems.com
+company: "北京百普赛斯生物科技股份有限公司"
+companyShort: "ACROBiosystems 百普赛斯"
+currency: USD
+render: browser
+
+sections:
+  - key: products
+    startUrls:
+      - https://www.acrobiosystems.com/search?keywords=
+    listTraversal:
+      strategy: pagination-html
+      # 表格由客户端异步填充，networkidle 时还只有空壳 → 等行出现再解析
+      waitSelector: 'tr.el-table__row'
+      # Previous 在第一页 disabled、第二页起可用 → 用相邻兄弟锁第二个按钮（= Next）
+      nextSelector: 'button.search-pager-btn + button.search-pager-btn'
+      maxPages: 512
+    parseList:
+      itemSelector: 'tr.el-table__row'
+      fields:
+        detailUrl:
+          sel: 'a[href^="/products/"]'
+          attr: href
+        sku:
+          sel: 'a[href^="/products/"]'
+          text: true
+        name:
+          sel: '.search-product-description, td:nth-child(3)'
+          text: true
+    parseDetail:
+      # TODO 详情字段待补：详情页被 WAF 拦的概率**显著高于列表页**
+      #（2026-10-09 连续 4 次取详情页均返回阿里云「访问验证」页，同一时段列表页可过）。
+      # 引擎目前识别不出阿里云 WAF 页（不像 CF 有 cf-mitigated），会把它当正常页解析 → 字段全空。
+      # 修法见 docs/14 §9：给 challenge 识别加 aliyun_waf/aliyunCaptcha/访问验证 信号，
+      # 之后重跑 probe --detail 2 补 name/price/specs。当前靠列表兜底（name/sku/detailUrl 已可用）。
+      fields:
+        name: null
+        sku: null
+      captureRest: true
