@@ -1,0 +1,195 @@
+# 站点适配器：同仁化学（www.dojindo.cn，Nuxt 2 SPA + POST 接口）
+# 结构（2026-10-09 与用户一起复核，纠正「接口形态 E / 无详情链」误判）：
+#   - 列表页 /products/category/<一级id>?c2id=<二级id>：Nuxt 客户端渲染成标准表格
+#     table.table tbody tr（品名/货号/用途三列）；数据来自
+#     POST /api/product/product_list（form-urlencoded，body category_id=<二级id>）——
+#     GET 请求或传一级分类 id 均返空，这是早年「接口返空」误判的根因；
+#   - 行内无 <a> 详情链：详情跳转是 @click 事件（goProductDetail），JS 里
+#     "/products/".concat(encodeURIComponent(model))（chunk 5be7882 module 62），
+#     详情 URL = /products/<货号>（如 /products/C557）——由代码适配器
+#     packages/crawler/src/adapters/www.dojindo.cn.ts 的 postParseList 用货号拼出；
+#   - 一级分类页只渲染首个二级 tab，?c2id=<二级id> 可指定 tab（组件 created 里
+#     c = $route.query.c2id || data.category[0].id），114 个二级 tab 全量展开成 startUrls；
+#   - 「促销产品」（一级 120）无二级 tab，列表恒空，不入 startUrls；
+#   - 详情页渲染后字段：span.goods_title / span.lan(货号：X) / span.pric(¥xx) /
+#     div.zjid div.langseas(选中规格) / div.goods_list(储存/运输条件) / div.htmlsss(富文本)
+# 抓取命令：pnpm crawl --domain www.dojindo.cn
+domain: www.dojindo.cn
+company: "同仁化学研究所（Dojindo Laboratories）"
+companyShort: "同仁化学"
+currency: CNY
+render: browser # Nuxt 客户端渲染，必须浏览器通道
+listTraversal:
+  strategy: none # product_list 每个二级 tab 一次拉全量，无翻页
+
+sections:
+  - key: products
+    startUrls:
+      - https://www.dojindo.cn/products/category/1?c2id=39
+      - https://www.dojindo.cn/products/category/10?c2id=44
+      - https://www.dojindo.cn/products/category/14?c2id=51
+      - https://www.dojindo.cn/products/category/14?c2id=50
+      - https://www.dojindo.cn/products/category/13?c2id=187
+      - https://www.dojindo.cn/products/category/13?c2id=240
+      - https://www.dojindo.cn/products/category/13?c2id=43
+      - https://www.dojindo.cn/products/category/13?c2id=188
+      - https://www.dojindo.cn/products/category/13?c2id=216
+      - https://www.dojindo.cn/products/category/13?c2id=241
+      - https://www.dojindo.cn/products/category/15?c2id=175
+      - https://www.dojindo.cn/products/category/15?c2id=40
+      - https://www.dojindo.cn/products/category/15?c2id=176
+      - https://www.dojindo.cn/products/category/11?c2id=45
+      - https://www.dojindo.cn/products/category/12?c2id=173
+      - https://www.dojindo.cn/products/category/12?c2id=49
+      - https://www.dojindo.cn/products/category/12?c2id=171
+      - https://www.dojindo.cn/products/category/12?c2id=172
+      - https://www.dojindo.cn/products/category/12?c2id=192
+      - https://www.dojindo.cn/products/category/16?c2id=54
+      - https://www.dojindo.cn/products/category/16?c2id=178
+      - https://www.dojindo.cn/products/category/16?c2id=179
+      - https://www.dojindo.cn/products/category/16?c2id=182
+      - https://www.dojindo.cn/products/category/236?c2id=237
+      - https://www.dojindo.cn/products/category/18?c2id=57
+      - https://www.dojindo.cn/products/category/18?c2id=140
+      - https://www.dojindo.cn/products/category/249?c2id=252
+      - https://www.dojindo.cn/products/category/249?c2id=253
+      - https://www.dojindo.cn/products/category/249?c2id=258
+      - https://www.dojindo.cn/products/category/249?c2id=260
+      - https://www.dojindo.cn/products/category/26?c2id=85
+      - https://www.dojindo.cn/products/category/26?c2id=86
+      - https://www.dojindo.cn/products/category/26?c2id=84
+      - https://www.dojindo.cn/products/category/26?c2id=83
+      - https://www.dojindo.cn/products/category/26?c2id=87
+      - https://www.dojindo.cn/products/category/26?c2id=88
+      - https://www.dojindo.cn/products/category/26?c2id=89
+      - https://www.dojindo.cn/products/category/26?c2id=90
+      - https://www.dojindo.cn/products/category/19?c2id=58
+      - https://www.dojindo.cn/products/category/19?c2id=59
+      - https://www.dojindo.cn/products/category/19?c2id=60
+      - https://www.dojindo.cn/products/category/19?c2id=117
+      - https://www.dojindo.cn/products/category/19?c2id=118
+      - https://www.dojindo.cn/products/category/19?c2id=158
+      - https://www.dojindo.cn/products/category/19?c2id=159
+      - https://www.dojindo.cn/products/category/19?c2id=161
+      - https://www.dojindo.cn/products/category/19?c2id=166
+      - https://www.dojindo.cn/products/category/114?c2id=115
+      - https://www.dojindo.cn/products/category/114?c2id=116
+      - https://www.dojindo.cn/products/category/24?c2id=69
+      - https://www.dojindo.cn/products/category/24?c2id=70
+      - https://www.dojindo.cn/products/category/24?c2id=71
+      - https://www.dojindo.cn/products/category/24?c2id=72
+      - https://www.dojindo.cn/products/category/24?c2id=73
+      - https://www.dojindo.cn/products/category/24?c2id=184
+      - https://www.dojindo.cn/products/category/20?c2id=169
+      - https://www.dojindo.cn/products/category/20?c2id=64
+      - https://www.dojindo.cn/products/category/20?c2id=63
+      - https://www.dojindo.cn/products/category/20?c2id=65
+      - https://www.dojindo.cn/products/category/20?c2id=62
+      - https://www.dojindo.cn/products/category/20?c2id=61
+      - https://www.dojindo.cn/products/category/20?c2id=119
+      - https://www.dojindo.cn/products/category/74?c2id=75
+      - https://www.dojindo.cn/products/category/74?c2id=76
+      - https://www.dojindo.cn/products/category/74?c2id=77
+      - https://www.dojindo.cn/products/category/74?c2id=78
+      - https://www.dojindo.cn/products/category/74?c2id=79
+      - https://www.dojindo.cn/products/category/74?c2id=80
+      - https://www.dojindo.cn/products/category/74?c2id=81
+      - https://www.dojindo.cn/products/category/74?c2id=165
+      - https://www.dojindo.cn/products/category/17?c2id=56
+      - https://www.dojindo.cn/products/category/23?c2id=68
+      - https://www.dojindo.cn/products/category/25?c2id=82
+      - https://www.dojindo.cn/products/category/21?c2id=157
+      - https://www.dojindo.cn/products/category/21?c2id=66
+      - https://www.dojindo.cn/products/category/142?c2id=143
+      - https://www.dojindo.cn/products/category/142?c2id=144
+      - https://www.dojindo.cn/products/category/142?c2id=145
+      - https://www.dojindo.cn/products/category/142?c2id=146
+      - https://www.dojindo.cn/products/category/142?c2id=147
+      - https://www.dojindo.cn/products/category/142?c2id=170
+      - https://www.dojindo.cn/products/category/142?c2id=174
+      - https://www.dojindo.cn/products/category/27?c2id=91
+      - https://www.dojindo.cn/products/category/27?c2id=92
+      - https://www.dojindo.cn/products/category/27?c2id=93
+      - https://www.dojindo.cn/products/category/27?c2id=167
+      - https://www.dojindo.cn/products/category/27?c2id=168
+      - https://www.dojindo.cn/products/category/37?c2id=113
+      - https://www.dojindo.cn/products/category/36?c2id=112
+      - https://www.dojindo.cn/products/category/35?c2id=111
+      - https://www.dojindo.cn/products/category/34?c2id=110
+      - https://www.dojindo.cn/products/category/32?c2id=99
+      - https://www.dojindo.cn/products/category/32?c2id=100
+      - https://www.dojindo.cn/products/category/32?c2id=101
+      - https://www.dojindo.cn/products/category/32?c2id=102
+      - https://www.dojindo.cn/products/category/32?c2id=103
+      - https://www.dojindo.cn/products/category/32?c2id=104
+      - https://www.dojindo.cn/products/category/32?c2id=105
+      - https://www.dojindo.cn/products/category/32?c2id=106
+      - https://www.dojindo.cn/products/category/32?c2id=107
+      - https://www.dojindo.cn/products/category/138?c2id=139
+      - https://www.dojindo.cn/products/category/138?c2id=162
+      - https://www.dojindo.cn/products/category/138?c2id=163
+      - https://www.dojindo.cn/products/category/151?c2id=152
+      - https://www.dojindo.cn/products/category/151?c2id=153
+      - https://www.dojindo.cn/products/category/151?c2id=154
+      - https://www.dojindo.cn/products/category/242?c2id=243
+      - https://www.dojindo.cn/products/category/242?c2id=244
+      - https://www.dojindo.cn/products/category/242?c2id=245
+      - https://www.dojindo.cn/products/category/242?c2id=246
+      - https://www.dojindo.cn/products/category/247?c2id=248
+      - https://www.dojindo.cn/products/category/254?c2id=255
+      - https://www.dojindo.cn/products/category/254?c2id=256
+      - https://www.dojindo.cn/products/category/254?c2id=257
+
+parseList:
+  itemSelector: 'table.table tbody tr'
+  fields:
+    name:
+      sel: 'td:nth-child(1) span.xiahuanxa'
+      text: true
+    sourceProductId:
+      sel: 'td:nth-child(2) span.xiahuanxa'
+      text: true
+    use:
+      sel: 'td:nth-child(3)'
+      text: true
+# detailUrl 不配：行内无 <a>，由 www.dojindo.cn.ts 的 postParseList 拼出
+
+parseDetail:
+  fields:
+    name: { sel: 'span.goods_title', text: true }
+    # 身份键：详情页货号行（与列表阶段抽的 model 同源；validate 要求显式身份键）
+    sourceProductId:
+      sel: 'span.lan'
+      text: true
+      regex: '货号：(.+)'
+    englishName: { sel: 'div.goods_intro', text: true }
+    sku:
+      sel: 'span.lan'
+      text: true
+      regex: '货号：(.+)'
+    price:
+      sel: 'span.pric'
+      text: true
+      regex: '([\d,]+\.?\d*)'
+      number: true
+    priceText: { sel: 'span.pric', text: true }
+    specText: { sel: 'div.zjid div.langseas', text: true }
+    storage:
+      sel: 'div.goods_list div.goods_li:nth-child(1)'
+      text: true
+      regex: '储存条件：(.*)'
+    transport:
+      sel: 'div.goods_list div.goods_li:nth-child(2)'
+      text: true
+      regex: '运输条件：(.*)'
+    description: { sel: 'div.htmlsss', text: true }
+  captureRest: true
+
+categoryFromPage:
+  # 详情页面包屑 div.arrow：首页 > 产品中心 > <一级分类> > <产品名>（span.topc）
+  # keepLast: false 丢弃产品名，挂一级分类
+  itemSelector: 'div.arrow span'
+  strip:
+    - 首页
+    - 产品中心
+  keepLast: false
