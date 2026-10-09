@@ -1,0 +1,27 @@
+domain: cas9x.com
+startUrl: https://www.cas9x.com/bdxb
+company: 苏州海星生物科技有限公司
+listTraversal:
+  strategy: pagination-url
+  nextSelector: .pagination a[rel="next"]
+  urlTemplate: ?page={page}
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: .bdxbpro-nei ul li
+  fields:
+    detailUrl:
+      sel: a
+      attr: href
+    name:
+      sel: h4
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: null
+      text: true
+  captureRest: true
+companyShort: cas9x 海星生物
+currency: CNY
+render: browser

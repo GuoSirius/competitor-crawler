@@ -1,0 +1,73 @@
+domain: raybiotech.com
+startUrl: https://www.raybiotech.com/elisa-kits-products/sandwich-elisa
+company: RayBiotech, Inc.
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: ?page={page}
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: li.ais-Hits-item
+  fields:
+    detailUrl:
+      sel: a[href^="/human-"], a[href^="/mouse-"]
+      attr: href
+    name:
+      sel: h3.font-primary
+      text: true
+    sku:
+      sel: p.mt-spacing-xs span.font-bold
+      text: true
+    specText:
+      sel: ul.flex.flex-col.gap-spacing-3xs li
+      list: true
+parseDetail:
+  fields:
+    name:
+      sel: null
+      text: true
+    englishName:
+      sel: null
+    cloneNumber:
+      sel: null
+    aliases:
+      sel: null
+    oldSkus:
+      sel: null
+    applications:
+      sel: null
+      list: true
+    specs:
+      sel: null
+      list: true
+      map:
+        spec:
+          sel: null
+          text: true
+        condition:
+          sel: null
+          text: true
+        sku:
+          sel: null
+          text: true
+        priceNow:
+          sel: null
+          text: true
+          number: true
+    introMedia:
+      sel: null
+      list: true
+      map:
+        image:
+          sel: img
+          attr: src
+        video:
+          sel: iframe
+          attr: src
+        description:
+          sel: null
+          text: true
+  captureRest: true
+companyShort: RayBiotech
+currency: USD
+render: browser
