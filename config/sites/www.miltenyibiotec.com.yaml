@@ -1,0 +1,19 @@
+domain: www.miltenyibiotec.com
+company: "Miltenyi Biotec GmbH"
+companyShort: "Miltenyi"
+role: competitor
+currency: USD
+startUrl: "https://www.miltenyibiotec.com/US-en/products/by-cell-type/t-cells-products.html?query=:relevance:Cell-type:T%20cells"
+render: browser
+listTraversal:
+  strategy: none
+  maxPages: 1
+parseList:
+  itemSelector: .mb-search-product-family-line
+  fields:
+    detailUrl:
+      sel: 'a[href*="/US-en/products/"]'
+      attr: href
+    name:
+      sel: 'strong[data-analytics="product-title"]'
+      text: true

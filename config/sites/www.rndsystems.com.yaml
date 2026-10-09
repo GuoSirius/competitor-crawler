@@ -1,0 +1,22 @@
+domain: www.rndsystems.com
+company: "Bio-Techne Corporation (R&D Systems)"
+companyShort: "R&D Systems"
+role: competitor
+currency: USD
+startUrl: "https://www.rndsystems.com/search?search_type=products&keywords=Quantikine%20ELISA&species=Human"
+render: auto
+listTraversal:
+  strategy: none
+  maxPages: 1
+parseList:
+  itemSelector: .search_result
+  fields:
+    detailUrl:
+      sel: 'a[data-search-result-category="product name"]'
+      attr: href
+    name:
+      sel: 'a[data-search-result-category="product name"]'
+      attr: title
+    sku:
+      sel: 'a[data-search-result-category="catalog number"]'
+      text: true
