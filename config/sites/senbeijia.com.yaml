@@ -1,0 +1,51 @@
+domain: senbeijia.com
+startUrl: http://www.senbeijia.com/category.php?id=58
+company: 南京森贝伽生物科技有限公司
+companyShort: "Senbeijia 森贝伽"
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: category.php?id=58&page={page}
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: .goodsList table tbody tr:has(td p a[href^='goods.php'])
+  fields:
+    detailUrl:
+      sel: .goodsList table a[href^='goods.php']
+      attr: href
+    name:
+      sel: .goodsList table td:nth-child(4) a
+      text: true
+    sku:
+      sel: .goodsList table td:nth-child(1) a
+      text: true
+    priceText:
+      sel: .goodsList table td:nth-child(3)
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: "#ur_here, h1, .product-name"
+      text: true
+    englishName:
+      sel: null
+    cloneNumber:
+      sel: null
+    aliases:
+      sel: null
+    oldSkus:
+      sel: null
+    specs:
+      sel: null
+      list: false
+    introMedia:
+      sel: null
+      list: false
+  captureRest: true
+categoryFromPage:
+  itemSelector: "#ur_here a"
+  strip:
+    - 首页
+  keepLast: true
+currency: CNY
+render: browser

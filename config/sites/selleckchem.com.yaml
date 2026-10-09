@@ -1,0 +1,79 @@
+domain: selleckchem.com
+startUrl: https://www.selleckchem.com/screening-libraries.html
+company: Selleck Chemicals LLC
+companyShort: "Selleck"
+listTraversal:
+  strategy: pagination-html
+  nextSelector: null
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: dl#screening_library_items dd.member-link,
+    dl#picked_screening_library_items dd.member-link
+  fields:
+    detailUrl:
+      sel: a
+      attr: href
+    name:
+      sel: a
+      text: true
+      regex: \s*(.+?)(?:\s*<sup|\s*$)
+    sku:
+      sel: span.inlineBlock.w60
+      text: true
+    specText:
+      sel: p.mt5.ml75.gray
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: h1
+      text: true
+    englishName:
+      sel: null
+      text: true
+    cloneNumber:
+      sel: null
+      text: true
+    aliases:
+      sel: null
+      text: true
+    oldSkus:
+      sel: null
+      text: true
+    applications:
+      sel: null
+      list: true
+    specs:
+      sel: null
+      list: true
+      map:
+        spec:
+          sel: null
+          text: true
+        condition:
+          sel: null
+          text: true
+          regex: null
+    introMedia:
+      sel: null
+      list: true
+      map:
+        image:
+          sel: img
+          attr: src
+        video:
+          sel: iframe
+          attr: src
+        description:
+          sel: null
+          text: true
+  captureRest: true
+categoryFromPage:
+  itemSelector: .breadcrumb span, .breadcrumb a
+  strip:
+    - Home
+    - 首页
+  keepLast: true
+currency: USD
+render: browser

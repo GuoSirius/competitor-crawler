@@ -1,0 +1,54 @@
+domain: sciencellonline.com
+startUrl: https://sciencellonline.com/en/products-services/cell-culture-media/
+company: ScienCell Research Laboratories, Inc.
+companyShort: "ScienCell"
+listTraversal:
+  strategy: pagination-html
+  nextSelector: null
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: .product-item-info
+  fields:
+    detailUrl:
+      sel: .product-item-link
+      attr: href
+    name:
+      sel: .product-item-name
+      text: true
+    sku:
+      sel: input[data-product-sku]
+      attr: data-product-sku
+    priceText:
+      sel: .price-box span.price
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: .page-title .base
+      text: true
+    sku:
+      sel: input#fme-quote-cart
+      attr: data-product-sku
+    priceNow:
+      sel: .price-box .price-wrapper span.price
+      text: true
+      number: true
+introMedia:
+  sel: .category-text iframe, .category-text img
+  list: true
+  map:
+    image:
+      sel: img
+      attr: src
+    video:
+      sel: iframe
+      attr: src
+categoryFromPage:
+  itemSelector: .breadcrumbs .items > li.item
+  strip:
+    - Home
+    - Products & Services
+  keepLast: false
+currency: USD
+render: browser

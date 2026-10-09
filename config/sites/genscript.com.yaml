@@ -1,0 +1,65 @@
+domain: genscript.com
+startUrl: https://www.genscript.com/catalog-antibody-products.html
+company: 南京金斯瑞生物科技有限公司
+companyShort: "GenScript 金斯瑞"
+listTraversal:
+  strategy: pagination-html
+  nextSelector: .pages .nextPage
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: .proLis dl
+  fields:
+    detailUrl:
+      sel: .proTitle a.product-name
+      attr: href
+    name:
+      sel: .proTitle a.product-name
+      text: true
+    sku:
+      sel: b
+      text: true
+    priceText:
+      sel: .proPricle
+      text: true
+    specText:
+      sel: .proGg
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: null
+      text: true
+    sku:
+      sel: null
+      text: true
+    priceNow:
+      sel: null
+      text: true
+      number: true
+    specs:
+      sel: null
+      list: true
+      map:
+        spec:
+          sel: null
+          text: true
+        condition:
+          sel: null
+          text: true
+        sku:
+          sel: null
+          text: true
+        priceNow:
+          sel: null
+          text: true
+          number: true
+    introMedia:
+      sel: null
+      list: true
+      map:
+        image:
+          sel: img
+          attr: src
+currency: USD
+render: browser

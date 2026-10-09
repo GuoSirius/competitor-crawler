@@ -1,0 +1,42 @@
+domain: caymanchem.com
+startUrl: https://www.caymanchem.com/assays
+company: Cayman Chemical Company
+companyShort: "Cayman Chemical"
+listTraversal:
+  strategy: pagination-html
+  nextSelector: a[rel="next"]
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: .search-result-view
+  fields:
+    detailUrl:
+      sel: a.product-link
+      attr: href
+    name:
+      sel: p.text-lato.text-blue > span
+      text: true
+    sku:
+      sel: p.text-lato-light.m-0.text-lato-bold
+      text: true
+      regex: Item No.\s*(\d+)
+    specText:
+      sel: div.variant-table div.variant div.meta-data p.name
+      text: true
+      list: true
+    priceText:
+      sel: div.variant-table div.variant div.meta-data p.pricing
+      text: true
+      list: true
+parseDetail:
+  fields:
+    name: null
+    englishName: null
+    cloneNumber: null
+    aliases: null
+    oldSkus: null
+    applications: null
+    specs: null
+    introMedia: null
+currency: USD
+render: browser

@@ -1,0 +1,53 @@
+domain: abcam.com
+startUrl: https://www.abcam.com/en-us/products/primary-antibodies
+company: Abcam plc
+companyShort: "Abcam"
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: ?page={page}
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: div.flex.flex-col.gap-x-6.sm\:flex-row.border.rounded.mb-4.p-4
+  fields:
+    detailUrl:
+      sel: a[data-testid="product-list-name-link"]
+      attr: href
+    name:
+      sel: a[data-testid="product-list-name-link"]
+      text: true
+    sku:
+      sel: a[data-gtm="product-abid"]
+      text: true
+    applications:
+      sel: .GlobalLinkNoTx p:has(+ p:contains("Applications"))
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: h1
+      text: true
+    englishName:
+      sel:
+        - null
+    cloneNumber:
+      sel:
+        - null
+    aliases:
+      sel:
+        - null
+    oldSkus:
+      sel:
+        - null
+    applications:
+      sel:
+        - null
+    specs:
+      sel:
+        - null
+    introMedia:
+      sel:
+        - null
+captureRest: true
+currency: USD
+render: browser

@@ -1,0 +1,64 @@
+domain: lonsera.cn
+startUrl: https://www.lonsera.cn/list_11/
+company: 苏州双洳生物科技有限公司
+companyShort: "Lonsera 双洳生物"
+listTraversal:
+  strategy: pagination-html
+  nextSelector: .page a.page_next, .page a:contains('下一页'), .p_page
+    a:contains('>')[href]:not([href*='javascript'])
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: .p_loopitem
+  fields:
+    detailUrl:
+      sel: .e_image-2 a
+      attr: href
+    name:
+      sel: .e_h3-3
+      text: true
+    sku:
+      sel: .e_h3-3
+      text: true
+      regex: \(([A-Z]\d{3}-[\w-]+)\)
+parseDetail:
+  fields:
+    name:
+      sel: .e_h3-6
+      text: true
+    englishName:
+      sel: null
+    cloneNumber:
+      sel: null
+    aliases:
+      sel: null
+    oldSkus:
+      sel: null
+    applications:
+      sel: null
+    specs:
+      sel: null
+      list: true
+      map:
+        spec:
+          sel: null
+          text: true
+        condition:
+          sel: null
+          text: true
+          regex: \(([^)]+)\)
+    introMedia:
+      sel: null
+      list: true
+      map:
+        image:
+          sel: img
+          attr: src
+categoryFromPage:
+  itemSelector: .e_breadcrumb a
+  strip:
+    - 首页
+    - 产品中心
+  keepLast: true
+currency: CNY
+render: browser
