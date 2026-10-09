@@ -1,5 +1,0 @@
-domain: www.thermofisher.com
-company: "Thermo Fisher Scientific Inc."
-companyShort: "Thermo Fisher"
-role: competitor
-# TODO: 待配置抓取规则（probe 后生成 sections）

@@ -1,0 +1,42 @@
+domain: www.bdbiosciences.com
+startUrl: https://www.bdbiosciences.com/en-sg/search-results?query=Multicolor+Panels+and+Kits&tab=products
+company: Becton, Dickinson and Company (BD Biosciences)
+listTraversal:
+  strategy: pagination-html
+  nextSelector: a.ais-Pagination-link[aria-label='Next Page']
+  maxPages: 50
+  fallbackToUi: true
+parseList:
+  itemSelector: li.ais-Hits-item
+  fields:
+    detailUrl:
+      sel: a.bdb-product-hit__name
+      attr: href
+    name:
+      sel: a.bdb-product-hit__name
+      text: true
+    sku:
+      sel: .bdb-product-hit__material span
+      text: true
+parseDetail:
+  fields:
+    name:
+      sel: h1
+      text: true
+    introMedia:
+      sel: .cmp-image, .cmp-embed
+      list: true
+      map:
+        image:
+          sel: img
+          attr: src
+        video:
+          sel: iframe
+          attr: src
+        description:
+          sel: .cmp-text p, .cmp-title__text
+          text: true
+  captureRest: true
+companyShort: BD Biosciences
+currency: USD
+render: browser

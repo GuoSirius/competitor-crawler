@@ -1,0 +1,36 @@
+domain: www.thermofisher.com
+startUrl: https://www.thermofisher.com/search/browse/category/cn/zh/90217008
+company: Thermo Fisher Scientific Inc.
+companyShort: Thermo Fisher
+currency: CNY
+render: browser
+# 2026-10-09 手写（gen-site NEED_MORE_HTML；实测 /search/browse/category/<id> 品类页有 div.search-card 产品卡；
+# 价格按钮「查看价格及库存」点击才异步加载 → 列表无价；翻页为按钮触发（无 href），暂单页，待定翻页形态）
+listTraversal:
+  strategy: none
+  maxPages: 1
+parseList:
+  itemSelector: div.search-card
+  fields:
+    detailUrl:
+      sel: a.search-result-link
+      attr: href
+    name:
+      sel: .search-result-title-brand a span
+      text: true
+    sku:
+      sel: '$self'
+      attr: data-doc_id
+    specText: null
+    priceText: null
+parseDetail:
+  fields:
+    name: null
+    englishName: null
+    cloneNumber: null
+    aliases: null
+    oldSkus: null
+    applications: null
+    specs: null
+    introMedia: null
+  captureRest: true
