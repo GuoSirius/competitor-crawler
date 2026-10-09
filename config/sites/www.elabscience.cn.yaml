@@ -1,17 +1,41 @@
-# 伊莱瑞特中文站 —— 保持「桩」的原因（2026-10-04 实测复核）
+# 伊莱瑞特中文站（2026-10-09 配通）
 #
-# ❌ 刻意不配 proxy（用户明确要求「中文站不能走代理」，且实测支持这个判断）：
-#    直连  → HTTP 403「风险警告，请手动点击跳转」兜页
-#    走代理 → **同样 403**（多等 188s，结果完全一致）
-#    原因：该 WAF 是**地域策略**——境外出口 IP 访问国内站反而触发风险拦截，代理只会更糟。
-#    中文站一律直连。
+# ⚠️ WAF 会话级拦截（非 IP 封禁、非过盾）：
+#   首次直进 /search-category=* 列表页会落 403「风险警告，请手动点击跳转」兜页（curl/ssr 亦然）；
+#   逛一次首页（任一浏览器内核）即种下会话 Cookie，此后列表/详情全通（实测 headless 亦 200）。
+#   会话已持久化 .runtime/state/www.elabscience.cn.json，browserFetch 自动加载。
+#   ⚠️ 会话过期后（重新见兜页）需重新预热：headless 跑一次首页再存 state 即可。
+#   代码适配器已删除：browser + 持久化会话已覆盖，ssr preflight 无必要（用户 2026-10-09 确认）。
 #
-# 真实卡点（与 .com 站不同）：产品列表 SSR 只出导航与筛选器，产品格由前端 JS 注入；
-# 带 `?search-category=` 直连会被 WAF 拦成兜页。此前「等 XHR 触发」的探针路子在此站无效。
-#
-# 下一步：需人工过一次 WAF（headful 窗口点验证，会话持久化到 .runtime/state/www.elabscience.cn.json），
-#         过盾后再 gen-site 生成列表选择器。参考 docs/14 §4 SOP。
+# 产品卡 = .product-item（与英文站 .search-list-pro 同平台异构）：
+#   名称 a.search-list-title > span.reg_tag；货号 span.reg_tag.cat-no；现价 em.price。
+# 翻页 = URL 参数 &page=N（SSR 直出分面与产品格，无需 UI 点击）。
 domain: www.elabscience.cn
 company: 伊莱瑞特中文站
 role: own
-currency: 元
+currency: CNY
+render: browser
+startUrl: "https://www.elabscience.cn/search-category=flow-cytometry-antibodies"
+listTraversal:
+  strategy: pagination-url
+  urlTemplate: "&page={page}"
+  maxPages: 500
+  fallbackToUi: true
+parseList:
+  itemSelector: ".product-item"
+  fields:
+    detailUrl:
+      sel: 'a.search-list-title'
+      attr: href
+    name:
+      sel: 'a.search-list-title span.reg_tag'
+      text: true
+    sku:
+      sel: 'span.reg_tag.cat-no'
+      text: true
+    priceText:
+      sel: 'em.price'
+      text: true
+parseDetail:
+  fields: {}
+  captureRest: true

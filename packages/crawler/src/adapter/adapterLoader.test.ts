@@ -25,14 +25,6 @@ describe('loadCodeAdapter（docs/16 🔴-2 接线）', () => {
     expect(adapter).toBeNull();
   });
 
-  it('elabscience 适配器：实现 preflight（docs/16 C5）', async () => {
-    const adapter = await loadCodeAdapter('www.elabscience.cn');
-    expect(adapter).not.toBeNull();
-    expect(typeof adapter!.preflight).toBe('function');
-    // 其余钩子未实现：纯 YAML 解析 + preflight 附加头
-    expect(adapter!.postParseList).toBeUndefined();
-  });
-
   it('注册表一致性：adapters/ 下每个适配器文件都必须登记，登记项必须有文件', () => {
     // 防新增适配器忘了在 registry 补行的静默失效
     const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../adapters');

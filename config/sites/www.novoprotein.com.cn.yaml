@@ -1,0 +1,44 @@
+# 近岸蛋白（2026-10-09 配通）
+#
+# 列表页 = /product-list?id=<treeId>（左侧分类树各叶子对应一个 id）：
+#   产品表格（目录号/产品简称/规格价格）由 /api/novoprotein/v1/product/summary?treeId=<id> 异步填充，
+#   首屏 DOM 只有隐藏 SEO 锚点（a[href^="/product-detail?productNumber="]，无文本）。
+#   waitSelector 等 tbody 行出现即数据已就位；hidden 锚点与表格行同源（每页 10 条一一对应），
+#   条目源用锚点（有 detailUrl，行内无链接）；name/sku 详情阶段补全。
+# 翻页 = el-pagination（btn-next 按钮点击）。
+# 更多分类入口：把对应 /product-list?id=N 追加进 startUrls 即可（各入口独立翻页）。
+domain: www.novoprotein.com.cn
+company: "苏州近岸蛋白质科技股份有限公司"
+companyShort: "Novoprotein 近岸蛋白"
+role: competitor
+currency: CNY
+render: browser
+startUrl: "https://www.novoprotein.com.cn/product-list?id=10"
+listTraversal:
+  strategy: pagination-html
+  nextSelector: ".el-pagination .btn-next"
+  maxPages: 50
+  fallbackToUi: true
+  waitSelector: "table tbody tr"
+parseList:
+  itemSelector: 'a[href*="/product-detail?productNumber="]'
+  fields:
+    detailUrl:
+      sel: '$self'
+      attr: href
+    sku:
+      sel: '$self'
+      attr: href
+      regex: 'productNumber=([^&]+)'
+parseDetail:
+  fields:
+    # 名称/货号同源：详情页标题元素 span.font-semibold（全页唯一）＝「<名称>(Cat. No.:<货号>)」
+    name:
+      sel: 'span.font-semibold'
+      text: true
+      regex: '^(.*?)\(Cat\. No\.'
+    sku:
+      sel: 'span.font-semibold'
+      text: true
+      regex: 'Cat\. No\.:([^)]+)\)'
+  captureRest: true

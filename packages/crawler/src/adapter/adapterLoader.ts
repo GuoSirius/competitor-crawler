@@ -19,7 +19,6 @@ import type { CodeAdapter } from '../adapters/types.js';
  */
 const registry: Record<string, () => Promise<unknown>> = {
   _example: () => import('../adapters/_example.js'),
-  'www.elabscience.cn': () => import('../adapters/www.elabscience.cn.js'),
   'www.promocell.com': () => import('../adapters/www.promocell.com.js'),
 };
 
