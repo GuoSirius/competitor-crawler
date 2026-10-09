@@ -18,6 +18,8 @@ export interface GenSiteOpts {
   currency?: string;
   render?: string;
   notes?: string;
+  /** 市场部简称标签（写入 YAML companyShort），仅展示用；模型不生成，由 CLI/Excel 传入 */
+  companyShort?: string;
 }
 
 const SYSTEM_PROMPT = loadPrompt('gen-site');
@@ -261,6 +263,8 @@ export function parseYamlConfig(text: string, opts: GenSiteOpts, existing?: Site
   // 背景（普诺赛事故）：桩里 company: 普诺赛中文站 被模型产出的 Procell 覆盖——模型只知道域名，
   // 不知道公司在中文名录里的登记名，其身份字段产出一律只作「全新站点（无 existing）」时的兜底。
   cfg.company = opts.companyKey ?? existing?.company ?? cfg.company;
+  // 市场部简称：CLI/Excel 传入 > 已存在文件 > 模型产出 > 缺省不写；与 company（规范全名）区分，仅展示标签
+  cfg.companyShort = opts.companyShort ?? existing?.companyShort ?? cfg.companyShort;
   cfg.competitorType = opts.competitorType ?? existing?.competitorType ?? cfg.competitorType;
   cfg.role = opts.role ?? existing?.role ?? cfg.role;
   cfg.currency = opts.currency ?? existing?.currency ?? cfg.currency ?? DEFAULT_CURRENCY;

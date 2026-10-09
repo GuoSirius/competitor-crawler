@@ -306,6 +306,11 @@ export interface SiteConfig {
    */
   company?: string;
   /**
+   * 市场部简称标签（写入 YAML 顶层 companyShort）。可选；仅作展示用（validate 不拦、暂不落库）。
+   * 与 company（规范全名，聚合判唯一键）区分：companyShort 是非强制的市场叫法，如「Abcam」「百普赛斯」。
+   */
+  companyShort?: string;
+  /**
    * 竞品类型（写入 companies.competitor_type）。可选；供筛选/分组。
    * YAML 显式声明时以 YAML 为准：复用已有公司时若值不同则更新；未声明时不动库中现有值。
    */

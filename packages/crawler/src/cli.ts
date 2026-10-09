@@ -68,6 +68,7 @@ async function main() {
       currency: typeof flags.currency === 'string' ? flags.currency : undefined,
       render: typeof flags.render === 'string' ? flags.render : undefined,
       notes: typeof flags.notes === 'string' ? flags.notes : undefined,
+      companyShort: typeof flags['company-short'] === 'string' ? flags['company-short'] : undefined,
     });
   } else if (cmd === 'backfill') {
     const column = flags.column;
@@ -207,7 +208,7 @@ function printHelp(cmd?: string): void {
     console.log('\nprobe：--domain <d>（必填） --sample <n> --detail <n> --list-url <url> --section <key> --render <mode>');
   }
   if (all || cmd === 'gen-site') {
-    console.log('\ngen-site：--domain <d>（必填） --list-url <url> --detail-url <url> --company-key <k> --competitor-type <t> --role <r> --currency <c> --render <mode> --notes <文本>');
+    console.log('\ngen-site：--domain <d>（必填） --list-url <url> --detail-url <url> --company-key <k> --company-short <s> --competitor-type <t> --role <r> --currency <c> --render <mode> --notes <文本>');
   }
   if (all || cmd === 'validate') {
     console.log('\nvalidate：--domain <d>（省略则校验 config/sites 下全部站点）；存在 error 退出码 1');
