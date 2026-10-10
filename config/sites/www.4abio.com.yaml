@@ -17,6 +17,18 @@ parseList:
     sku: { sel: "div.Cat-right p", text: true }
     specText: { sel: "div.Conjugation-right p", text: true }
 
+# 详情规格：下拉 option 自带 data-* 属性（2026-10-10 probe 实测 B-option-attr，静态可抽）
+parseDetail:
+  fields:
+    specs:
+      sel: "select option[data-price]"
+      list: true
+      map:
+        spec:          { sel: "$self", text: true }
+        priceNow:      { sel: "$self", attr: "data-price" }
+        priceOriginal: { sel: "$self", attr: "data-market-price" }
+  captureRest: true
+
 sections:
   - key: fc-kits
     category: 流式试剂盒

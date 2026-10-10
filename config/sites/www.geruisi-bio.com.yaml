@@ -27,7 +27,11 @@ parseList:
     englishName: { sel: "a.enname", text: true }
 
 parseDetail:
-  fields: {}
+  fields:
+    # 2026-10-10 补：本产品名 + 货号（goodsno 链接首条即本产品）。
+    # 价格在内联 inventorydatacfg JSON（形态 C，静态不可抽）；规格表混相关产品行 → 不配 specs 防污染。
+    name: { sel: "h2.title", text: true }
+    sku:  { sel: "a[href*=goodsno]", attr: href, regex: 'goodsno=([A-Za-z0-9]+)' }
   captureRest: true
 
 sections:

@@ -33,7 +33,11 @@ parseList:
     englishName: { sel: "a.en_name", text: true }
 
 parseDetail:
-  fields: {}
+  fields:
+    # 2026-10-10 补：详情页标题区（规格选择区 cat_name 为 CSR 动态渲染、系列规格表无法静态区分本产品行，
+    # 价格数据在内联 inventorydatacfg JSON → 规格/价格暂靠列表兜底，待后续专项处理）
+    name:        { sel: "div.pro_title", text: true }
+    englishName: { sel: "div.pro_en_title", text: true }
   captureRest: true
 
 sections:

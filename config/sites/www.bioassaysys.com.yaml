@@ -17,6 +17,15 @@ parseList:
     name: { sel: "h2.woocommerce-loop-product__title", text: true }
     price: { sel: "span.price .amount", text: true, number: true }
 
+parseDetail:
+  fields:
+    # 2026-10-10 补：WooCommerce 详情区（h1 主标题 / product_meta 货号 / 主价格区 amount）
+    sku:       { sel: ".product_meta .sku_wrapper", text: true, regex: ':\s*(\S+)\s*$' }
+    # 主产品区在 DOM 前部、相关产品 grid 在底部 → 首个 .price 即主价格
+    priceText: { sel: ".product .price .amount" }
+    price:     { sel: ".product .price .amount", text: true, number: true }
+  captureRest: true
+
 sections:
   - key: products
     category: 检测试剂盒

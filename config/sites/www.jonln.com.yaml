@@ -16,7 +16,15 @@ parseList:
     sourceProductId: { sel: "a[href*='/products/']", attr: href, regex: 'products/(\d+)\.html' }
 
 parseDetail:
-  fields: {}
+  fields:
+    # 详情页规格表：th 货号|纯度/规格|包装|市场价|…（2026-10-10 实测，首表即本产品全部规格）
+    specs:
+      sel: "table:first tbody tr"
+      list: true
+      map:
+        sku:      { sel: "td:nth-child(1)", text: true }
+        spec:     { sel: "td:nth-child(2)", text: true }
+        priceNow: { sel: "td:nth-child(4)", text: true, number: true }
   captureRest: true
 
 sections:
