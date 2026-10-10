@@ -826,7 +826,7 @@ async function resolveSectionId(
     .where(and(eq(sections.companyId, companyId), eq(sections.key, section.key)))
     .limit(1);
   const set = {
-    name: section.key, // 展示名缺省回退 key（YAML 未配独立 name）
+    name: section.name ?? section.key, // 展示名优先 YAML name，缺省回退 key
     contentType: section.contentType,
     productLine: section.productLine ?? null,
     brand: section.brand ?? null,

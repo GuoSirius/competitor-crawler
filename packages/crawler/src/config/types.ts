@@ -192,6 +192,11 @@ export interface SectionConfig {
   /** 栏目标识：经 (company_id, key) 落到 sections 表，products/contents 用 section_id 归属。单规则站点固定为 'default' */
   key: string;
   /**
+   * 栏目展示名（写入 sections.name）。可选；缺省回退 key。
+   * key 多为路由/锚点形态（如 cat-1092），看板展示不友好时配本字段给可读名。
+   */
+  name?: string;
+  /**
    * 采集内容类型（路由落库表，与 contents.content_type 同名对应）：
    * - 'products'（缺省，特殊值）：产品采集 → products 表（价格/规格等完整管线）
    * - 其他值（如 'news' / 'announcement'）：泛型内容采集 → contents 表（content_type=该值）
@@ -320,7 +325,7 @@ export interface SiteConfig {
    */
   company?: string;
   /**
-   * 市场部简称标签（写入 YAML 顶层 companyShort）。可选；仅作展示用（validate 不拦、暂不落库）。
+   * 市场部简称标签（写入 YAML 顶层 companyShort）。可选；落 companies.short_name（仅展示）。
    * 与 company（规范全名，聚合判唯一键）区分：companyShort 是非强制的市场叫法，如「Abcam」「百普赛斯」。
    */
   companyShort?: string;
@@ -411,6 +416,8 @@ export interface SiteConfig {
  */
 export interface ResolvedSection {
   key: string;
+  /** 展示名（透传自 SectionConfig.name）；缺省由落库侧回退 key */
+  name?: string;
   /** 采集内容类型（透传自 SectionConfig.contentType，缺省回退顶层/ 'products'） */
   contentType: string;
   /** 绑定的种子品类名（透传自 SectionConfig.category） */

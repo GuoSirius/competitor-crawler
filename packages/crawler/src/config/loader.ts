@@ -245,6 +245,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       }
       return {
         key: s.key || 'default',
+        name: s.name,
         contentType: s.contentType ?? s.collects ?? topContentType,
         category: s.category,
         categoryPath: inferCategoryPath(s, cfg),
@@ -278,6 +279,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
   return [
     {
       key: 'default',
+      name: undefined, // 单规则无独立展示名，落库回退 key
       contentType: topContentType,
       category: cfg.category,
       categoryPath: inferCategoryPath({ category: cfg.category, categoryPath: cfg.categoryPath } as SectionConfig, cfg),
