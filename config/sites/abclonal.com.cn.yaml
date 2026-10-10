@@ -1,7 +1,11 @@
 # 站点适配器：ABclonal 爱博泰克 abclonal.com.cn
-# 结构：自研商城（ssr 直出）
+# 结构（2026-10-10 改版重建）：自研商城（ssr 直出），ThinkPHP 形态
 #   - 列表卡 div.products-box.clearfix；产品名/链接 a.product-title-style（href=/catalog/<货号>）
-#   - 列表无价格（价格在详情页）；翻页 /polyclonal-antibodies/&p=N（&p 前无 ?，站点原生写法）
+#   - 列表无价格（价格在详情页）；翻页 ?&p=N（站点原生分页链接带 ?& 前缀）
+#   - ⚠️ 站点改版：分类 URL 从 /<slug>/ 迁移到 /product/<slug>；旧 URL 只剩残页
+#   - ⚠️ 顶级/中级分类页【不聚合子孙产品】（实测 polyclonal 叶 8946 条 vs 父级 293 条）
+#     → startUrls 必须用叶子分类（导航树 11 顶级 / 165 叶，按顶级分节）
+#   - sections 按顶级分类分节，每节挂其下全部叶子入口（各入口独立翻页，maxPages 默认 1000 兜底）
 # 抓取命令：pnpm crawl --domain abclonal.com.cn
 domain: abclonal.com.cn
 company: "武汉爱博泰克生物科技有限公司"
@@ -24,20 +28,235 @@ parseDetail:
     price:
       sel: 'script:contains(priceStr)'
       text: true
-      regex: 'priceStr = \$.trim\(''[^'']*?,(\d+)'
+      regex: 'priceStr = $.trim\(''[^'']*?,(\d+)'
       number: true # 取首个规格价
     specText:
       sel: 'script:contains(priceStr)'
       text: true
-      regex: 'priceStr = \$.trim\(''([^,]+),'
+      regex: 'priceStr = $.trim\(''([^,]+),'
     species:
       sel: 'script:contains(field_s1)'
       text: true
-      regex: 'field_s1 = \$.trim\(''([^'']+)''\)'
+      regex: 'field_s1 = $.trim\(''([^'']+)'')'
 
 sections:
-  - key: polyclonal-antibodies
-    category: 多克隆抗体
-    startUrls: ["https://abclonal.com.cn/polyclonal-antibodies/"]
+  - key: antibodies
+    category: "抗体试剂"
     match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
-    listTraversal: { strategy: pagination-url, urlTemplate: "&p={page}", maxPages: 50 }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/smab-recombinant-monoclonal-antibodies"
+      - "https://abclonal.com.cn/product/polyclonal-antibodies"
+      - "https://abclonal.com.cn/product/monoclonal-antibodies"
+      - "https://abclonal.com.cn/product/secondary-antibodies"
+      - "https://abclonal.com.cn/product/flow-cytometry-antibodies"
+      - "https://abclonal.com.cn/product/flowing-panel"
+      - "https://abclonal.com.cn/product/pathoq-ihc-pathology-antibodies"
+      - "https://abclonal.com.cn/product/tag-loading-control"
+      - "https://abclonal.com.cn/product/ko-kd-validated-antibodies"
+      - "https://abclonal.com.cn/product/phospho-specific-antibodies"
+      - "https://abclonal.com.cn/product/methyl-specific-antibodies"
+      - "https://abclonal.com.cn/product/acetyl-specific-antibodies"
+      - "https://abclonal.com.cn/product/other-specific-antibodies"
+      - "https://abclonal.com.cn/product/model-organism-specific-antibodies"
+      - "https://abclonal.com.cn/product/small-molecule-specific-antibodies"
+      - "https://abclonal.com.cn/product/biosimilar-antibody"
+  - key: molecular-biology-reagent
+    category: "分子生物学产品"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/conventional-pcr"
+      - "https://abclonal.com.cn/product/isothermal-amplification"
+      - "https://abclonal.com.cn/product/high-fidelity-pcr"
+      - "https://abclonal.com.cn/product/direct-pcr"
+      - "https://abclonal.com.cn/product/pcr-related-reagents"
+      - "https://abclonal.com.cn/product/fast-pcr"
+      - "https://abclonal.com.cn/product/reverse-transcription-master-mix"
+      - "https://abclonal.com.cn/product/mirna-reverse-transcription-kit"
+      - "https://abclonal.com.cn/product/universal-reverse-transcription-kit"
+      - "https://abclonal.com.cn/product/other-reverse-transcription-reagents"
+      - "https://abclonal.com.cn/product/dye-based-qpcr"
+      - "https://abclonal.com.cn/product/one-step-rt-qpcr"
+      - "https://abclonal.com.cn/product/probe-based-qpcr"
+      - "https://abclonal.com.cn/product/snp-genotyping"
+      - "https://abclonal.com.cn/product/traditional-cloning"
+      - "https://abclonal.com.cn/product/topo-cloning"
+      - "https://abclonal.com.cn/product/ready-to-use-lb-plate"
+      - "https://abclonal.com.cn/product/chemically-competent-cell"
+      - "https://abclonal.com.cn/product/restriction-endonuclease"
+      - "https://abclonal.com.cn/product/dna-ligase"
+      - "https://abclonal.com.cn/product/point-mutation"
+      - "https://abclonal.com.cn/product/dna-ladder-marker"
+      - "https://abclonal.com.cn/product/nucleic-acid-dye"
+      - "https://abclonal.com.cn/product/agarose"
+      - "https://abclonal.com.cn/product/nucleic-acid-electrophoresis-reagents"
+      - "https://abclonal.com.cn/product/column-based-extraction"
+      - "https://abclonal.com.cn/product/magnetic-bead-based-extraction"
+      - "https://abclonal.com.cn/product/precipitation-based-extraction"
+      - "https://abclonal.com.cn/product/extraction-related-reagents"
+      - "https://abclonal.com.cn/product/sample-preservation"
+      - "https://abclonal.com.cn/product/nuclease"
+      - "https://abclonal.com.cn/product/nucleotide-modifying-enzyme"
+      - "https://abclonal.com.cn/product/polymerase"
+      - "https://abclonal.com.cn/product/ligase"
+      - "https://abclonal.com.cn/product/proteinase"
+      - "https://abclonal.com.cn/product/glycosidase"
+      - "https://abclonal.com.cn/product/other-tool-enzymes"
+      - "https://abclonal.com.cn/product/in-vitro-transcription"
+      - "https://abclonal.com.cn/product/circrna-ladder"
+      - "https://abclonal.com.cn/product/circrna-reporter-gene"
+  - key: next-generation-sequencing
+    category: "高通量测序产品"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/enzymatic-fragmentation"
+      - "https://abclonal.com.cn/product/ultrasonic-fragmentation"
+      - "https://abclonal.com.cn/product/tagmentation"
+      - "https://abclonal.com.cn/product/ssdna"
+      - "https://abclonal.com.cn/product/dna-lib-module"
+      - "https://abclonal.com.cn/product/rna-lib-prep"
+      - "https://abclonal.com.cn/product/small-rna-lib-prep"
+      - "https://abclonal.com.cn/product/rna-lib-module"
+      - "https://abclonal.com.cn/product/abcellar-single-cell-lib-prep"
+      - "https://abclonal.com.cn/product/amplification-module"
+      - "https://abclonal.com.cn/product/reverse-transcriptase"
+      - "https://abclonal.com.cn/product/sonication-chip-kit"
+      - "https://abclonal.com.cn/product/cut-tag-assay-kit-reagent"
+      - "https://abclonal.com.cn/product/dna-methylation"
+      - "https://abclonal.com.cn/product/ATAC%20database%20construction"
+      - "https://abclonal.com.cn/product/hybridization-capture-reagents"
+      - "https://abclonal.com.cn/product/universal-adapter"
+      - "https://abclonal.com.cn/product/dna-library-adapter"
+      - "https://abclonal.com.cn/product/rna-library-adapter"
+      - "https://abclonal.com.cn/product/nucleic-acid-quantification"
+      - "https://abclonal.com.cn/product/ffpe-dna-qc-kit"
+      - "https://abclonal.com.cn/product/dna-clean-beads"
+      - "https://abclonal.com.cn/product/ngs-enzyme-dna-ligase"
+      - "https://abclonal.com.cn/product/rna-ligase"
+      - "https://abclonal.com.cn/product/dna-kinase"
+      - "https://abclonal.com.cn/product/dna-processing"
+      - "https://abclonal.com.cn/product/dna-polymerase"
+      - "https://abclonal.com.cn/product/udg"
+      - "https://abclonal.com.cn/product/ngs-enzyme-nuclease"
+      - "https://abclonal.com.cn/product/ngs-polymerase"
+      - "https://abclonal.com.cn/product/special-database-construction"
+  - key: molecular-diagnostic-raw-material
+    category: "分子诊断原料产品"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/molecular-diagnostic-raw-materials-probe-based-qpcr"
+      - "https://abclonal.com.cn/product/molecular-diagnostic-raw-materials-one-step-rt-qpcr"
+      - "https://abclonal.com.cn/product/raw-materials-dna-polymerase"
+      - "https://abclonal.com.cn/product/raw-materials-reverse-transcriptase"
+      - "https://abclonal.com.cn/product/raw-materials-udg"
+      - "https://abclonal.com.cn/product/raw-materials-isothermal-amplification"
+      - "https://abclonal.com.cn/product/raw-materials-dntp"
+      - "https://abclonal.com.cn/product/raw-materials-taq-antibody"
+      - "https://abclonal.com.cn/product/raw-materials-rnase-inhibitor"
+      - "https://abclonal.com.cn/product/raw-materials-rna-polymerase"
+  - key: recombinant-proteins
+    category: "重组蛋白"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/macrophage-osteoclast-culture"
+      - "https://abclonal.com.cn/product/dendritic-cell-culture"
+      - "https://abclonal.com.cn/product/t-b-nk-cell-culture"
+      - "https://abclonal.com.cn/product/stem-cell-culture"
+      - "https://abclonal.com.cn/product/organoid-culture"
+      - "https://abclonal.com.cn/product/cell-culture-related-reagents"
+      - "https://abclonal.com.cn/product/car-t-related-proteins"
+      - "https://abclonal.com.cn/product/car-nk-related-proteins"
+      - "https://abclonal.com.cn/product/cd-antigens"
+      - "https://abclonal.com.cn/product/biomarker-proteins"
+      - "https://abclonal.com.cn/product/fc-proteins"
+      - "https://abclonal.com.cn/product/sars-cov-2-antigens"
+      - "https://abclonal.com.cn/product/influenza-virus-antigens"
+      - "https://abclonal.com.cn/product/monkeypox-virus-antigens"
+      - "https://abclonal.com.cn/product/coronavirus-antigens"
+      - "https://abclonal.com.cn/product/pt-kinases"
+      - "https://abclonal.com.cn/product/pt-other-enzymes"
+      - "https://abclonal.com.cn/product/other-proteins"
+  - key: elisa-kits
+    category: "ELISA试剂盒"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/economical-elisa-kits"
+      - "https://abclonal.com.cn/product/high-sensitivity-elisa-kits"
+      - "https://abclonal.com.cn/product/fast-detection-elisa-kits"
+      - "https://abclonal.com.cn/product/uncoated-elisa-kits"
+      - "https://abclonal.com.cn/product/high-performance-elisa-kits"
+      - "https://abclonal.com.cn/product/matched-antibody-pair"
+  - key: abplex-multiplex-assay-kit
+    category: "ABplex多因子试剂盒"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/abplex-multiplex-assay-kit"
+  - key: ivd-raw-material
+    category: "体外诊断原料"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/ivd-raw-material"
+  - key: lab-supply
+    category: "设备及耗材"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/universal-consumables"
+      - "https://abclonal.com.cn/product/consumables-pcr-qpcr"
+      - "https://abclonal.com.cn/product/consumables-cell-culture"
+      - "https://abclonal.com.cn/product/consumables-western-blot"
+      - "https://abclonal.com.cn/product/desktop-instruments"
+      - "https://abclonal.com.cn/product/application-instruments"
+  - key: biochemical
+    category: "生化试剂"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/suit"
+      - "https://abclonal.com.cn/product/wb-membrane-transfer"
+      - "https://abclonal.com.cn/product/auxiliary-reagent-accessories"
+      - "https://abclonal.com.cn/product/wb-exposure"
+      - "https://abclonal.com.cn/product/protein-marker"
+      - "https://abclonal.com.cn/product/gel-making-reagent-kit"
+      - "https://abclonal.com.cn/product/prefabricated-adhesive"
+      - "https://abclonal.com.cn/product/affinity-chromatography-packing-material"
+      - "https://abclonal.com.cn/product/chip-or-ip"
+      - "https://abclonal.com.cn/product/pull-down-test-kit"
+      - "https://abclonal.com.cn/product/protein-quantification"
+      - "https://abclonal.com.cn/product/collagenase"
+      - "https://abclonal.com.cn/product/enzyme-inhibitor"
+      - "https://abclonal.com.cn/product/cellular-digestive-fluid"
+      - "https://abclonal.com.cn/product/sample-processing-buffer"
+      - "https://abclonal.com.cn/product/ihc"
+      - "https://abclonal.com.cn/product/tsa"
+      - "https://abclonal.com.cn/product/tsa%20auxiliary%20reagent"
+      - "https://abclonal.com.cn/product/super-multiple"
+      - "https://abclonal.com.cn/product/pollution-detection-and-removal"
+      - "https://abclonal.com.cn/product/antibiotics"
+      - "https://abclonal.com.cn/product/cell-cryopreservation"
+      - "https://abclonal.com.cn/product/report-genes"
+      - "https://abclonal.com.cn/product/transfection-reagent"
+      - "https://abclonal.com.cn/product/cell-proliferation-toxicity"
+      - "https://abclonal.com.cn/product/apoptosis"
+      - "https://abclonal.com.cn/product/cell-structure-staining"
+      - "https://abclonal.com.cn/product/cellular-oxidative-stress"
+      - "https://abclonal.com.cn/product/fluorescent-dye"
+  - key: life-science-instruments
+    category: "生命科学仪器"
+    match: { detailUrlIncludes: ["abclonal.com.cn/catalog/"] }
+    listTraversal: { strategy: pagination-url, urlTemplate: "?&p={page}" }
+    startUrls:
+      - "https://abclonal.com.cn/product/flow-cytometer"
+      - "https://abclonal.com.cn/product/multi-factor-detection-platform"
+      - "https://abclonal.com.cn/product/microplate-reader"
+      - "https://abclonal.com.cn/product/single-cell-library-construction-system"
+      - "https://abclonal.com.cn/product/molecular-cloning-related-equipment"
+      - "https://abclonal.com.cn/product/wb-related-equipment"
+      - "https://abclonal.com.cn/product/desktop-tools"
