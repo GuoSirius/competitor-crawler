@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import {
   companies,
   sections,
@@ -105,7 +105,6 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
 
   // 2) 栏目 upsert（每 productLine 一行；无 productLine 归到 key='default'）
   // 先按 (companyId, productLine) 收集，避免重复建栏目
-  const productLineByCompany = new Map<number, Set<string | null>>();
   for (const s of seeds) {
     const domain = normalizeDomain(s.website) || normalizeDomain(s.companyName);
     const companyId = companyIdByDomain.get(domain);

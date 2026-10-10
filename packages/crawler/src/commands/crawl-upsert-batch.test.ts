@@ -120,8 +120,7 @@ describe('flushUpsertBatch — 增量批量落库', () => {
   it('单批写入：products 行数 == 批大小，summary.new 正确，有价即记价格历史', async () => {
     const summary = makeSummary();
     const batch = [mkProduct(1, 10), mkProduct(2, 20), mkProduct(3, null)];
-    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress, 'x.com', sectionId);
-
+    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress);
     const rows = await db.select().from(products).where(eq(products.companyId, companyId));
     expect(rows.length).toBe(3);
     expect(summary.new).toBe(3);
@@ -134,7 +133,7 @@ describe('flushUpsertBatch — 增量批量落库', () => {
   it('超批大小仍原子处理：一批 250 条全部落库且无重复', async () => {
     const summary = makeSummary();
     const batch = Array.from({ length: 250 }, (_, k) => mkProduct(1000 + k, 5));
-    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress, 'x.com', sectionId);
+    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress);
 
     const rows = await db.select().from(products).where(eq(products.companyId, companyId));
     // 之前 3 条 + 本批 250 条
@@ -150,7 +149,7 @@ describe('flushUpsertBatch — 增量批量落库', () => {
     const summary = makeSummary();
     // 改 ik-1 价格 10→99（触发价格历史），ik-2 不变
     const batch = [mkProduct(1, 99), mkProduct(2, 20)];
-    await flushUpsertBatch(db, dialect, batch, existed, summary, nowSeconds() + 10, crawlId, progress, 'x.com', sectionId);
+    await flushUpsertBatch(db, dialect, batch, existed, summary, nowSeconds() + 10, crawlId, progress);
 
     const rows = await db.select().from(products).where(eq(products.companyId, companyId));
     expect(rows.length).toBe(253); // 不新增行
@@ -176,7 +175,7 @@ describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', ()
     const before = (await db.select().from(productDiffs)).length;
     const summary = makeSummary();
     const capturedAt = nowSeconds() + 20;
-    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, capturedAt, crawlId, progress, 'x.com', sectionId);
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, capturedAt, crawlId, progress);
 
     const added = (await db.select().from(productDiffs)).slice(before);
     const fields = added.map((r) => r.field).sort();
@@ -196,7 +195,7 @@ describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', ()
     const existed = await loadExistedFull();
     const before = (await db.select().from(productDiffs)).length;
     const summary = makeSummary();
-    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 30, crawlId, progress, 'x.com', sectionId);
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 30, crawlId, progress);
     expect((await db.select().from(productDiffs)).length).toBe(before);
   });
 });

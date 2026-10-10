@@ -44,7 +44,7 @@ function parseEuPrice(text: string): number | null {
 }
 
 export default {
-  postParseList(items, ctx) {
+  postParseList(items, _ctx) {
     return items
       .map((it) => {
         const name = (it.name ?? '').trim();

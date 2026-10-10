@@ -103,7 +103,7 @@ export async function xlsxToSeeds(): Promise<string> {
           urlOf(col.website) ?? (webText && /^https?:/i.test(webText) ? webText : undefined);
 
         const sourceRow: Record<string, unknown> = {};
-        headerRow.eachCell((cell, c) => {
+        headerRow.eachCell((_cell, c) => {
           sourceRow[headers[c] ?? `col${c}`] = row.getCell(c).value;
         });
 

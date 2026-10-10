@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
-import fs from 'node:fs';
+
 
 // backfill 集成测试（docs/16 Q1）：全新空 SQLite（drizzle pushSQLiteSchema 建表），自包含不依赖真实库。
 // 必须在首次 import shared 前改写 DATABASE_URL → 全部走动态 import。

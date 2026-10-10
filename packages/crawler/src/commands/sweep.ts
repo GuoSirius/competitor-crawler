@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { dataDir } from '@competitor-crawler/shared';
 import { fetchPage, ChallengeError } from '../fetch/page.js';
 import { loadSiteConfig, expandProxyVar } from '../config/loader.js';
-import type { ChallengeKind } from '../fetch/antiBot.js';
 import { Progress } from '../util/progress.js';
 
 /**

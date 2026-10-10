@@ -5,7 +5,7 @@
 // field-docs：打印内建字段字典（哪些字段该配、类型/阶段/是否必填/是否身份键）。
 
 import { listSiteConfigs, loadSiteConfig, resolveSections } from '../config/loader.js';
-import { validateSiteConfig, formatIssues, hasErrors } from '../config/validate.js';
+import { validateSiteConfig, formatIssues } from '../config/validate.js';
 import {
   PRODUCT_FIELDS,
   CONTENT_FIELDS,

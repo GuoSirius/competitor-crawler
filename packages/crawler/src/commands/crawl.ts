@@ -398,7 +398,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
             if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
           }
           for (const p of fresh) flushedKeys.add(p.identityKey);
-          await flushUpsertBatch(db, dialect, fresh, existed, summary, now, crawlRow.id, progress, domain, section.id ?? 0);
+          await flushUpsertBatch(db, dialect, fresh, existed, summary, now, crawlRow.id, progress);
           flushedCount += fresh.length;
           batchNo++;
           return fresh.length;
@@ -1286,25 +1286,6 @@ async function loadExisting(
   return new Map(rows.map((r) => [r.identityKey, { ...r }]));
 }
 
-/** 追加一条价格历史（仅写入，消费端待后续接入） */
-async function recordPrice(
-  db: Db,
-  productId: number,
-  p: PendingProduct,
-  crawlId: number,
-  now: number,
-): Promise<void> {
-  await db.insert(priceHistory).values({
-    productId,
-    price: p.price,
-    currency: p.currency,
-    priceText: p.priceText,
-    specText: p.specText,
-    crawlId,
-    capturedAt: now,
-  });
-}
-
 /**
  * 批量写价格历史（多行 insert，一次网络往返写一批，解决逐条写库慢）。
  * 仅写入不消费；与产品 upsert 同事务（见 flushUpsertBatch），失败整批回滚。
@@ -1349,8 +1330,6 @@ export async function flushUpsertBatch(
   now: number,
   crawlId: number,
   progress: Progress,
-  domain: string,
-  sectionId: number,
 ): Promise<void> {
   const priceRows: PriceRow[] = [];
   const diffRows: Array<{ productId: number; field: string; oldValue: string | null; newValue: string | null }> = [];

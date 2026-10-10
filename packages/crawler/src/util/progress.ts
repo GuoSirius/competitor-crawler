@@ -137,7 +137,7 @@ export class ProgressCounter {
     private readonly progress: Progress,
     private readonly label: string,
     private readonly total: number,
-    private readonly opts: CounterOptions = {},
+    opts: CounterOptions = {},
   ) {
     this.unit = opts.unit ?? '条';
     this.showOutcome = opts.showOutcome ?? true;

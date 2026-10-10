@@ -11,7 +11,6 @@ import type { FieldSpec } from '@competitor-crawler/shared';
 import {
   fieldsForKind,
   getFieldMeta,
-  BUILTIN_FIELD_NAMES,
   suggestFieldName,
   type ContentKind,
 } from '@competitor-crawler/shared';
