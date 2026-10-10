@@ -10,8 +10,9 @@ listTraversal:
 parseList:
   itemSelector: .hp_item
   fields:
+    # .hp_item 本身就是 <a>：item 内部 find 找不到自身 → 用 $self 取 href
     detailUrl:
-      sel: a.hp_item
+      sel: "$self"
       attr: href
     name:
       sel: .lsname
@@ -19,8 +20,21 @@ parseList:
     sku:
       sel: .lsname > span
       text: true
+
 parseDetail:
-  fields: null
+  fields:
+    name: { sel: "h2.pinfoti", text: true }
+    sku: { sel: "table.guige tr.bginfo td:nth-child(1)", text: true }
+    specText: { sel: "table.guige tr.bginfo td:nth-child(2)", text: true }
+    price: { sel: "table.guige tr.bginfo td:nth-child(4)", text: true, number: true }
+    # 规格表：货号 | 产品规格 | 单位 | 单价(CNY) | 货期
+    specs:
+      sel: "table.guige tr.bginfo"
+      list: true
+      map:
+        sku:      { sel: "td:nth-child(1)", text: true }
+        spec:     { sel: "td:nth-child(2)", text: true }
+        priceNow: { sel: "td:nth-child(4)", text: true, number: true }
 categoryFromPage: null
 currency: CNY
 render: browser

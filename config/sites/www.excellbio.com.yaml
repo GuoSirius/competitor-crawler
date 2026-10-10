@@ -24,7 +24,11 @@ parseList:
     summary:   { sel: "span.dot2", text: true }
 
 parseDetail:
-  fields: {}
+  fields:
+    # 详情 SSR 直出（.RighInfo003134）：aside.tit=名称；白色 span=多货号串（、分隔，取首个匹配即该串）
+    name: { sel: "aside.tit", text: true }
+    sku: { sel: ".ytable-cell.txt p span", text: true }
+    description: { sel: "#box2 article.singlePage", text: true } # 特点与优势
   captureRest: true
 
 sections:

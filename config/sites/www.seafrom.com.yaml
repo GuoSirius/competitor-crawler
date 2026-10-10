@@ -17,7 +17,13 @@ parseList:
     name:       { sel: "span.p1", text: true }
 
 parseDetail:
-  fields: {}
+  fields:
+    # 左图右信息区：h3 标题 / 货号区 / 规格区 / 现货区 / 价格区；详情参数表 .pinfo-4content
+    name: { sel: ".pinfo-2right h3.h3", text: true }
+    sku: { sel: ".pinfo-2num p em", text: true }
+    specText: { sel: ".pinfo-2gg .pinfo-2body p", text: true }
+    priceText: { sel: ".pinfo-2price p em", text: true }
+    price: { sel: ".pinfo-2price p em", text: true, number: true } # 原文如「1800元」
   captureRest: true
 
 sections:
