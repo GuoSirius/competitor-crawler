@@ -189,7 +189,7 @@ export interface CategoryFromPageConfig {
  * 同 SKU 出现在不同 section 时按去重口径 B 分开为两条（section_key 并入去重键）。
  */
 export interface SectionConfig {
-  /** 栏目标识：写入 products.section_key / contents.section_key，参与去重键。单规则站点固定为 'default' */
+  /** 栏目标识：经 (company_id, key) 落到 sections 表，products/contents 用 section_id 归属。单规则站点固定为 'default' */
   key: string;
   /**
    * 采集内容类型（路由落库表，与 contents.content_type 同名对应）：
@@ -215,10 +215,15 @@ export interface SectionConfig {
   /** 面包屑动态分类：从详情页抽分类路径建树（优先于 categoryPath/category） */
   categoryFromPage?: CategoryFromPageConfig;
   /**
-   * 产品线（对应 categories.product_line）。可选；用于 `crawl --product-line` 过滤。
+   * 产品线（对应 sections.product_line）。可选；用于 `crawl --product-line` 过滤。
    * 缺省该栏目不绑定产品线；指定 --product-line 时仅跑 productLine 命中的栏目。
    */
   productLine?: string;
+  /**
+   * 该栏目对标品牌（写入 sections.brand）。可选；缺省回退站点级 brand（SiteConfig.brand）。
+   * 产品入库时 brand 缺省再回退到这里（products.brand ?? sections.brand），实现「栏目级默认品牌」。
+   */
+  brand?: string;
   /** 该栏目的列表页入口（可多个）。省略则回退顶层 startUrl */
   startUrls?: string[];
   /**
@@ -330,10 +335,15 @@ export interface SiteConfig {
    */
   role?: string;
   /**
-   * 站点级默认产品线（对应 categories.product_line）。缺省回退到各 section 自己的 productLine；
+   * 站点级默认产品线（对应 sections.product_line）。缺省回退到各 section 自己的 productLine；
    * 用于 config 驱动模式（`crawl --source config`）按产品线 upsert / 过滤品类。
    */
   productLine?: string;
+  /**
+   * 站点级默认对标品牌（写入 sections.brand 的回退值）。可选；逐 section 可在 SectionConfig.brand 覆盖。
+   * 产品入库时 brand 缺省回退链：products.brand ?? section.brand ?? 站点 brand。
+   */
+  brand?: string;
   /**
    * 站点币种（一个站点一种，如 CNY / USD）。缺省按 CNY。
    * 写入 products.currency，供跨站点比价时做币种区分。
@@ -411,6 +421,10 @@ export interface ResolvedSection {
   categoryFromPage?: CategoryFromPageConfig;
   /** 产品线（透传自 SectionConfig.productLine，缺省回退 SiteConfig.productLine） */
   productLine?: string;
+  /** 该栏目对标品牌（透传自 SectionConfig.brand，缺省回退 SiteConfig.brand） */
+  brand?: string;
+  /** 库内 section 主键（buildTargets 阶段 upsert sections 后回填；products/contents 落库用） */
+  id?: number;
   /** 站点币种（透传自 SiteConfig.currency，缺省 CNY） */
   currency: string;
   startUrls: string[];

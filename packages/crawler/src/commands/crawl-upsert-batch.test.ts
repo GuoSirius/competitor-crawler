@@ -7,7 +7,7 @@ import type { PendingProduct } from './crawl.js';
 const { createTestDb } = await import('../testing/testDb.js');
 await createTestDb('upsert-batch');
 
-const { createDb, companies, products, priceHistory, productDiffs, crawls, eq, inArray, nowSeconds } =
+const { createDb, companies, sections, products, priceHistory, productDiffs, crawls, eq, inArray, nowSeconds } =
   await import('@competitor-crawler/shared');
 const { flushUpsertBatch } = await import('./crawl.js');
 const { Progress } = await import('../util/progress.js');
@@ -17,8 +17,8 @@ const dialect = 'sqlite' as const;
 
 let companyId = 0;
 let crawlId = 0;
+let sectionId = 0;
 const progress = new Progress();
-const sectionKey = 'batch-test';
 
 function makeSummary() {
   return {
@@ -43,7 +43,7 @@ function mkProduct(i: number, price: number | null): PendingProduct {
     companyId,
     categoryId: null,
     breadcrumb: null,
-    sectionKey,
+    sectionId,
     identityKey: `ik-${i}`,
     sourceProductId: `sp-${i}`,
     sku: `sku-${i}`,
@@ -89,9 +89,14 @@ async function loadExistedFull() {
 beforeAll(async () => {
   const [c] = await db
     .insert(companies)
-    .values({ name: '批落库-公司', createdAt: nowSeconds(), updatedAt: nowSeconds() })
+    .values({ name: '批落库-公司', domain: 'upsert-batch.test', createdAt: nowSeconds(), updatedAt: nowSeconds() })
     .returning();
   companyId = c.id;
+  const [s] = await db
+    .insert(sections)
+    .values({ companyId, key: 'batch-test', name: 'batch-test', createdAt: nowSeconds(), updatedAt: nowSeconds() })
+    .returning();
+  sectionId = s.id;
   const [cr] = await db
     .insert(crawls)
     .values({ trigger: 'manual', status: 'running', startedAt: nowSeconds() })
@@ -100,13 +105,14 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // 先删 diff/价格历史（外键引用 products.id），再删产品与公司
+  // 先删 diff/价格历史（外键引用 products.id），再删产品、栏目与公司
   const ids = (await db.select({ id: products.id }).from(products).where(eq(products.companyId, companyId))).map((r) => r.id);
   if (ids.length > 0) {
     await db.delete(productDiffs).where(inArray(productDiffs.productId, ids));
     await db.delete(priceHistory).where(inArray(priceHistory.productId, ids));
   }
   await db.delete(products).where(eq(products.companyId, companyId));
+  await db.delete(sections).where(eq(sections.companyId, companyId));
   await db.delete(companies).where(eq(companies.id, companyId));
 });
 
@@ -114,7 +120,7 @@ describe('flushUpsertBatch — 增量批量落库', () => {
   it('单批写入：products 行数 == 批大小，summary.new 正确，有价即记价格历史', async () => {
     const summary = makeSummary();
     const batch = [mkProduct(1, 10), mkProduct(2, 20), mkProduct(3, null)];
-    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress, 'x.com', sectionKey);
+    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress, 'x.com', sectionId);
 
     const rows = await db.select().from(products).where(eq(products.companyId, companyId));
     expect(rows.length).toBe(3);
@@ -128,7 +134,7 @@ describe('flushUpsertBatch — 增量批量落库', () => {
   it('超批大小仍原子处理：一批 250 条全部落库且无重复', async () => {
     const summary = makeSummary();
     const batch = Array.from({ length: 250 }, (_, k) => mkProduct(1000 + k, 5));
-    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress, 'x.com', sectionKey);
+    await flushUpsertBatch(db, dialect, batch, new Map(), summary, nowSeconds(), crawlId, progress, 'x.com', sectionId);
 
     const rows = await db.select().from(products).where(eq(products.companyId, companyId));
     // 之前 3 条 + 本批 250 条
@@ -144,7 +150,7 @@ describe('flushUpsertBatch — 增量批量落库', () => {
     const summary = makeSummary();
     // 改 ik-1 价格 10→99（触发价格历史），ik-2 不变
     const batch = [mkProduct(1, 99), mkProduct(2, 20)];
-    await flushUpsertBatch(db, dialect, batch, existed, summary, nowSeconds() + 10, crawlId, progress, 'x.com', sectionKey);
+    await flushUpsertBatch(db, dialect, batch, existed, summary, nowSeconds() + 10, crawlId, progress, 'x.com', sectionId);
 
     const rows = await db.select().from(products).where(eq(products.companyId, companyId));
     expect(rows.length).toBe(253); // 不新增行
@@ -170,7 +176,7 @@ describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', ()
     const before = (await db.select().from(productDiffs)).length;
     const summary = makeSummary();
     const capturedAt = nowSeconds() + 20;
-    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, capturedAt, crawlId, progress, 'x.com', sectionKey);
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, capturedAt, crawlId, progress, 'x.com', sectionId);
 
     const added = (await db.select().from(productDiffs)).slice(before);
     const fields = added.map((r) => r.field).sort();
@@ -190,7 +196,7 @@ describe('flushUpsertBatch — 字段级 diff（product_diffs，Task #78）', ()
     const existed = await loadExistedFull();
     const before = (await db.select().from(productDiffs)).length;
     const summary = makeSummary();
-    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 30, crawlId, progress, 'x.com', sectionKey);
+    await flushUpsertBatch(db, dialect, changedBatch(), existed, summary, nowSeconds() + 30, crawlId, progress, 'x.com', sectionId);
     expect((await db.select().from(productDiffs)).length).toBe(before);
   });
 });

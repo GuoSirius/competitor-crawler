@@ -8,10 +8,12 @@ import {
   products,
   priceHistory,
   productDiffs,
+  sections,
   createDb,
   nowSeconds,
   absoluteUrl,
   domainOf,
+  normalizeDomain,
   pickIdentityKey,
   canonicalizeUrl,
   toNumber,
@@ -72,7 +74,7 @@ export interface CrawlOpts {
   section?: string;
   /** 仅跑指定品类名（子串匹配，不区分大小写）；两数据源均生效 */
   category?: string;
-  /** 仅跑指定产品线（仅 --source seeds 生效，对应 categories.product_line）；config 模式忽略并提示 */
+  /** 仅跑指定产品线（对应 sections.product_line；config 模式在栏目级过滤，seeds 模式在查询级过滤） */
   productLine?: string;
   /** 触发来源：manual（手动/cli）/ schedule（调度器）；写入 crawls.trigger 便于追溯 */
   trigger?: 'manual' | 'schedule';
@@ -88,7 +90,7 @@ export interface PendingProduct {
   categoryId: number | null;
   /** 详情页面包屑分类路径（categoryFromPage 动态解析）；非空时优先于 categoryId 建树落库 */
   breadcrumb: string[] | null;
-  sectionKey: string;
+  sectionId: number;
   identityKey: string;
   sourceProductId: string | null;
   sku: string | null;
@@ -151,7 +153,7 @@ interface CrawlSummary {
  * 绑定到种子品类（categories.name），未绑定则按域名兜底（唯一品类则用它，否则 category_id 记空）。
  *
  * - 单站/单条失败隔离：某栏目或某详情失败只计 failed 并继续，不整轮失败。
- * - 去重口径 B：写入冲突目标为 (company_id, identity_key, section_key)，见 docs/03 §3.4。
+ * - 去重口径 B：写入冲突目标为 (company_id, section_id, identity_key)，见 docs/03 §3.4。
  */
 export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   const progress = new Progress();
@@ -208,10 +210,10 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   }
 
   const companyIds = new Set<number>();
-  // 每个 (companyId|sectionKey) 见到的 identityKey，用于软删判断
+  // 每个 (companyId|sectionId) 见到的 identityKey，用于软删判断
   const seenKeys = new Map<string, Set<string>>();
-  const seenSet = (cid: number, sectionKey: string): Set<string> => {
-    const k = `${cid}|${sectionKey}`;
+  const seenSet = (cid: number, sectionId: number): Set<string> => {
+    const k = `${cid}|${sectionId}`;
     let s = seenKeys.get(k);
     if (!s) {
       s = new Set<string>();
@@ -322,7 +324,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
                 catCacheC.set(
                   key,
                   await upsertCategoryPath(
-                    db, companyId, bc, null, section.productLine ?? null, dryRun, progress, section.contentType,
+                    db, companyId, section.id ?? 0, bc, null, dryRun, progress,
                   ),
                 );
               }
@@ -330,7 +332,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
               if (cid > 0) c.categoryId = cid; // dry-run 哨兵 0 → 保留null，不写悬空FK
             }
           }
-          const existedC = await loadExistingContents(db, companyId, section.key);
+          const existedC = await loadExistingContents(db, companyId, section.id ?? 0);
           // 同一栏目内 identityKey 唯一化（与产品管线同口径）
           const uniqueC = uniqueBy(pendingC, (c) => c.identityKey);
           if (uniqueC.length !== pendingC.length) {
@@ -352,8 +354,8 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           summary.delisted += await softDeleteMissingContents(
             db,
             companyId,
-            section.key,
-            seenSet(companyId, section.key),
+            section.id ?? 0,
+            seenSet(companyId, section.id ?? 0),
             now,
           );
           continue;
@@ -367,7 +369,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
         const modelStat: ModelStat = { filled: 0, failed: 0 };
         // 先读库内已有产品（identityKey → id/price）：既供落库阶段判 新增/更新/价格变化，
         // 又在续跑时作为「已落库不重抓」的跳过集合（docs/16 规模化兜底）
-        const existed = await loadExisting(db, companyId, section.key);
+        const existed = await loadExisting(db, companyId, section.id ?? 0);
         // ⚠️ 仅续跑（--resume）才跳过已落库详情；普通轮必须全量重抓——否则价格/描述永远刷新不到
         // （state 普通轮也非空：为了中途崩溃可续跑，每轮都会建断点文件，不能拿它当续跑判据）
         const skipKeys = opts.resume !== undefined ? new Set(existed.keys()) : undefined;
@@ -390,13 +392,13 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
             const key = p.breadcrumb.join(' > ');
             let cid = catCache.get(key);
             if (cid === undefined) {
-              cid = await upsertCategoryPath(db, companyId, p.breadcrumb, null, section.productLine ?? null, dryRun, progress);
+              cid = await upsertCategoryPath(db, companyId, section.id ?? 0, p.breadcrumb, null, dryRun, progress);
               catCache.set(key, cid);
             }
             if (cid > 0) p.categoryId = cid; // dryRun 哨兵 0 → 保留栏目绑定分类
           }
           for (const p of fresh) flushedKeys.add(p.identityKey);
-          await flushUpsertBatch(db, dialect, fresh, existed, summary, now, crawlRow.id, progress, domain, section.key);
+          await flushUpsertBatch(db, dialect, fresh, existed, summary, now, crawlRow.id, progress, domain, section.id ?? 0);
           flushedCount += fresh.length;
           batchNo++;
           return fresh.length;
@@ -472,7 +474,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
           });
         }
 
-        summary.delisted += await softDeleteMissing(db, companyId, section.key, seenSet(companyId, section.key), now);
+        summary.delisted += await softDeleteMissing(db, companyId, section.id ?? 0, seenSet(companyId, section.id ?? 0), now);
         // 断点落盘：本栏目采集+落库+软删全部完成 → 标记 done 并写文件（崩溃后 --resume 可跳过）
         state?.markDone(domain, section.key, {
           newCount: summary.new - baseNew,
@@ -552,21 +554,22 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   }
 }
 
-/** 把栏目绑定到种子品类：优先 name + 产品线精确匹配，否则按域名兜底 */
+/** 把栏目绑定到种子品类：优先 name + sectionId 精确匹配，否则按域名兜底 */
 function resolveCategoryId(
   section: ResolvedSection,
-  list: Array<{ cat: { id: number; name: string; productLine: string | null } }>,
+  list: Array<{ cat: { id: number; name: string; sectionId: number | null } }>,
 ): number | null {
   if (section.category) {
     const hits = list.filter((r) => r.cat.name === section.category);
     if (hits.length === 1) return hits[0].cat.id;
     if (hits.length > 1) {
-      const f = hits.find((r) => r.cat.productLine === (section.productLine ?? null));
+      const f = hits.find((r) => r.cat.sectionId === (section.id ?? null));
       if (f) return f.cat.id;
-      return null; // 同名多节点且无法靠产品线消歧，不瞎猜
+      return null; // 同名多节点且无法靠栏目消歧，不瞎猜
     }
   }
-  return list.length === 1 ? list[0].cat.id : null;
+  const sameSection = list.filter((r) => r.cat.sectionId === (section.id ?? null));
+  return sameSection.length === 1 ? sameSection[0].cat.id : null;
 }
 
 /** 爬取目标：一个域名 → 归属公司 + 一组已绑定 DB 品类的栏目 */
@@ -620,21 +623,20 @@ async function buildTargets(
       for (const section of sections) {
         // --product-line 过滤（config 模式）：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
         if (opts.productLine && section.productLine !== opts.productLine) continue;
+        // 先落栏目（sections 表一等公民），回填 section.id 供后续分类树 / 产品落库使用
+        const sectionId = await resolveSectionId(db, companyId, section, dryRun, progress);
+        section.id = sectionId;
         const categoryName = section.category ?? `${domain}::${section.key}`;
         const breadcrumb = section.categoryPath ?? [categoryName];
-        // 内容栏目（contentType !== 'products'）同样在分类表建节点，但 content_type 用**内容类型**（school/video…），
-        // 与产品的 'products' 分域互不干扰（categories 表按 (company,content_type,path) 判重）。
-        // 此前内容栏目恒不建树、contents.category_id 恒 null → 分类表里看不到内容栏目，
-        // 前端「按内容分类筛选」无锚点；表设计本就支持（categories.content_type / contents.category_id）。
+        // 分类树按 section_id 归属（不再用 contentType 分区）；产品线已上移到 sections 表，不再作为树根。
         const categoryId = await upsertCategoryPath(
           db,
           companyId,
+          sectionId,
           breadcrumb,
           section.startUrls[0] ?? cfg.startUrl ?? '',
-          section.productLine ?? null,
           dryRun,
           progress,
-          section.contentType,
         );
         targetSections.push({ section, categoryId, categoryName });
       }
@@ -645,12 +647,14 @@ async function buildTargets(
 
   // source === 'seeds'
   const conds = [isNull(categories.removedAt)];
-  if (opts.productLine) conds.push(eq(categories.productLine, opts.productLine));
-  const rows = await db
-    .select({ cat: categories, company: companies })
+  let rows = await db
+    .select({ cat: categories, company: companies, section: sections })
     .from(categories)
     .innerJoin(companies, eq(categories.companyId, companies.id))
+    .innerJoin(sections, eq(categories.sectionId, sections.id))
     .where(and(...conds));
+  // --product-line（seeds 模式）：按 sections.product_line 过滤（产品线已上移到 sections 表）
+  if (opts.productLine) rows = rows.filter((r) => r.section.productLine === opts.productLine);
 
   const byDomain = new Map<string, typeof rows>();
   for (const r of rows) {
@@ -673,8 +677,10 @@ async function buildTargets(
     const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? 'auto';
     const sections = resolveSections(cfg);
     const companyId = list[0].company.id;
+    // 先落栏目，回填 section.id 供分类树匹配（resolveCategoryId 按 sectionId 消歧）
+    for (const section of sections) section.id = await resolveSectionId(db, companyId, section, dryRun, progress);
     const targetSections: TargetSection[] = sections.map((section) => {
-      // 内容栏目（collects !== 'products'）不绑品类
+      // 内容栏目（contentType !== 'products'）不绑品类
       const categoryId = section.contentType !== 'products' ? null : resolveCategoryId(section, list);
       const categoryName = section.category ?? domain;
       return { section, categoryId, categoryName };
@@ -707,18 +713,18 @@ function applyFilters(
 }
 
 /**
- * config 模式公司解析：优先复用「website 命中该域名」或「name 命中 YAML company」的已存在公司
+ * config 模式公司解析：以归一化域名（domain）为唯一判别键，优先复用「domain 命中」或「name 命中 YAML company」的已存在公司
  * （含人工手动插入的行），避免重复建行；都找不到才按 name=company??domain 新建。
  * dryRun：改为仅预览——命中已存在公司返回其 id（不改名），未命中只记「将新建」并返回哨兵 0，不做任何写入。
  */
 async function resolveCompanyId(
   db: Db,
-  cfg: { domain: string; company?: string; competitorType?: string; role?: string },
+  cfg: { domain: string; company?: string; companyShort?: string; competitorType?: string; role?: string },
   dryRun: boolean,
   progress: Progress,
 ): Promise<number> {
-  const domain = cfg.domain;
-  const wantName = cfg.company ?? domain;
+  const domain = normalizeDomain(cfg.domain);
+  const wantName = cfg.company ?? cfg.domain;
   const all = await db.select().from(companies).where(isNull(companies.removedAt));
   // YAML 显式声明的公司属性（competitorType/role）：与库中现有值不同则更新（YAML 为准），未声明/相同则不动
   const applyAttrs = async (row: { id: number; competitorType: string | null; role: string }) => {
@@ -732,61 +738,56 @@ async function resolveCompanyId(
     }
     await db.update(companies).set({ ...set, updatedAt: nowSeconds() }).where(eq(companies.id, row.id));
   };
-  const byWeb = all.find((c) => domainOf(c.website) === domain);
-  if (byWeb) {
-    if (cfg.company && cfg.company !== byWeb.name) {
-      if (dryRun) {
-        progress.update(`[crawl] (dry-run) 将更新公司名称 ${byWeb.name} → ${cfg.company} (id=${byWeb.id})`);
-      } else {
-        await db
-          .update(companies)
-          .set({ name: cfg.company, updatedAt: nowSeconds() })
-          .where(eq(companies.id, byWeb.id));
-      }
-    }
-    await applyAttrs(byWeb);
-    return byWeb.id;
+  // 优先按域名唯一判别键匹配
+  const byDomainRow = all.find((c) => normalizeDomain(c.domain) === domain);
+  if (byDomainRow) {
+    await applyAttrs(byDomainRow);
+    return byDomainRow.id;
   }
-  // name 命中（含人工手动插入的公司）：复用并补全 website
+  // name 命中（含人工手动插入的公司）：复用并补全 domain / website / shortName
   const byName = all.find((c) => c.name === wantName);
   if (byName) {
-    if (!byName.website) {
-      if (dryRun) {
-        progress.update(`[crawl] (dry-run) 复用公司 ${byName.name} (id=${byName.id}) 并补 website=https://${domain}`);
-      } else {
-        await db
-          .update(companies)
-          .set({ website: `https://${domain}`, updatedAt: nowSeconds() })
-          .where(eq(companies.id, byName.id));
-      }
+    if (dryRun) {
+      progress.update(`[crawl] (dry-run) 复用公司 ${byName.name} (id=${byName.id}) 并补 domain=${domain}`);
+    } else {
+      await db
+        .update(companies)
+        .set({
+          domain,
+          website: `https://${domain}`,
+          shortName: byName.shortName ?? cfg.companyShort ?? null,
+          updatedAt: nowSeconds(),
+        })
+        .where(eq(companies.id, byName.id));
     }
     await applyAttrs(byName);
     return byName.id;
   }
   if (dryRun) {
-    progress.update(`[crawl] (dry-run) 将新建公司 ${wantName}`);
+    progress.update(`[crawl] (dry-run) 将新建公司 ${wantName} (domain=${domain})`);
     return 0;
   }
-  return upsertCompany(db, wantName, `https://${domain}`, cfg);
+  return upsertCompany(db, wantName, domain, cfg);
 }
 
-/** 按 name upsert 公司（config 模式新建 / 复用）；website 仅在为空时补全，不覆盖人工维护值 */
+/** 按 name upsert 公司（config 模式新建 / 复用）；website / domain / shortName 仅在为空时补全，不覆盖人工维护值 */
 async function upsertCompany(
   db: Db,
   name: string,
-  website?: string,
-  attrs?: { competitorType?: string; role?: string },
+  domain: string,
+  attrs?: { competitorType?: string; role?: string; companyShort?: string },
 ): Promise<number> {
   const t = nowSeconds();
   const existing = await db.select().from(companies).where(eq(companies.name, name)).limit(1);
   if (existing.length) {
     const row = existing[0];
-    const set: { competitorType?: string; role?: string; removedAt: null; updatedAt: number } = {
+    const set: { competitorType?: string; role?: string; shortName?: string | null; removedAt: null; updatedAt: number } = {
       removedAt: null,
       updatedAt: t,
     };
     if (attrs?.competitorType && attrs.competitorType !== row.competitorType) set.competitorType = attrs.competitorType;
     if (attrs?.role && attrs.role !== row.role) set.role = attrs.role;
+    if (attrs?.companyShort && row.shortName == null) set.shortName = attrs.companyShort; // 仅首次回填，不覆盖人工维护值
     await db.update(companies).set(set).where(eq(companies.id, row.id));
     return row.id;
   }
@@ -794,7 +795,9 @@ async function upsertCompany(
     .insert(companies)
     .values({
       name,
-      website: website ?? null,
+      domain,
+      website: `https://${domain}`,
+      shortName: attrs?.companyShort ?? null,
       competitorType: attrs?.competitorType ?? null,
       role: attrs?.role ?? 'competitor',
       removedAt: null,
@@ -806,7 +809,48 @@ async function upsertCompany(
 }
 
 /**
- * 按 (companyId, contentType, path) 业务主键 upsert 单个分类节点；返回 { id, idPath }。
+ * 按 (companyId, key) 业务主键 upsert 栏目（sections 表一等公民）；返回库内 section.id，
+ * 回填 ResolvedSection.id 供分类树归属 / 产品落库 / 内容落库使用。
+ */
+async function resolveSectionId(
+  db: Db,
+  companyId: number,
+  section: ResolvedSection,
+  dryRun: boolean,
+  progress: Progress,
+): Promise<number> {
+  const t = nowSeconds();
+  const existing = await db
+    .select({ id: sections.id })
+    .from(sections)
+    .where(and(eq(sections.companyId, companyId), eq(sections.key, section.key)))
+    .limit(1);
+  const set = {
+    name: section.key, // 展示名缺省回退 key（YAML 未配独立 name）
+    contentType: section.contentType,
+    productLine: section.productLine ?? null,
+    brand: section.brand ?? null,
+    renderMode: section.render ?? null,
+    source: 'config',
+    updatedAt: t,
+  };
+  if (existing.length) {
+    if (!dryRun) await db.update(sections).set(set).where(eq(sections.id, existing[0].id));
+    return existing[0].id;
+  }
+  if (dryRun) {
+    progress.update(`[crawl] (dry-run) 将新建栏目 ${section.key} (company=${companyId})`);
+    return 0;
+  }
+  const [ins] = await db
+    .insert(sections)
+    .values({ companyId, key: section.key, ...set, createdAt: t })
+    .returning();
+  return ins.id;
+}
+
+/**
+ * 按 (companyId, sectionId, path) 业务主键 upsert 单个分类节点；返回 { id, idPath }。
  * idPath = id 物化路径（`0-<rootId>-…-<selfId>`，parentIds 传父链、根传 '0'）：辅助键，
  * 改名不动它、子树可按前缀 LIKE 精准圈定；**爬虫业务键仍是 name-path**（自增 id 跨库不稳定）。
  * idPath 含自身 id → 新建行先插再补写（两次语句，分类量小可接受）；旧行 idPath 缺失/漂移则顺带自愈。
@@ -814,16 +858,15 @@ async function upsertCompany(
 async function upsertCategoryNode(
   db: Db,
   companyId: number,
+  sectionId: number,
   name: string,
   path: string,
-  productLine: string | null,
   url: string | null,
   parentId: number | null,
   parentIds: string,
   level: number,
   dryRun: boolean,
   progress: Progress,
-  contentType = 'products',
 ): Promise<{ id: number; idPath: string }> {
   const t = nowSeconds();
   const existing = await db
@@ -832,7 +875,7 @@ async function upsertCategoryNode(
     .where(
       and(
         eq(categories.companyId, companyId),
-        eq(categories.contentType, contentType),
+        eq(categories.sectionId, sectionId),
         eq(categories.path, path),
       ),
     )
@@ -843,7 +886,7 @@ async function upsertCategoryNode(
       await db
         .update(categories)
         .set({
-          name, url, productLine, parentId, level, removedAt: null, updatedAt: t,
+          name, url, parentId, level, removedAt: null, updatedAt: t,
           ...(existing[0].idPath !== idPath ? { idPath } : {}), // 自愈旧数据/漂移
         })
         .where(eq(categories.id, existing[0].id));
@@ -851,12 +894,12 @@ async function upsertCategoryNode(
     return { id: existing[0].id, idPath };
   }
   if (dryRun) {
-    progress.update(`[crawl] (dry-run) 将新建分类 ${path} (contentType=${contentType}, company=${companyId})`);
+    progress.update(`[crawl] (dry-run) 将新建分类 ${path} (sectionId=${sectionId}, company=${companyId})`);
     return { id: 0, idPath: `${parentIds}-0` }; // dry-run 哨兵：不写库，链形状仅用于延续父链
   }
   const [ins] = await db
     .insert(categories)
-    .values({ companyId, contentType, parentId, path, name, level, productLine, url, removedAt: null, createdAt: t, updatedAt: t })
+    .values({ companyId, sectionId, parentId, path, name, level, url, removedAt: null, createdAt: t, updatedAt: t })
     .returning();
   const idPath = `${parentIds}-${ins.id}`;
   await db.update(categories).set({ idPath }).where(eq(categories.id, ins.id));
@@ -865,28 +908,26 @@ async function upsertCategoryNode(
 
 /**
  * 自顶向下建树并 upsert 栏目绑定的分类：breadcrumb（从根到栏目）逐层建节点，
- * 计算 parent_id / path / level；productLine 作为最顶层根（兼容 --product-line）。返回叶子（本栏目所属分类）id。
- * url 仅写在叶子节点上（分类列表页地址；动态面包屑场景传 null）。
+ * 计算 parent_id / path / level；分类树按 sectionId 归属（产品线已上移到 sections 表，不再作为树根）。
+ * 返回叶子（本栏目所属分类）id。url 仅写在叶子节点上（分类列表页地址；动态面包屑场景传 null）。
  */
 export async function upsertCategoryPath(
   db: Db,
   companyId: number,
+  sectionId: number,
   breadcrumb: string[],
   url: string | null,
-  productLine: string | null,
   dryRun: boolean,
   progress: Progress,
-  contentType = 'products',
 ): Promise<number> {
-  const full = productLine ? [productLine, ...breadcrumb] : breadcrumb.slice();
   let parentId: number | null = null;
   let parentIds = '0'; // 根的父链（idPath 以 0 起头：0-<rootId>-…）
   let leafId = 0;
-  for (let i = 0; i < full.length; i++) {
-    const isLeaf = i === full.length - 1;
+  for (let i = 0; i < breadcrumb.length; i++) {
+    const isLeaf = i === breadcrumb.length - 1;
     const node = await upsertCategoryNode(
-      db, companyId, full[i], full.slice(0, i + 1).join('/'), productLine,
-      isLeaf ? url : null, parentId, parentIds, i, dryRun, progress, contentType,
+      db, companyId, sectionId, breadcrumb[i], breadcrumb.slice(0, i + 1).join('/'),
+      isLeaf ? url : null, parentId, parentIds, i, dryRun, progress,
     );
     parentId = node.id;
     parentIds = node.idPath;
@@ -914,7 +955,7 @@ async function collectSection(args: {
   companyId: number;
   categoryId: number | null;
   pending: PendingProduct[];
-  seenSet: (cid: number, sectionKey: string) => Set<string>;
+  seenSet: (cid: number, sectionId: number) => Set<string>;
   modelStat: ModelStat;
   /** 站点域名（供适配器钩子 ctx 使用） */
   domain: string;
@@ -1049,7 +1090,7 @@ async function collectSection(args: {
         it.detailUrl,
       );
       if (skipKeys?.has(preKey)) {
-        seenSet(companyId, section.key).add(preKey);
+        seenSet(companyId, section.id ?? 0).add(preKey);
         skippedSaved++;
         return;
       }
@@ -1094,7 +1135,7 @@ async function collectSection(args: {
         companyId,
         categoryId,
         breadcrumb: breadcrumb && breadcrumb.length > 0 ? breadcrumb : null,
-        sectionKey: section.key,
+        sectionId: section.id ?? 0,
         identityKey,
         sourceProductId,
         sku: normalized.sku ?? null,
@@ -1116,7 +1157,7 @@ async function collectSection(args: {
         applications: normalized.applications ?? null,
         row: { ...normalized.row, listName: it.name ?? undefined },
       });
-      seenSet(companyId, section.key).add(identityKey);
+      seenSet(companyId, section.id ?? 0).add(identityKey);
       // 流式落库：缓冲满一批就同步切出刷库（check+splice 同步原子，并发 worker 不会双刷）；
       // 刷库失败记录后不再继续刷（防级联报错），收尾统一上抛
       if (wrappedOnBatch && pending.length >= UPSERT_BATCH) {
@@ -1226,7 +1267,7 @@ async function applyApiSourcesLogged(
 async function loadExisting(
   db: Db,
   companyId: number,
-  sectionKey: string,
+  sectionId: number,
 ): Promise<Map<string, PrevProductSnapshot & { id: number; price: number | null }>> {
   const rows = await db
     .select({
@@ -1241,7 +1282,7 @@ async function loadExisting(
       row: products.row,
     })
     .from(products)
-    .where(and(eq(products.companyId, companyId), eq(products.sectionKey, sectionKey)));
+    .where(and(eq(products.companyId, companyId), eq(products.sectionId, sectionId)));
   return new Map(rows.map((r) => [r.identityKey, { ...r }]));
 }
 
@@ -1309,7 +1350,7 @@ export async function flushUpsertBatch(
   crawlId: number,
   progress: Progress,
   domain: string,
-  sectionKey: string,
+  sectionId: number,
 ): Promise<void> {
   const priceRows: PriceRow[] = [];
   const diffRows: Array<{ productId: number; field: string; oldValue: string | null; newValue: string | null }> = [];
@@ -1364,11 +1405,10 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
     .values({
       companyId: p.companyId,
       categoryId: p.categoryId,
-      contentType: 'products',
       sourceProductId: p.sourceProductId,
       sku: p.sku,
       identityKey: p.identityKey,
-      sectionKey: p.sectionKey,
+      sectionId: p.sectionId,
       name: p.name,
       englishName: p.englishName,
       aliases: p.aliases,
@@ -1394,10 +1434,9 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: [products.companyId, products.identityKey, products.sectionKey],
+      target: [products.companyId, products.identityKey, products.sectionId],
       set: {
         categoryId: p.categoryId,
-        contentType: 'products',
         sourceProductId: p.sourceProductId,
         sku: p.sku,
         name: p.name,
@@ -1434,7 +1473,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
 async function softDeleteMissing(
   db: Db,
   companyId: number,
-  sectionKey: string,
+  sectionId: number,
   seenKeys: Set<string>,
   now: number,
 ): Promise<number> {
@@ -1444,7 +1483,7 @@ async function softDeleteMissing(
     .where(
       and(
         eq(products.companyId, companyId),
-        eq(products.sectionKey, sectionKey),
+        eq(products.sectionId, sectionId),
         eq(products.status, 'active'),
       ),
     );
@@ -1490,7 +1529,7 @@ interface PendingContent {
   companyId: number;
   /** 内容类型（= section.contentType，原样写入 contents.content_type） */
   contentType: string;
-  sectionKey: string;
+  sectionId: number;
   identityKey: string;
   sourceId: string | null;
   /** 栏目绑定分类 id（categories 表，content_type 同本行）；null = 不挂 */
@@ -1524,7 +1563,7 @@ async function collectContentSection(args: {
   /** 栏目绑定分类 id（buildTargets 中的 ts.categoryId）；null = 不挂分类（如 dry-run 哨兵） */
   categoryId: number | null;
   pending: PendingContent[];
-  seenSet: (cid: number, sectionKey: string) => Set<string>;
+  seenSet: (cid: number, sectionId: number) => Set<string>;
   /** 站点域名（供适配器钩子 ctx 使用） */
   domain: string;
   /** 代码适配器（docs/16 🔴-2）：null = 纯 YAML */
@@ -1596,11 +1635,11 @@ async function collectContentSection(args: {
   // 跳过详情抓取，用列表快照归一化——title=列表 name、identityKey=canonical(detailUrl)、publishedAt/summary 为空。
   if (section.listOnly) {
     for (const it of targets) {
-      const c = toPendingContent({ row: {} } as NormalizedProduct, it, it.detailUrl, companyId, section.key, section.contentType);
+      const c = toPendingContent({ row: {} } as NormalizedProduct, it, it.detailUrl, companyId, section.id ?? 0, section.contentType);
       if (c) {
         c.categoryId = categoryId; // 栏目绑定分类（建树在 buildTargets）
         pending.push(c);
-        seenSet(companyId, section.key).add(c.identityKey);
+        seenSet(companyId, section.id ?? 0).add(c.identityKey);
       }
     }
     progress.update(`[crawl] [${section.key}] 仅列表模式：${targets.length} 条直接入库（无详情阶段）`);
@@ -1619,14 +1658,14 @@ async function collectContentSection(args: {
       let np = parseDetailWithConfig(html, section.parseDetail.fields);
       // 适配器钩子：详情解析后二次加工（与产品管线同口径）
       if (adapter?.postParseDetail) np = await adapter.postParseDetail(np, html, ctx);
-      const c = toPendingContent(np, it, it.detailUrl, companyId, section.key, section.contentType);
+      const c = toPendingContent(np, it, it.detailUrl, companyId, section.id ?? 0, section.contentType);
       if (c) {
         c.categoryId = categoryId; // 栏目绑定分类（锚点，建树在 buildTargets）
         // 详情页面包屑动态分类（与产品管线同口径）：抽不到则回落栏目锚点
         c.breadcrumb = section.categoryFromPage ? parseBreadcrumb(html, section.categoryFromPage) : null;
         if (c.breadcrumb && c.breadcrumb.length === 0) c.breadcrumb = null;
         pending.push(c);
-        seenSet(companyId, section.key).add(c.identityKey);
+        seenSet(companyId, section.id ?? 0).add(c.identityKey);
       }
     } catch (e) {
       // 单条失败隔离：跳过该条继续，但记明细 + 计数（不再静默）
@@ -1653,7 +1692,7 @@ export function toPendingContent(
   it: ListItem,
   detailUrl: string,
   companyId: number,
-  sectionKey: string,
+  sectionId: number,
   contentType: string,
 ): PendingContent | null {
   const row = (np.row ?? {}) as Record<string, unknown>;
@@ -1691,7 +1730,7 @@ export function toPendingContent(
   return {
     companyId,
     contentType,
-    sectionKey,
+    sectionId,
     identityKey,
     sourceId,
     categoryId: null, // 由调用方按栏目建树结果赋值（buildTargets → 本管线 categoryId）
@@ -1771,12 +1810,12 @@ export function parseDateStr(v: unknown): number | null {
 async function loadExistingContents(
   db: Db,
   companyId: number,
-  sectionKey: string,
+  sectionId: number,
 ): Promise<Map<string, number>> {
   const rows = await db
     .select({ id: contents.id, identityKey: contents.identityKey })
     .from(contents)
-    .where(and(eq(contents.companyId, companyId), eq(contents.sectionKey, sectionKey)));
+    .where(and(eq(contents.companyId, companyId), eq(contents.sectionId, sectionId)));
   return new Map(rows.map((r) => [r.identityKey, r.id]));
 }
 
@@ -1787,7 +1826,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
     .values({
       companyId: c.companyId,
       contentType: c.contentType,
-      sectionKey: c.sectionKey,
+      sectionId: c.sectionId,
       identityKey: c.identityKey,
       sourceId: c.sourceId,
       categoryId: c.categoryId, // 栏目绑定分类（内容栏目建树在 buildTargets）
@@ -1808,7 +1847,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: [contents.companyId, contents.identityKey, contents.sectionKey],
+      target: [contents.companyId, contents.identityKey, contents.sectionId],
       set: {
         contentType: c.contentType,
         sourceId: c.sourceId,
@@ -1837,7 +1876,7 @@ export async function upsertContent(db: Db, c: PendingContent, now: number): Pro
 export async function softDeleteMissingContents(
   db: Db,
   companyId: number,
-  sectionKey: string,
+  sectionId: number,
   seenKeys: Set<string>,
   now: number,
 ): Promise<number> {
@@ -1847,7 +1886,7 @@ export async function softDeleteMissingContents(
     .where(
       and(
         eq(contents.companyId, companyId),
-        eq(contents.sectionKey, sectionKey),
+        eq(contents.sectionId, sectionId),
         eq(contents.status, 'active'),
       ),
     );

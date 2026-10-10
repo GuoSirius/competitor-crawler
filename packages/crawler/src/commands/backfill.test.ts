@@ -6,22 +6,29 @@ import fs from 'node:fs';
 const { createTestDb } = await import('../testing/testDb.js');
 await createTestDb('backfill');
 
-const { createDb, companies, products, nowSeconds, eq } = await import('@competitor-crawler/shared');
+const { createDb, companies, sections, products, nowSeconds, eq } = await import('@competitor-crawler/shared');
 const { backfill } = await import('./backfill.js');
 
 const { db } = createDb();
 let companyId: number;
+let sectionId: number;
 
 beforeAll(async () => {
   const [c] = await db
     .insert(companies)
-    .values({ name: '回填测试公司', createdAt: nowSeconds(), updatedAt: nowSeconds() })
+    .values({ name: '回填测试公司', domain: 'backfill.test', createdAt: nowSeconds(), updatedAt: nowSeconds() })
     .returning();
   companyId = c.id;
+  const [s] = await db
+    .insert(sections)
+    .values({ companyId, key: 'default', name: 'default', createdAt: nowSeconds(), updatedAt: nowSeconds() })
+    .returning();
+  sectionId = s.id;
 });
 
 afterAll(async () => {
   await db.delete(products).where(eq(products.companyId, companyId));
+  await db.delete(sections).where(eq(sections.companyId, companyId));
   await db.delete(companies).where(eq(companies.id, companyId));
   // 测试库目录留给 .tmp（.gitignore 已忽略），下次同名单测会整目录重建
 });
@@ -31,7 +38,7 @@ function product(overrides: Record<string, unknown> = {}) {
   return {
     companyId,
     categoryId: null,
-    sectionKey: 'default',
+    sectionId,
     identityKey: `k-${Math.random().toString(36).slice(2)}`,
     row: {},
     status: 'active',
