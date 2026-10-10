@@ -10,6 +10,7 @@ import {
 
 const EXPECTED_TABLES = [
   'companies',
+  'sections',
   'categories',
   'products',
   'crawls',
@@ -22,6 +23,7 @@ const EXPECTED_TABLES = [
 // JS 对象键为驼峰，SQL 表名为 snake_case（drizzle 表定义的首参），两者分别校验
 const EXPECTED_SQL_NAMES: Record<(typeof EXPECTED_TABLES)[number], string> = {
   companies: 'companies',
+  sections: 'sections',
   categories: 'categories',
   products: 'products',
   crawls: 'crawls',
@@ -38,7 +40,7 @@ const SCHEMAS: Record<DbDialect, Record<string, unknown>> = {
 };
 
 describe('三方言 schema 一致性（无 DB）', () => {
-  it('每个方言都导出相同的 8 张表', () => {
+  it('每个方言都导出相同的 9 张表', () => {
     for (const dialect of Object.keys(SCHEMAS) as DbDialect[]) {
       const keys = Object.keys(SCHEMAS[dialect]).sort();
       expect(keys).toEqual([...EXPECTED_TABLES].sort());

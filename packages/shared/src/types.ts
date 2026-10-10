@@ -128,7 +128,7 @@ export interface ListItem {
   name?: string;
   /**
    * 栏目标识（多规则站点用）。列表阶段写入，详情阶段据此选对应 section 的抽取规则；
-   * 同时参与 products 唯一键（company_id, identity_key, section_key，见去重口径 B）。
+   * 落库时经 (company_id, key) 落到 sections 表，products/contents 以 section_id 归属（见去重口径 B）。
    * 单规则站点为空/省略，落库时统一为 'default'。
    */
   sectionKey?: string;

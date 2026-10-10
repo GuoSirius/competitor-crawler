@@ -62,6 +62,17 @@ export function domainOf(url: string | null | undefined): string {
   }
 }
 
+/**
+ * 归一化全域名：去协议头、去末尾斜杠、转小写（例：HTTPS://WWW.X.com/ → www.x.com）。空串返回空串。
+ * 公司唯一判别键即此归一化结果（companies.domain 唯一约束），crawl 与 seed 加载共用，避免两边口径漂移。
+ */
+export function normalizeDomain(d: string | null | undefined): string {
+  const s = (d ?? '').trim().toLowerCase();
+  if (!s) return '';
+  const noProto = s.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
+  return noProto.replace(/\/+$/, '');
+}
+
 /** 身份键：优先站点自身产品 id（**非货号 sku**，id 与货号语义不同），否则用规范化详情链接（COALESCE，见 docs/03 §3.4） */
 export function pickIdentityKey(sourceProductId: string | null | undefined, detailUrl: string | null | undefined): string {
   const pid = (sourceProductId ?? '').trim();
