@@ -67,6 +67,9 @@ const HEADER_RULES: Array<[ChallengeKind, RegExp]> = [
   ['perimeterx', /^x-px-|^x-px/i],
   ['imperva', /incapsula/i],
   ['captcha', /^x-captcha-sitekey|^x-recaptcha/i],
+  // 阿里云盾（WAF）：响应头里常带 x-aliyun-waf / aliyun_waf cookie / aliyungf_* 会话标记。
+  // 注意只匹配 aliyun 专有前缀，不裸配 waf（避免把其它厂商 x-waf 误标成 aliyun）。
+  ['aliyun', /x-(aliyun|scdn)|aliyun_waf|aliyungf_|x-aliyunwaf/i],
 ];
 
 /**
@@ -78,7 +81,10 @@ const HEADER_RULES: Array<[ChallengeKind, RegExp]> = [
 const SPECIFIC_TEXT: Array<[ChallengeKind, RegExp]> = [
   ['cloudflare', /just a moment\.\.\.|checking your browser|enable javascript and cookies to continue|attention required!\s*\|\s*cloudflare/i],
   ['imperva', /request unsuccessful\.{3}|_incapsula_resource/i],
-  ['aliyun', /请完成安全验证|滑动验证|请进行滑动验证|nc_wrapper/i],
+  // 阿里云盾（WAF）：真实拦截页文案是「访问验证」+ 滑块（noCaptcha / ncaptcha），
+  // 旧集合只有「请完成安全验证|滑动验证|nc_wrapper」对不上 → acrobiosystems 详情页命中盾页却被当正常页返回、解析 0 字段静默空。
+  // 「访问验证 / 请输入验证码 / 阿里云 WAF / aliyunCaptcha / 智能验证 / 云盾」均为 high 置信特异文案（正常产品页不会出现）。
+  ['aliyun', /请完成安全验证|滑动验证|请进行滑动验证|nc_wrapper|访问验证|请输入验证码|阿里云\s*(WAF|验证|盾)|aliyun\w*captcha|智能验证|云盾|ncaptcha|noCaptcha/i],
   ['captcha', /verify you are (a|the) human|are you a robot|人机验证|请完成验证/i],
 ];
 

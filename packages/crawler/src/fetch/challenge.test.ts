@@ -103,6 +103,27 @@ describe('assessChallenge — 不漏检', () => {
     expect(r.hit?.kind).toBe('captcha');
     expect(r.confidence).toBe('high');
   });
+
+  it('阿里云盾「访问验证」滑块页（可见文案）→ high aliyun，不再被当正常页静默空', () => {
+    const r = assessChallenge({
+      status: 200,
+      innerText: '访问验证 请拖动滑块完成验证 阿里云 WAF 安全防护',
+      contentChars: 80,
+    });
+    expect(r.hit?.kind).toBe('aliyun');
+    expect(r.confidence).toBe('high');
+  });
+
+  it('阿里云盾响应头 x-aliyun-waf → high aliyun（不看正文）', () => {
+    const r = assessChallenge({
+      status: 403,
+      headers: { 'x-aliyun-waf': 'challenge' },
+      innerText: 'Access denied',
+      contentChars: 40,
+    });
+    expect(r.hit?.kind).toBe('aliyun');
+    expect(r.confidence).toBe('high');
+  });
 });
 
 describe('assessChallenge — 兼容与边界', () => {
