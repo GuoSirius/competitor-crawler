@@ -1,6 +1,6 @@
 import { defineEventHandler, getRouterParam, createError } from 'h3';
 import { eq } from '@competitor-crawler/shared';
-import { createDb, products, companies, categories } from '@competitor-crawler/shared';
+import { createDb, products, companies, categories, sections } from '@competitor-crawler/shared';
 
 // 产品详情（含公司 / 品类名 + 原始 row JSON）
 export default defineEventHandler(async (event) => {
@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
       applications: products.applications,
       row: products.row,
       status: products.status,
-      sectionKey: products.sectionKey,
+      sectionKey: sections.key,
       firstSeenAt: products.firstSeenAt,
       lastSeenAt: products.lastSeenAt,
       company: companies.name,
@@ -34,6 +34,7 @@ export default defineEventHandler(async (event) => {
     .from(products)
     .leftJoin(companies, eq(products.companyId, companies.id))
     .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(sections, eq(products.sectionId, sections.id))
     .where(eq(products.id, id))
     .limit(1);
   if (rows.length === 0) throw createError({ statusCode: 404, statusMessage: 'not found' });

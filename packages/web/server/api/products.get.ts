@@ -1,6 +1,6 @@
 import { defineEventHandler, getQuery } from 'h3';
 import { and, desc, eq, like, sql, count } from '@competitor-crawler/shared';
-import { createDb, products, companies, categories } from '@competitor-crawler/shared';
+import { createDb, products, companies, categories, sections } from '@competitor-crawler/shared';
 
 // 产品列表（看板核心）：支持 公司 / 品类 / 状态 / 关键词 / 是否有克隆号 过滤 + 分页
 export default defineEventHandler(async (event) => {
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
       specText: products.specText,
       cloneNumber: products.cloneNumber,
       status: products.status,
-      sectionKey: products.sectionKey,
+      sectionKey: sections.key,
       detailUrl: products.detailUrl,
       lastSeenAt: products.lastSeenAt,
       company: companies.name,
@@ -42,6 +42,7 @@ export default defineEventHandler(async (event) => {
     .from(products)
     .leftJoin(companies, eq(products.companyId, companies.id))
     .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(sections, eq(products.sectionId, sections.id))
     .where(where)
     .orderBy(desc(products.lastSeenAt))
     .limit(pageSize)
