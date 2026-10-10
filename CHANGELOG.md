@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.8.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.7.0...v1.8.0) (2026-10-10)
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **sites:** 域名口径统一为完整 host（20 站补回 www）；dojindo 降级 D（行无详情链，identity_key 空静默丢行） ([9013449](https://github.com/GuoSirius/competitor-crawler/commit/901344923510d071e449f8d2c5ffaae3d4806036))
+* **sites:** 重构 62 站 yaml 域名与公司名，新增 21 个 _ 桩并补 companyShort ([4c06ca9](https://github.com/GuoSirius/competitor-crawler/commit/4c06ca9cd4a9cb9c59c1cc12b98809e89a0c2784))
+* **sites:** acrobiosystems 列表配通升A，文档补 plan:a 过盾工具链 ([17b3c6e](https://github.com/GuoSirius/competitor-crawler/commit/17b3c6e3ee76ccab5bbaeafc5542cd2342aea640))
+* **sites:** bd 与赛默飞配通（probe 70/15 条），c 类三站备好 dump 脚本，台账同步 ([b001ec0](https://github.com/GuoSirius/competitor-crawler/commit/b001ec0fed4c05e8c935e588765fc260a94752c1))
+* **sites:** cellsignal 配通升A，corning 复测改挂起 ([5cf4679](https://github.com/GuoSirius/competitor-crawler/commit/5cf4679a042f5af10e0271af1846dbd20ae29986))
+* **sites:** corning 配通升A，纠正 B2B 登录墙误判 ([c9637a3](https://github.com/GuoSirius/competitor-crawler/commit/c9637a38231f4a5b21d251516789b012d5b804b5))
+* **sites:** dojindo 配通升A，纠正接口形态E误判 ([f943c42](https://github.com/GuoSirius/competitor-crawler/commit/f943c42a2d58dd9f944c46cc90d8bb60d4e91ad0))
+* **sites:** elabscience.cn 与 novoprotein 配通升 a（elab 会话级 waf 定论，nova 隐藏锚点模式），elab 代码适配器删除 ([d0fa1a6](https://github.com/GuoSirius/competitor-crawler/commit/d0fa1a62614fc47e8c26bf521b2b1647faeaf31f))
+* **sites:** gen-site 二轮配通 raybiotech/cas9x，台账补站点链接 ([4f78a9c](https://github.com/GuoSirius/competitor-crawler/commit/4f78a9c25236ff083e0628c73caa5dc5a1e33d8f))
+* **sites:** gen-site 批量新配 8 站并重划台账 abcd 分类 ([92b687b](https://github.com/GuoSirius/competitor-crawler/commit/92b687b28957fafa7adeead71b867d9ab9f36b98))
+* **sites:** promega 手写配置升 a 类（probe 15 条）；acro 转 c（滑块盾）、rndsystems/miltenyibiotec 转 d（接口形态 e）；台账同步 ([f691d06](https://github.com/GuoSirius/competitor-crawler/commit/f691d066589f9453998657b8deb41cebae20b397))
+* **sites:** rndsystems 与 miltenyibiotec 桩升正式配置（rnd probe 10 条，miltenyi 待复probe） ([583eb69](https://github.com/GuoSirius/competitor-crawler/commit/583eb6963521888d0c12d4f98fe33f8c369b3fb4))
+
+
+### 🚀 新功能 (Features)
+
+* **crawl:** 卡页守卫与拆分类约定；gen-site 四项加固（诊断前置/auto回退/窗口升级/batch回退） ([91e3174](https://github.com/GuoSirius/competitor-crawler/commit/91e31744ad7cace6376b59df701a0a20f5ca65c1))
+* **crawler:** 新增 db:clear 一键清空数据库命令 ([119e36a](https://github.com/GuoSirius/competitor-crawler/commit/119e36ae2a21a02e4effe0b06d42e5c0c9c00835))
+* **crawler:** gen-site 支持 companyShort 入参与批量模板简称列 ([24af43b](https://github.com/GuoSirius/competitor-crawler/commit/24af43b31f37f177c228860a90a645e678d9797e))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* **fetch:** 识别阿里云盾 WAF 挑战页（访问验证/滑块文案 + 响应头） ([4573a19](https://github.com/GuoSirius/competitor-crawler/commit/4573a19eb2dbcb39cd639f49e4b75764982a3117))
+* **fetch:** 挑战文案误报修复——业务表单/内嵌验证码词降级宽泛组 + ssr 特异词大页面放行闸 ([3f9d703](https://github.com/GuoSirius/competitor-crawler/commit/3f9d703ccc07e588adcd97969b58219b16b2e0b9))
+
+
+### 📚 文档 (Documentation)
+
+* **14:** 新增 §10 59 站 SSR 冒烟结果（33 可解析/1 配置待修 fn-test 404） ([eafce44](https://github.com/GuoSirius/competitor-crawler/commit/eafce44657d6d88f2a7ab9dab325a9326f2be778))
+* **16:** 新增 §16.8 分类决策表（必须改/需敲板/误报） ([1f79cb9](https://github.com/GuoSirius/competitor-crawler/commit/1f79cb916f515003aacead4044a1da185365f443))
+* 代码质量体检第二轮报告（docs/16） ([2560cff](https://github.com/GuoSirius/competitor-crawler/commit/2560cff59b1704b41d448dcc75d620df6449a7ef))
+* 台账 acrobiosystems 升A，对账 58→59/未通4→3 ([b9fa338](https://github.com/GuoSirius/competitor-crawler/commit/b9fa338bda3c0fc6325363864aa1c05760b1e67f))
+* 台账 beckman 复测判E形态、solibio 记出口不可达 ([dd3ab9b](https://github.com/GuoSirius/competitor-crawler/commit/dd3ab9bf0bcada80535cfd92fcdce3054e6e216b))
+* 台账 corning 升A，对账 56→57/未通6→5 ([2c563e6](https://github.com/GuoSirius/competitor-crawler/commit/2c563e6fccef607436204f2308fd10ca85f2b2ff))
+* 台账 docs14 整版重写——a 类 55 行全带可点链接，未通 7 行含尝试记录，精简过时描述 ([3fada70](https://github.com/GuoSirius/competitor-crawler/commit/3fada70c48d979571f3c52cb7e549f27fe6b1957))
+* 台账 dojindo 升A，对账 57→58/未通5→4 ([2e215e3](https://github.com/GuoSirius/competitor-crawler/commit/2e215e332b9c96c62cbfd48f8872337298fff723))
+* **sites:** 补全两模板字段并修正价格须 number:true ([b6e56f5](https://github.com/GuoSirius/competitor-crawler/commit/b6e56f5d648066934706738b60a4759cccb208b1))
+
 ## [1.7.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.6.0...v1.7.0) (2026-10-09)
 
 
