@@ -19,8 +19,11 @@ parseList:
     sourceProductId: { sel: "$self", attr: href, regex: 'product/([^.]+)\.html' }
 
 parseDetail:
-  fields: {}
-  captureRest: true
+  fields:
+    # 2026-10-10 补：详情页为 angular 模板（sku/货号/价格均 {[...]} 占位符 JS 填充，形态 D-async），
+    # 静态仅 h1 真值可抽；captureRest 关闭防模板占位符污染 row。货号=sourceProductId（列表阶段已从 URL 抽）。
+    name: { sel: "h1", text: true }
+  captureRest: false
 
 sections:
   - key: default

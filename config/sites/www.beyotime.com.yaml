@@ -20,8 +20,19 @@ parseList:
     specText:  { sel: "td:nth-child(3)", text: true }
     price:     { sel: "td:nth-child(4)", text: true, regex: '([\d.]+)', number: true }
 
+# 详情页 SSR 仅 266B 空壳 → 详情走 browser 渲染（2026-10-10 实测）
+renderDetail: browser
+
 parseDetail:
-  fields: {}
+  fields:
+    # 规格表：产品编号|产品名称|产品包装|产品价格（td.cpprice），静态可抽（browser 渲染后）
+    specs:
+      sel: "table tr:has(td.cpprice)"
+      list: true
+      map:
+        sku:      { sel: "td:first-child", text: true }
+        spec:     { sel: "td:nth-child(3)", text: true }
+        priceNow: { sel: "td.cpprice", text: true, number: true }
   captureRest: true
 
 sections:
