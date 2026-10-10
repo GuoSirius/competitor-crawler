@@ -83,17 +83,24 @@ const SPECIFIC_TEXT: Array<[ChallengeKind, RegExp]> = [
   ['imperva', /request unsuccessful\.{3}|_incapsula_resource/i],
   // 阿里云盾（WAF）：真实拦截页文案是「访问验证」+ 滑块（noCaptcha / ncaptcha），
   // 旧集合只有「请完成安全验证|滑动验证|nc_wrapper」对不上 → acrobiosystems 详情页命中盾页却被当正常页返回、解析 0 字段静默空。
-  // 「访问验证 / 请输入验证码 / 阿里云 WAF / aliyunCaptcha / 智能验证 / 云盾」均为 high 置信特异文案（正常产品页不会出现）。
-  ['aliyun', /请完成安全验证|滑动验证|请进行滑动验证|nc_wrapper|访问验证|请输入验证码|阿里云\s*(WAF|验证|盾)|aliyun\w*captcha|智能验证|云盾|ncaptcha|noCaptcha/i],
-  ['captcha', /verify you are (a|the) human|are you a robot|人机验证|请完成验证/i],
+  // 「访问验证 / 阿里云 WAF / aliyunCaptcha / 智能验证 / 云盾」均为 high 置信特异文案（正常产品页不会出现）。
+  // ⚠️ 2026-10-10（59 站冒烟实测）：「请输入验证码」**不是**特异词——它出现在正常页的
+  // 业务表单 placeholder（cusabio 137KB / oricellbio 969KB 咨询表单）里，已降级到宽泛组，
+  // 否则纯 SSR 配通站会被 ssrFetch 直接抛 ChallengeError（整页抓取全挂）。
+  ['aliyun', /请完成安全验证|滑动验证|请进行滑动验证|nc_wrapper|访问验证|阿里云\s*(WAF|验证|盾)|aliyun\w*captcha|智能验证|云盾|ncaptcha|noCaptcha/i],
+  // 「人机验证 / 请完成验证」同理降级（procell /search 内嵌 TJCaptcha 组件的 JS 文案被误命中）；
+  // verify you are human / are you a robot 是英文挑战页专有句式，保留特异。
+  ['captcha', /verify you are (a|the) human|are you a robot/i],
 ];
 
-/** 宽泛文案：正常页也可能带（组件文案/帮助文档），需 DOM 控件或「无内容」佐证 */
+/** 宽泛文案：正常页也可能带（组件文案/帮助文档/业务表单），需 DOM 控件或「无内容」佐证 */
 const BROAD_TEXT: Array<[ChallengeKind, RegExp]> = [
   ['perimeterx', /perimeterx|press & hold/i],
   ['imperva', /incapsula/i],
-  ['aliyun', /security check/i],
-  ['captcha', /complete the security check|完成验证码|g-recaptcha/i],
+  // 「请输入验证码 / 人机验证 / 请完成验证」：业务表单 placeholder 与内嵌验证码组件 JS 的常见词
+  // （2026-10-10 冒烟：cusabio / oricellbio / procell 三家正常页均命中），必须走「有实质内容 → 放行」。
+  ['aliyun', /security check|请输入验证码/i],
+  ['captcha', /complete the security check|完成验证码|g-recaptcha|人机验证|请完成验证/i],
   ['traffic', /unusual traffic|too many requests|请稍后再试|try again later/i],
 ];
 
@@ -214,7 +221,18 @@ export function assessChallenge(i: ChallengeInput): Assessment {
   }
 
   // ── ssr 通道的特异文案：整页 HTML 里可能是脚本/白名单 JSON（Promega 已踩），故降级 medium ──
+  // 大页面放行闸（2026-10-10 冒烟补充）：真实 WAF 拦截页（CF/阿里云/Imperva）通常 <50KB；
+  // ≥50KB 的响应基本可断定是正常内容页偶带特征词，放行避免大站被 medium 判死。
   if (htmlSpecific) {
+    if (len >= 50_000) {
+      return {
+        hit: null,
+        confidence: 'none',
+        falseAlarm: true,
+        suspicious: false,
+        reason: `特异特征「${htmlSpecific.kind}：${htmlSpecific.matched}」但整页 HTML ${len} 字符（≥50KB，真实拦截页不会这么大），判定误报放行`,
+      };
+    }
     return {
       hit: htmlSpecific,
       confidence: 'medium',

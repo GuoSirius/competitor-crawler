@@ -185,3 +185,53 @@ describe('assessChallenge — 宽泛文案须 DOM 裁决（BD/赛业/ScienCell �
     expect(r.confidence).toBe('high');
   });
 });
+
+describe('assessChallenge — 业务表单/内嵌组件文案（2026-10-10 59 站冒烟回归）', () => {
+  it('procell /search：内嵌 TJCaptcha 组件 JS 文案「人机验证未通过」+ 242KB 正文 → 误报放行', () => {
+    const r = assessChallenge({
+      status: 200,
+      html:
+        '<script src="https://turing.captcha.qcloud.com/TJCaptcha.js"></script>' +
+        "<script>console.log('人机验证未通过');</script>" +
+        'x'.repeat(240_000),
+    });
+    expect(r.hit).toBeNull();
+    expect(r.confidence).toBe('none');
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('cusabio：咨询表单 JS「checkcode: 请输入验证码」+ 137KB 正文 → 误报放行', () => {
+    const r = assessChallenge({
+      status: 200,
+      html: '<script>var tips = { checkcode: "请输入验证码!" };</script>' + 'x'.repeat(137_000),
+    });
+    expect(r.hit).toBeNull();
+    expect(r.confidence).toBe('none');
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('oricellbio：表单 placeholder="请输入验证码" + 969KB 正文 → 误报放行', () => {
+    const r = assessChallenge({
+      status: 200,
+      html: '<input placeholder="请输入验证码" class="form-control">' + 'x'.repeat(969_000),
+    });
+    expect(r.hit).toBeNull();
+    expect(r.confidence).toBe('none');
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('ssr 特异词（智能验证）出现在 ≥50KB 大页面 → 放行（真实拦截页不会这么大）', () => {
+    const r = assessChallenge({ status: 200, html: '<div>智能验证</div>' + 'x'.repeat(60_000) });
+    expect(r.hit).toBeNull();
+    expect(r.falseAlarm).toBe(true);
+  });
+
+  it('真阿里云盾小拦截页（访问验证+请输入验证码）→ 仍判挑战不漏检', () => {
+    const r = assessChallenge({
+      status: 200,
+      html: '<html><body>访问验证 请拖动滑块 请输入验证码</body></html>',
+    });
+    expect(r.hit?.kind).toBe('aliyun');
+    expect(r.confidence).toBe('high');
+  });
+});
