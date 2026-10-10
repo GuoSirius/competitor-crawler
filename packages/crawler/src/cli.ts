@@ -12,6 +12,7 @@ import { report } from './commands/report.js';
 import { runValidate, runFieldDocs } from './commands/validate.js';
 import { sweep } from './commands/sweep.js';
 import { runDiagnose } from './commands/diagnose.js';
+import { dbClear } from './commands/dbClear.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags, normalizeAliases } from './util/args.js';
 import { isRenderMode, RENDER_MODES } from './config/types.js';
@@ -143,6 +144,16 @@ async function main() {
       fingerprint: flags.fingerprint !== false,
       json: flags.json === true || flags.json === 'true',
     });
+  } else if (cmd === 'db-clear') {
+    // 一键清空数据库（单站测试排查用）：默认预览，--yes 才真正删除；--domain a,b,c 清多站，省略则清全库
+    const rawDomains = typeof flags.domain === 'string' ? flags.domain : undefined;
+    const domains = rawDomains
+      ? rawDomains.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+    await dbClear({
+      domains,
+      yes: flags.yes === true || flags.yes === 'true' || flags.force === true || flags.force === 'true',
+    });
   } else if (cmd === 'schedule') {
     const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
     if (flags.daemon === true || flags.daemon === 'true') {
@@ -171,7 +182,7 @@ async function main() {
 function printHelp(cmd?: string): void {
   const known = new Set([
     'seed', 'probe', 'gen-site', 'gen-site-batch', 'gen-site-template',
-    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report', 'sweep', 'diagnose',
+    'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report', 'sweep', 'diagnose', 'db-clear',
   ]);
   const all = cmd === undefined || cmd === 'help' || !known.has(cmd);
   if (all) {
@@ -219,6 +230,15 @@ function printHelp(cmd?: string): void {
   if (all || cmd === 'diagnose') {
     console.log('\ndiagnose：--domain <d>（必填） --url <url> --mode <ssr|chromium-headless|chromium-headful|chrome-headful|chrome-headless> --rounds <n> --fingerprint/--no-fingerprint --json');
     console.log('  cdp:<url> 也可作 --mode，连你本机开着的 Chrome（须 --remote-debugging-port=9222），可复现「用户视角」并带走过盾 cookie');
+  }
+  if (all || cmd === 'db-clear') {
+    console.log('\ndb-clear：一键清空数据库（单站测试排查用，默认预览不删）');
+    console.log('  --yes / --force      真正执行删除（不带则只打印将清空的范围与行数）');
+    console.log('  --domain <d[,d...]>  只清指定站（逗号分隔可传多个）；省略则清空全库');
+    console.log('                      （--site 是 --domain 的别名，二者等价）');
+    console.log('  例：pnpm db:clear -- --yes                            # 全库清空（索引从 1 重置）');
+    console.log('      pnpm db:clear -- --domain www.x.com --yes         # 只清单站');
+    console.log('      pnpm db:clear -- --domain a.com,b.com,c.com --yes # 同时清多站');
   }
   if (all) console.log('\n提示：`pnpm <cmd> --help` 只打印该命令的参数。');
 }

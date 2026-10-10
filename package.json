@@ -11,6 +11,8 @@
     "crawl": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts crawl",
     "report": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts report",
     "db:push": "pnpm --filter @competitor-crawler/shared exec drizzle-kit push",
+    "db:clear": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts db-clear",
+    "db:clear:now": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts db-clear --yes",
     "probe": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts probe",
     "sweep": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts sweep",
     "diagnose": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts diagnose",
