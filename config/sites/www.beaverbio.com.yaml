@@ -1,20 +1,21 @@
 # 站点适配器：海狸（Beaver）www.beaverbio.com
-# 结构（2026-09-24 实测）：
-#   - 列表页 /products/index/952.html（细胞分选磁珠），产品卡 div.grid-inner：
-#       div.portfolio-image a(详情 /products/list/<id>.html) + img[alt](产品名)
-#   - 翻页：真实 URL ?page=N（实测 page=2 返回 200 且内容变化）→ pagination-url
-#   - 详情页：h1=产品名；价格在无类名 td（¥6990.00），先 body regex 兜底
+# 结构（2026-10 实测复核）：
+#   - 产品中心下拉共 12 个一级分类，每类一个列表页 /products/index/<id>.html
+#   - 列表页 div.grid-inner 产品卡：div.portfolio-image a(详情 /products/list/<id>.html) + img[alt](产品名)
+#   - 翻页：真实 URL ?page=N（实测最多 3 页）→ pagination-url
+#   - 详情页：h1=产品名；价格在无类名 td（¥xxxx），body regex 兜底
+# 站点为静态模板，12 个分类共用同一套列表/详情解析规则（顶层定义，栏目继承）。
 domain: www.beaverbio.com
 company: "苏州海狸生物医学工程有限公司"
 companyShort: "Beaver 海狸"
 currency: CNY
-startUrl: "https://www.beaverbio.com/products/index/952.html"
+startUrl: "https://www.beaverbio.com/products/index/1092.html"
 
 listTraversal:
   strategy: pagination-url
   urlTemplate: "?page={page}"
   pageStart: 1
-  maxPages: 20
+  maxPages: 10
   fallbackToUi: false
 
 parseList:
@@ -30,10 +31,87 @@ parseDetail:
   captureRest: true
 
 sections:
-  - key: default
+  - key: cat-1092
+    category: 细胞分选与激活
+    startUrls:
+      - "https://www.beaverbio.com/products/index/1092.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-505
+    category: 基础磁珠系列
+    startUrls:
+      - "https://www.beaverbio.com/products/index/505.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-503
+    category: 免疫磁珠
+    startUrls:
+      - "https://www.beaverbio.com/products/index/503.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-952
     category: 细胞分选磁珠
     startUrls:
       - "https://www.beaverbio.com/products/index/952.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-687
+    category: 核酸提取磁珠与试剂
+    startUrls:
+      - "https://www.beaverbio.com/products/index/687.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-966
+    category: 探针捕获磁珠
+    startUrls:
+      - "https://www.beaverbio.com/products/index/966.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-499
+    category: 蛋白纯化磁珠
+    startUrls:
+      - "https://www.beaverbio.com/products/index/499.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-934
+    category: 真菌毒素纯化磁珠
+    startUrls:
+      - "https://www.beaverbio.com/products/index/934.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-962
+    category: 固相萃取磁珠
+    startUrls:
+      - "https://www.beaverbio.com/products/index/962.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-982
+    category: 磁性纳米颗粒
+    startUrls:
+      - "https://www.beaverbio.com/products/index/982.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-289
+    category: 仪器与设备
+    startUrls:
+      - "https://www.beaverbio.com/products/index/289.html"
+    match:
+      listUrlIncludes: ["/products/index/"]
+      detailUrlIncludes: ["/products/list/"]
+  - key: cat-887
+    category: 生物耗材
+    startUrls:
+      - "https://www.beaverbio.com/products/index/887.html"
     match:
       listUrlIncludes: ["/products/index/"]
       detailUrlIncludes: ["/products/list/"]
