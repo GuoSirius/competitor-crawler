@@ -10,6 +10,7 @@ export const companies = pgTable('companies', {
   name: text('name').notNull(),
   domain: text('domain').notNull().unique(), // 唯一判别键：归一化小写、去协议/末尾斜杠
   shortName: text('short_name'), // 市场部简称（YAML companyShort），仅展示
+  companyBrand: text('company_brand'), // 公司品牌（YAML 顶层 companyBrand），仅站点级
   website: text('website'),
   competitorType: text('competitor_type'), // 竞品类型（YAML 顶层 competitorType 可声明，YAML 声明为准）
   role: text('role').notNull().default('competitor'), // own=我方 / competitor=竞品（YAML 顶层 role 可声明）
@@ -29,7 +30,7 @@ export const sections = pgTable('sections', {
   name: text('name').notNull(), // 展示名（缺省回退 key）
   contentType: text('content_type').notNull().default('products'), // 落库表路由：products / news / announcement…
   productLine: text('product_line'), // 该栏目产品线（--product-line 筛选）
-  brand: text('brand'), // 该栏目对标品牌（products.brand 缺省回退到这里）
+  competitorBrand: text('competitor_brand'), // 竞对品牌（YAML 顶层 competitorBrand 默认、section 可覆盖；products.competitor_brand 缺省回退到这里）
   renderMode: text('render_mode'), // 该栏目生效渲染模式（ssr/browser/auto）
   source: text('source').notNull().default('config'), // 配置来源：config / seed
   createdAt: integer('created_at').notNull(),
@@ -73,7 +74,7 @@ export const products = pgTable('products', {
   englishName: text('english_name'),
   aliases: text('aliases'), // 别称/曾用名（站点拼接原样）
   oldSkus: text('old_skus'), // 曾用货号（拼接串）
-  brand: text('brand'),
+  competitorBrand: text('competitor_brand'), // 产品竞对品牌（页面抽取值优先；缺省回退 sections.competitor_brand）
   detailUrl: text('detail_url'),
   listUrl: text('list_url'),
   price: doublePrecision('price'),

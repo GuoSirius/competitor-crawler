@@ -10,13 +10,14 @@ import { mysqlTable, int, double, text, varchar, json, index, uniqueIndex, type 
 //     uniq_product / uniq_content = int(4) + section_id int(4) + identity_key 700×4=2800 = 2808 ≤ 3072
 //     uniq_cat = int(4) + section_id int(4) + path 700×4=2800 = 2808 ≤ 3072
 //     uniq_section = int(4) + key 128×4=512 = 516 ≤ 3072
-//   非索引字符串列（name/title/url/brand…）同样 varchar 定长、充分预留，杜绝「Data too long」。
+//   非索引字符串列（name/title/url/competitor_brand…）同样 varchar 定长、充分预留，杜绝「Data too long」。
 
 export const companies = mysqlTable('companies', {
   id: int('id').autoincrement().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
   domain: varchar('domain', { length: 255 }).notNull().unique(), // 唯一判别键：归一化小写、去协议/末尾斜杠
   shortName: varchar('short_name', { length: 255 }), // 市场部简称（YAML companyShort），仅展示
+  companyBrand: varchar('company_brand', { length: 255 }), // 公司品牌（YAML 顶层 companyBrand），仅站点级
   website: varchar('website', { length: 1024 }),
   competitorType: varchar('competitor_type', { length: 64 }), // 竞品类型（YAML 顶层 competitorType 可声明，YAML 声明为准）
   role: varchar('role', { length: 32 }).notNull().default('competitor'), // own=我方 / competitor=竞品（YAML 顶层 role 可声明）
@@ -36,7 +37,7 @@ export const sections = mysqlTable('sections', {
   name: varchar('name', { length: 255 }).notNull(), // 展示名（缺省回退 key）
   contentType: varchar('content_type', { length: 32 }).notNull().default('products'), // 落库表路由：products / news / announcement…
   productLine: varchar('product_line', { length: 255 }), // 该栏目产品线（--product-line 筛选）
-  brand: varchar('brand', { length: 255 }), // 该栏目对标品牌（products.brand 缺省回退到这里）
+  competitorBrand: varchar('competitor_brand', { length: 255 }), // 竞对品牌（YAML 顶层 competitorBrand 默认、section 可覆盖；products.competitor_brand 缺省回退到这里）
   renderMode: varchar('render_mode', { length: 32 }), // 该栏目生效渲染模式（ssr/browser/auto）
   source: varchar('source', { length: 32 }).notNull().default('config'), // 配置来源：config / seed
   createdAt: int('created_at').notNull(),
@@ -80,7 +81,7 @@ export const products = mysqlTable('products', {
   englishName: varchar('english_name', { length: 255 }),
   aliases: varchar('aliases', { length: 1024 }), // 别称/曾用名（站点拼接原样）
   oldSkus: varchar('old_skus', { length: 512 }), // 曾用货号（拼接串）
-  brand: varchar('brand', { length: 255 }),
+  competitorBrand: varchar('competitor_brand', { length: 255 }), // 产品竞对品牌（页面抽取值优先；缺省回退 sections.competitor_brand）
   detailUrl: varchar('detail_url', { length: 1024 }),
   listUrl: varchar('list_url', { length: 1024 }),
   price: double('price'),
