@@ -2,10 +2,11 @@
 // 单一发布入口（零第三方依赖）。
 //
 // 流程：
-//   [1/4] 门禁：typecheck（shared + crawler）
-//   [2/4] 门禁：单元测试（vitest run）
-//   [3/4] 未提交改动检查 —— 有则提示输入提交信息并提交（走提交门禁）；无则跳过
-//   [4/4] 方向键（↑/↓ + Enter）选择发布类型 → standard-version 发布 → 推送提交与 tag 收尾
+//   [1/5] 门禁：typecheck（shared + crawler）
+//   [2/5] 门禁：单元测试（vitest run）
+//   [3/5] 门禁：ESLint（eslint . 全量扫描）——本地 pre-commit 不跑 lint，release 不频繁，在此补上对齐 CI，挡住 lint 回归
+//   [4/5] 未提交改动检查 —— 有则提示输入提交信息并提交（走提交门禁）；无则跳过
+//   [5/5] 方向键（↑/↓ + Enter）选择发布类型 → standard-version 发布 → 推送提交与 tag 收尾
 //
 // 用法：
 //   pnpm release                      # 全交互
@@ -30,10 +31,11 @@ process.chdir(repoRoot);
 // 本地二进制（相对 repoRoot）——不依赖 PATH
 const TSC = 'node_modules/typescript/bin/tsc';
 const VITEST = 'node_modules/vitest/vitest.mjs';
+const ESLINT = 'node_modules/eslint/bin/eslint.js';
 const STANDARD_VERSION = 'node_modules/standard-version/bin/cli.js';
 
 const VALID = ['patch', 'minor', 'major'];
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 // ---- 终端着色（不支持 VT / NO_COLOR 时自动降级为纯文本） ----
 const useColor = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR;
@@ -201,7 +203,7 @@ async function main() {
   const before = readVersion();
   console.log(`${bold('competitor-crawler 发布')}  ${dim(`当前版本 v${before}${dryRun ? '（dry-run）' : ''}`)}`);
 
-  // [1/4] 类型检查
+  // [1/5] 类型检查
   header(`[1/${TOTAL_STEPS}] 门禁：类型检查（typecheck）`);
   for (const pkg of ['shared', 'crawler']) {
     if (!runNode([TSC, '-p', `packages/${pkg}/tsconfig.json`, '--noEmit'], `tsc -p packages/${pkg}`)) {
@@ -210,13 +212,18 @@ async function main() {
   }
   ok('类型检查通过');
 
-  // [2/4] 单元测试
+  // [2/5] 单元测试
   header(`[2/${TOTAL_STEPS}] 门禁：单元测试（vitest run）`);
   if (!runNode([VITEST, 'run'], 'vitest run')) die('单元测试未通过，发布终止。');
   ok('单元测试通过');
 
-  // [3/4] 未提交改动
-  header(`[3/${TOTAL_STEPS}] 检查未提交改动`);
+  // [3/5] ESLint（eslint . 全量扫描，与 CI 的 lint 步骤同口径）
+  header(`[3/${TOTAL_STEPS}] 门禁：ESLint（eslint .）`);
+  if (!runNode([ESLINT, '.'], 'eslint .')) die('ESLint 未通过，发布终止。（本地 pre-commit 不跑 lint，lint 由 CI 与本步兜底）');
+  ok('ESLint 通过');
+
+  // [4/5] 未提交改动
+  header(`[4/${TOTAL_STEPS}] 检查未提交改动`);
   const porcelain = (gitOrDie(['status', '--porcelain']).stdout ?? '').trim();
   if (porcelain) {
     console.log(dim('  检测到以下未提交改动：'));
@@ -232,8 +239,8 @@ async function main() {
     ok('工作区干净，无需提交');
   }
 
-  // [4/4] 选择类型 → 发布 → 收尾
-  header(`[4/${TOTAL_STEPS}] 选择发布类型并执行发布`);
+  // [5/5] 选择类型 → 发布 → 收尾
+  header(`[5/${TOTAL_STEPS}] 选择发布类型并执行发布`);
   let type = argType;
   if (!type) {
     if (!process.stdin.isTTY) die('非交互环境，请显式指定发布类型：pnpm release patch|minor|major');
