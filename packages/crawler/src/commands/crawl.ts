@@ -100,7 +100,8 @@ export interface PendingProduct {
   aliases: string | null;
   /** 曾用货号（页面拼接原样，可能含现用货号） */
   oldSkus: string | null;
-  brand: string | null;
+  /** 产品竞对品牌（页面抽取值优先；缺省回退 sections.competitor_brand） */
+  competitorBrand: string | null;
   detailUrl: string | null;
   listUrl: string | null;
   price: number | null;
@@ -719,16 +720,17 @@ function applyFilters(
  */
 async function resolveCompanyId(
   db: Db,
-  cfg: { domain: string; company?: string; companyShort?: string; competitorType?: string; role?: string },
+  cfg: { domain: string; company?: string; companyShort?: string; companyBrand?: string; competitorType?: string; role?: string },
   dryRun: boolean,
   progress: Progress,
 ): Promise<number> {
   const domain = normalizeDomain(cfg.domain);
   const wantName = cfg.company ?? cfg.domain;
   const all = await db.select().from(companies).where(isNull(companies.removedAt));
-  // YAML 显式声明的公司属性（competitorType/role）：与库中现有值不同则更新（YAML 为准），未声明/相同则不动
-  const applyAttrs = async (row: { id: number; competitorType: string | null; role: string }) => {
-    const set: { competitorType?: string; role?: string } = {};
+  // YAML 显式声明的公司属性（companyBrand/competitorType/role）：与库中现有值不同则更新（YAML 为准），未声明/相同则不动
+  const applyAttrs = async (row: { id: number; companyBrand: string | null; competitorType: string | null; role: string }) => {
+    const set: { companyBrand?: string; competitorType?: string; role?: string } = {};
+    if (cfg.companyBrand && cfg.companyBrand !== row.companyBrand) set.companyBrand = cfg.companyBrand;
     if (cfg.competitorType && cfg.competitorType !== row.competitorType) set.competitorType = cfg.competitorType;
     if (cfg.role && cfg.role !== row.role) set.role = cfg.role;
     if (!Object.keys(set).length) return;
@@ -770,24 +772,25 @@ async function resolveCompanyId(
   return upsertCompany(db, wantName, domain, cfg);
 }
 
-/** 按 name upsert 公司（config 模式新建 / 复用）；website / domain / shortName 仅在为空时补全，不覆盖人工维护值 */
+/** 按 name upsert 公司（config 模式新建 / 复用）；website / domain / shortName / companyBrand 仅在为空时补全，不覆盖人工维护值 */
 async function upsertCompany(
   db: Db,
   name: string,
   domain: string,
-  attrs?: { competitorType?: string; role?: string; companyShort?: string },
+  attrs?: { competitorType?: string; role?: string; companyShort?: string; companyBrand?: string },
 ): Promise<number> {
   const t = nowSeconds();
   const existing = await db.select().from(companies).where(eq(companies.name, name)).limit(1);
   if (existing.length) {
     const row = existing[0];
-    const set: { competitorType?: string; role?: string; shortName?: string | null; removedAt: null; updatedAt: number } = {
+    const set: { competitorType?: string; role?: string; shortName?: string | null; companyBrand?: string; removedAt: null; updatedAt: number } = {
       removedAt: null,
       updatedAt: t,
     };
     if (attrs?.competitorType && attrs.competitorType !== row.competitorType) set.competitorType = attrs.competitorType;
     if (attrs?.role && attrs.role !== row.role) set.role = attrs.role;
     if (attrs?.companyShort && row.shortName == null) set.shortName = attrs.companyShort; // 仅首次回填，不覆盖人工维护值
+    if (attrs?.companyBrand && row.companyBrand == null) set.companyBrand = attrs.companyBrand; // 同上：仅首次回填
     await db.update(companies).set(set).where(eq(companies.id, row.id));
     return row.id;
   }
@@ -798,6 +801,7 @@ async function upsertCompany(
       domain,
       website: `https://${domain}`,
       shortName: attrs?.companyShort ?? null,
+      companyBrand: attrs?.companyBrand ?? null,
       competitorType: attrs?.competitorType ?? null,
       role: attrs?.role ?? 'competitor',
       removedAt: null,
@@ -829,7 +833,7 @@ async function resolveSectionId(
     name: section.name ?? section.key, // 展示名优先 YAML name，缺省回退 key
     contentType: section.contentType,
     productLine: section.productLine ?? null,
-    brand: section.brand ?? null,
+    competitorBrand: section.competitorBrand ?? null,
     renderMode: section.render ?? null,
     source: 'config',
     updatedAt: t,
@@ -1143,9 +1147,9 @@ async function collectSection(args: {
         englishName: normalized.englishName ?? null,
         aliases: normalized.aliases ?? null,
         oldSkus: normalized.oldSkus ?? null,
-        // 品牌回退链（types.ts 设计口径）：页面抽取值优先；没抽到 → 栏目默认
-        // （section.brand 已由 loader 按 section.brand ?? 站点 brand 解析），实现「栏目级默认品牌」
-        brand: normalized.brand ?? section.brand ?? null,
+        // 竞对品牌回退链（types.ts 设计口径）：页面抽取值优先；没抽到 → 栏目默认
+        // （section.competitorBrand 已由 loader 按 section.competitorBrand ?? 站点 competitorBrand 解析）
+        competitorBrand: normalized.competitorBrand ?? section.competitorBrand ?? null,
         detailUrl,
         listUrl: it.listUrl ?? null,
         price: normalized.price ?? null,
@@ -1395,7 +1399,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
       englishName: p.englishName,
       aliases: p.aliases,
       oldSkus: p.oldSkus,
-      brand: p.brand,
+      competitorBrand: p.competitorBrand,
       detailUrl: p.detailUrl,
       listUrl: p.listUrl,
       price: p.price,
@@ -1425,7 +1429,7 @@ async function upsertProduct(db: Db, p: PendingProduct, now: number): Promise<nu
         englishName: p.englishName,
         aliases: p.aliases,
         oldSkus: p.oldSkus,
-        brand: p.brand,
+        competitorBrand: p.competitorBrand,
         detailUrl: p.detailUrl,
         listUrl: p.listUrl,
         price: p.price,

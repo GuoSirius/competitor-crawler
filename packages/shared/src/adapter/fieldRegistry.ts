@@ -61,7 +61,7 @@ export const PRODUCT_FIELDS: FieldMeta[] = [
   { name: 'englishName', type: 'string', stage: 'detail', listFallback: true, auditMismatch: true, desc: '英文名' },
   { name: 'aliases', type: 'string', stage: 'detail', listFallback: true, desc: '别称/曾用名（站点原样，可能含现用名，分号分隔）' },
   { name: 'oldSkus', type: 'string', stage: 'detail', listFallback: true, desc: '曾用货号（站点原样，可能含现用货号，分号分隔）' },
-  { name: 'brand', type: 'string', stage: 'both', listFallback: true, auditMismatch: true, desc: '品牌' },
+  { name: 'competitorBrand', type: 'string', stage: 'both', listFallback: true, auditMismatch: true, desc: '竞对品牌（页面抽取值优先；缺省回退 sections.competitor_brand 即 YAML 顶层 competitorBrand / section 覆盖值）' },
   { name: 'price', type: 'number', stage: 'both', listFallback: true, auditMismatch: true, desc: '价格数值（默认规格现价；排序/涨跌/比价统一口径；YAML 须 number: true）' },
   { name: 'currency', type: 'string', stage: 'site', desc: '币种（站点级，由 YAML 顶层 currency 设定，非解析字段）' },
   { name: 'priceText', type: 'string', stage: 'both', listFallback: true, auditMismatch: true, desc: '价格原文保真' },

@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
       id: products.id,
       name: products.name,
       englishName: products.englishName,
-      brand: products.brand,
+      competitorBrand: products.competitorBrand,
       price: products.price,
       currency: products.currency,
       priceText: products.priceText,

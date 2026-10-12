@@ -251,7 +251,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
         categoryPath: inferCategoryPath(s, cfg),
         categoryFromPage: s.categoryFromPage ?? cfg.categoryFromPage,
         productLine: s.productLine ?? cfg.productLine,
-        brand: s.brand ?? cfg.brand,
+        competitorBrand: s.competitorBrand ?? cfg.competitorBrand,
         currency,
         startUrls: s.startUrls && s.startUrls.length > 0 ? s.startUrls : topStartUrls,
         // listOnly 栏目默认单页：见 LIST_ONLY_TRAVERSAL 注释（防「全量返回」栏目被站点级
@@ -285,7 +285,7 @@ export function resolveSections(cfg: SiteConfig): ResolvedSection[] {
       categoryPath: inferCategoryPath({ category: cfg.category, categoryPath: cfg.categoryPath } as SectionConfig, cfg),
       categoryFromPage: cfg.categoryFromPage,
       productLine: cfg.productLine,
-      brand: cfg.brand,
+      competitorBrand: cfg.competitorBrand,
       currency,
       startUrls: topStartUrls,
       listTraversal: topTraversal,

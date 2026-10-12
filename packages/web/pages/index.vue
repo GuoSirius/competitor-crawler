@@ -7,7 +7,7 @@ interface Product {
   id: number;
   name: string | null;
   englishName: string | null;
-  brand: string | null;
+  competitorBrand: string | null;
   price: number | null;
   currency: string | null;
   priceText: string | null;

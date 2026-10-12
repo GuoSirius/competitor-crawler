@@ -51,7 +51,7 @@ function mkProduct(i: number, price: number | null): PendingProduct {
     englishName: null,
     aliases: null,
     oldSkus: null,
-    brand: null,
+    competitorBrand: null,
     detailUrl: `https://x.com/p/${i}`,
     listUrl: `https://x.com/list`,
     price,

@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
       id: products.id,
       name: products.name,
       englishName: products.englishName,
-      brand: products.brand,
+      competitorBrand: products.competitorBrand,
       detailUrl: products.detailUrl,
       price: products.price,
       currency: products.currency,

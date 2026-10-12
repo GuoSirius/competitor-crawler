@@ -7,7 +7,7 @@ interface ProductDetail {
   id: number;
   name: string | null;
   englishName: string | null;
-  brand: string | null;
+  competitorBrand: string | null;
   detailUrl: string | null;
   price: number | null;
   currency: string | null;
@@ -46,7 +46,7 @@ onMounted(async () => {
     <div v-else-if="p" class="card p-6 space-y-4">
       <div class="border-b border-gray-200 dark:border-slate-700 pb-4">
         <h1 class="text-2xl font-bold">{{ p.name || p.englishName || '(未命名)' }}</h1>
-        <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">{{ p.englishName }} · {{ p.brand }}</p>
+        <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">{{ p.englishName }} · {{ p.competitorBrand }}</p>
       </div>
 
       <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">

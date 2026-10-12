@@ -16,7 +16,7 @@ const row = (over: Partial<ReportRow> = {}): ReportRow => ({
   name: '产品',
   englishName: null,
   sku: null,
-  brand: null,
+  competitorBrand: null,
   specText: null,
   price: null,
   currency: 'CNY',

@@ -62,7 +62,7 @@ describe('注册表一致性', () => {
   });
 
   it('SCALAR_KEYS 覆盖的 12 个提升字段都在注册表内（防漂移）', () => {
-    for (const k of ['name', 'sourceProductId', 'sku', 'englishName', 'aliases', 'oldSkus', 'brand', 'priceText', 'specText', 'description', 'detailUrl', 'cloneNumber']) {
+    for (const k of ['name', 'sourceProductId', 'sku', 'englishName', 'aliases', 'oldSkus', 'competitorBrand', 'priceText', 'specText', 'description', 'detailUrl', 'cloneNumber']) {
       expect(BUILTIN_FIELD_NAMES.has(k), k).toBe(true);
     }
   });

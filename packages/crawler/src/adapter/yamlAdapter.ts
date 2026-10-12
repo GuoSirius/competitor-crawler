@@ -33,7 +33,7 @@ const SCALAR_KEYS = [
   'englishName',
   'aliases',
   'oldSkus',
-  'brand',
+  'competitorBrand',
   'priceText',
   'specText',
   'description',

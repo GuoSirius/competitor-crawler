@@ -60,7 +60,7 @@ export default {
    * 示例：跨节点派生字段归一（此处以品牌缺省为例）。
    */
   async postParseDetail(np: NormalizedProduct): Promise<NormalizedProduct> {
-    if (!np.brand) np.brand = 'ExampleBio';
+    if (!np.competitorBrand) np.competitorBrand = 'ExampleBio';
     return np;
   },
 } satisfies CodeAdapter;

@@ -36,7 +36,7 @@ const STRING_SCALAR_KEYS = new Set([
   'englishName',
   'sourceProductId',
   'sku',
-  'brand',
+  'competitorBrand',
   'priceText',
   'specText',
   'description',

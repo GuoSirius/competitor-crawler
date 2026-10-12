@@ -76,7 +76,7 @@ describe('toNormalizedFields', () => {
       { spec: null, priceNow: null }, // 全空 → 模型凑数，应被丢弃
     ],
     introMedia: [{ image: null, description: null }], // 全空 → 丢弃
-    scalars: { sku: 'ZQ1273', brand: '', description: '说明' },
+    scalars: { sku: 'ZQ1273', competitorBrand: '', description: '说明' },
   });
 
   it('丢弃全空项，保留有效项', () => {

@@ -10,7 +10,7 @@ export interface ReportRow {
   name: string | null;
   englishName: string | null;
   sku: string | null;
-  brand: string | null;
+  competitorBrand: string | null;
   specText: string | null;
   price: number | null;
   currency: string | null;
@@ -93,7 +93,7 @@ export const COVERAGE_FIELDS: readonly CoverageField[] = [
   { key: 'price', label: '价格', has: (r) => typeof r.price === 'number' },
   { key: 'spec', label: '规格', has: (r) => nonEmpty(r.specText) || (r.specs?.length ?? 0) > 0 },
   { key: 'englishName', label: '英文名', has: (r) => nonEmpty(r.englishName) },
-  { key: 'brand', label: '品牌', has: (r) => nonEmpty(r.brand) },
+  { key: 'competitorBrand', label: '竞对品牌', has: (r) => nonEmpty(r.competitorBrand) },
   { key: 'cloneNumber', label: '克隆号', has: (r) => nonEmpty(r.cloneNumber) },
   { key: 'applications', label: '应用', has: (r) => (r.applications?.length ?? 0) > 0 },
   { key: 'description', label: '描述', has: (r) => nonEmpty(r.description) },

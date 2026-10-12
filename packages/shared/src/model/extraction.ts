@@ -47,7 +47,7 @@ export const ModelExtractionSchema = z.object({
   specs: z.array(ModelSpecItemSchema).nullish().transform((v) => v ?? []),
   /** 图文介绍 */
   introMedia: z.array(ModelIntroMediaSchema).nullish().transform((v) => v ?? []),
-  /** 其他标量字段（name / sku / brand / description…），键名用我方内置字段名 */
+  /** 其他标量字段（name / sku / competitorBrand / description…），键名用我方内置字段名 */
   scalars: z
     .record(z.string(), looseString)
     .nullish()

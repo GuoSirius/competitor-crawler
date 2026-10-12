@@ -87,8 +87,8 @@ export interface NormalizedProduct {
   aliases?: string | null;
   /** 曾用货号（站点页面拼接原样，可能含现用货号，分号分隔） */
   oldSkus?: string | null;
-  /** 品牌 */
-  brand?: string | null;
+  /** 竞对品牌（页面抽取值优先；缺省回退 sections.competitor_brand） */
+  competitorBrand?: string | null;
   /** 价格数值 = 默认规格现价（specs 首项 priceNow；无规格时为唯一价）。排序/涨跌/价格历史统一用这个口径 */
   price?: number | null;
   /** 币种（站点级） */
