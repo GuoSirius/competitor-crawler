@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.9.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.8.0...v1.9.0) (2026-10-12)
+
+
+### 📚 文档 (Documentation)
+
+* **config:** 两模板整体重写，对齐源码 schema/继承/校验/落库键 ([8c9fb6f](https://github.com/GuoSirius/competitor-crawler/commit/8c9fb6f69208e6a925291119c85422bf5b11ad78))
+* **config:** 模板注释对齐现状——公司按 domain 判别、companyShort 落库、none 策略、FieldSpec html/$self、specs 价格键 ([a93f649](https://github.com/GuoSirius/competitor-crawler/commit/a93f6493157ea9111b72fd91e788a560454087ea))
+* fieldspec 规范补全 bool 与标量强转分类，三模板+docs 对齐 ([7a869bb](https://github.com/GuoSirius/competitor-crawler/commit/7a869bbd80083e3e7f12509a2948febcb31c78dd))
+* fieldspec 规范重写——html 列为第4种取值方式，模板与 docs/05 一致 ([efa1783](https://github.com/GuoSirius/competitor-crawler/commit/efa1783ee6f651e65a0626475906e52f5bbf67ce))
+* **prompts:** gen-site 模板枚举全部入库字段（parseList/parseDetail 并集语义+contents 字段说明） ([3f05a12](https://github.com/GuoSirius/competitor-crawler/commit/3f05a127cb39995eb3d2c4d0667f9c1edefe3100))
+
+
+### 🚀 新功能 (Features)
+
+* **crawler:** 两阶段字段并集合并——详情优先、列表值存 row._<字段> 保真 ([e266cfb](https://github.com/GuoSirius/competitor-crawler/commit/e266cfbcaed9115397d6a68865aca94d30827ded))
+* **crawler:** sections 支持 yaml name 展示名 + 修正 companyShort 注释 ([0fb7c57](https://github.com/GuoSirius/competitor-crawler/commit/0fb7c578183b43350c88f277b32a618c536df873))
+* **shared:** 新增 FieldSpec const 固定值（不走 DOM 直接落值） ([4e9e604](https://github.com/GuoSirius/competitor-crawler/commit/4e9e6046433f713354972961275e77b925c2aa58))
+
+
+### ♻️ 代码重构 (Refactors)
+
+* **crawler:** 品牌配置分层 companyBrand/competitorBrand + 全链路改名 ([2a525e3](https://github.com/GuoSirius/competitor-crawler/commit/2a525e373bd123713e8e34273c9c68117d07b41c))
+* **crawler:** 全管线 section_id 化 + seeds 建栏目 + yaml brand 透传 ([8ab5fdf](https://github.com/GuoSirius/competitor-crawler/commit/8ab5fdfa4c41d722887c4ad0d7580e57392c9a7f))
+* **db:** sections 一等公民 + company domain 唯一判别（三方言同步） ([e89cc3c](https://github.com/GuoSirius/competitor-crawler/commit/e89cc3cf1c2df5fe98aed099c0beb4e0a40f3e33))
+* **shared:** schema 品牌字段显式化（company_brand / competitor_brand） ([54bc535](https://github.com/GuoSirius/competitor-crawler/commit/54bc535859a0204eb5f14424d2ffadccefff7b31))
+* **web:** 产品/品类 API join sections 适配新表结构 ([1a658f4](https://github.com/GuoSirius/competitor-crawler/commit/1a658f48f819bd3fdb0448ee80e8df82cf93eb37))
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* **crawler:** 产品 brand 落库补栏目级回退（对齐 types.ts 设计口径） ([7ba4c1e](https://github.com/GuoSirius/competitor-crawler/commit/7ba4c1e2193926337532fb80be2efd18f7c9f464))
+* **crawler:** 修 listTraversal 卡页守卫逗号表达式触发 no-unused-expressions ([3bbb3cf](https://github.com/GuoSirius/competitor-crawler/commit/3bbb3cff2986ad2fbba250a7adb6fe6974738100))
+
+
+### 🏠 其他 (Miscellaneous)
+
+* **config:** 同步 FieldSpec/渲染/翻页文档并修 publishedAt 误加 number:true ([65a54c9](https://github.com/GuoSirius/competitor-crawler/commit/65a54c9b92f7c498890876f6951a35ee334f7331))
+* **crawler:** 清理未使用代码（严格模式扫描 12 处） ([277e9dd](https://github.com/GuoSirius/competitor-crawler/commit/277e9dd1c7b27bc095f0e764c0f21f11abe5b233))
+* **release:** 发布流程补 ESLint 门禁，对齐 CI（本地 pre-commit 仍不跑 lint） ([8731d26](https://github.com/GuoSirius/competitor-crawler/commit/8731d267f84315255dfcdcaf311d7167c424b9a2))
+* **sites:** 补 beyotime 详情规格表(browser渲染) + oricellbio 详情name(angular模板防污染) ([6da5903](https://github.com/GuoSirius/competitor-crawler/commit/6da59038315e522c29c32767f56044bfdb52468e))
+* **sites:** 补全 5 站 parseDetail 字段（jonln规格表/boxbio标题/geruisi货号/bioassaysys价格/4abio下拉规格） ([4bdce52](https://github.com/GuoSirius/competitor-crawler/commit/4bdce529cc6c607e4cdab9cd69e37f56ef32ffc3))
+* **sites:** 补全 basalmedia/excellbio/seafrom 详情字段与列表 self 链接 ([437cf33](https://github.com/GuoSirius/competitor-crawler/commit/437cf336ea868837be7218e2cc78f825b8ba5828))
+* **sites:** 模板与存量配置品牌字段同步 + docs/03 更新 ([decd2d8](https://github.com/GuoSirius/competitor-crawler/commit/decd2d8f13d9e3ba0df64b702399d3b40b2d2c02))
+* **sites:** 新增 _example.yaml 合并精简模板（含作用域与继承速查） ([89b139e](https://github.com/GuoSirius/competitor-crawler/commit/89b139e82602e3f0051276be109e19f536acf0e6))
+* **sites:** 重配 beaverbio 全部分类（12 个一级分类） ([f514ee6](https://github.com/GuoSirius/competitor-crawler/commit/f514ee6bd4515db53d0bc21801d697f435753eb4))
+* **sites:** abclonal 站点改版重建入口（/product/<slug> 叶子分类 165 个、顶级分节） ([2691c6e](https://github.com/GuoSirius/competitor-crawler/commit/2691c6e5740896c72dbd4b2794410f2691537a49))
+* **sites:** enrich _example.yaml with breadcrumb config and full DB column reference ([223b631](https://github.com/GuoSirius/competitor-crawler/commit/223b631eb44d14cd9b1193a334ed097276a404b2))
+
 ## [1.8.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.7.0...v1.8.0) (2026-10-10)
 
 
