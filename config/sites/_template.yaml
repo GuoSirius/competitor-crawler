@@ -1,105 +1,104 @@
 # ============================================================================
 # 模板 A · 单规则站点配置（config/sites/<domain>.yaml）
 # ----------------------------------------------------------------------------
-# 适用：一个域名只有「一套」抓取规则（一个列表页/一组同构列表页 + 一种详情页）。
+# 适用：一个域名只有「一套」抓取规则（一个/一组同构列表页 + 一种详情页）。
 # 用法：复制本文件 → 改名为 <domain>.yaml → 改选择器 → `pnpm probe` 验证。
-#      全程无需写代码；模型通用适配器（见 docs/04、docs/05）作为最后兜底。
+#      全程无需写代码；代码型适配器（adapters/<domain>.ts）只做 YAML 表达不了的加性补充。
 #
 # ★★ config/sites/ 目录是爬取范围的唯一真相源（crawl 默认 --source config）★★
-#   放一个 <domain>.yaml 就爬一个站，删掉就不爬；seed Excel 仅作一次性初始化导入，
-#   不再参与日常范围管理（公司/品类随爬取自动 upsert 进库）。
+#   放一个 <domain>.yaml 就爬一个站，删掉就不爬；seed Excel 仅作一次性初始化导入。
 #
 # ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
 #   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
-#
-# ★★ FieldSpec 字段抽取规范（每个字段由「4 取值方式 + 2 结构修饰 + 2 标量强转 + 3 JSON 处理 + $self 选择器」组合而成）★★
-#   取值方式（决定从元素取什么内容，四选一）：
-#     1) 取文本        → 不填 attr（或显式 text: true）
-#     2) 取属性值      → attr: "href" / "src" / "data-src" …
-#     3) 取「一段」    → regex: '...'（在取值结果上抠第 1 捕获组，无捕获组取全匹配）
-#     4) 取富文本      → html: true（取 innerHTML，如 bodyHtml；仅显式要求保留标签时用）
-#     ★ 取值优先级：attr > html > text（同时写 attr 与 html 时以 attr 为准）；
-#       regex 是对取值结果的「二次截取」，可与 text/attr/html 任一叠加。
-#   结构修饰（可叠加）：
-#     list: true     → 收集所有匹配为「数组」（默认只取第一个）
-#     map: {…}       → 在匹配元素内再抽子字段，形成「对象」（配合 list 即「对象数组」）
-#   标量强转（可叠加，把字符串结果转成对应类型）：
-#     number: true   → 转数值（去千分位/币种符号，失败为 null；价格等数值列必用）
-#     bool: true     → 转布尔（真值：有货/现货/true/1/是…；假值：缺货/下架/false/0/无…；
-#                       表外值返回 null 不猜测；典型：列表「现货/缺货」角标、详情「有货」状态位）
-#   JSON 处理（可叠加；json: true 开启后 jsonPath / pick 才生效）：
-#     json: true     → 把抽到的字符串当 JSON 解析（页面内联 JSON / 接口响应，宽松容错）
-#     jsonPath: "a.b"→ json 后定位到数组/对象所在层级（点号路径，支持数组下标）
-#     pick: {…}      → json 后键重命名 { 我方键: 站点键 }
-#   选择器哨兵（非取值方式，是 sel 的特殊值）：
-#     sel: '$self'   → 读「当前元素自身」的文本/属性（读 <option data-price> 这类自带属性）
-#   取值方式 × 结构修饰 × 标量强转 × JSON 处理 可任意组合（$self 仅用于定位元素）。
 # ============================================================================
 
-# ---------- 1) 站点标识 ----------
-domain: example.com              # 必填；同时是 YAML 文件名与适配器路由键
-company: 示例生物科技有限公司      # 站点归属公司规范全名（展示/检索标签；写入 companies.name）；省略时回退为 domain
-                                 # ★ 公司按 domain 唯一判别：同一公司多个域名 → 各配一个 YAML（共用同一 company 名，
-                                 #   每个域名一行 companies，website 随域名各自维护）
-# competitorType: 多肽合成试剂     # 竞品类型（可选；写入 companies.competitor_type，供筛选/分组）
-# role: competitor                # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
-# ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）
-# companyShort: 普诺赛              # 市场部简称标签（可选；落 companies.short_name，validate 不拦）
-#                                  #   company=规范全名；companyShort=市场叫法（如「Abcam」「百普赛斯」）
-currency: CNY                    # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
-startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
-
-# ---------- 1.x) 渲染模式（Hybrid 站点：不同页面/栏目用不同模式抓取）----------
-# render: 抓取渲染模式（写入 YAML 顶层，probe / crawl / gen-site 统一复用）：
-#   ssr     = 纯 Node fetch 静态 HTML（最快，SSR/SSG/ISR 站首选）
-#   browser = 开 Playwright 真浏览器取执行后 DOM（前端渲染站；或站本身 SSR 但 ssr 通道被 WAF 拦）
-#   auto    = 先 ssr 抓，内容过少（<800 字符）自动升级 browser（缺省兜底、最稳）
-# 命令行 --render 仍可临时覆盖；逐站写进 YAML 即可混合 ssr/browser 无需每次指定。
+# ---------- 0) FieldSpec 字段抽取规范（所有 parseList/parseDetail 字段的统一写法）----------
+# 每个字段由以下能力组合而成（单一事实源 = packages/shared/src/adapter/spec.ts）：
 #
-# ★ 更细粒度（Hybrid 站点真实覆盖）：列表页与详情页、不同栏目可分别指定——
-#   renderList   : 仅列表页用指定模式（覆盖本栏目 render）
-#   renderDetail : 仅详情页用指定模式（覆盖本栏目 render）
-#   回退链：列表 = renderList → render → 顶层 render → auto；详情 = renderDetail → render → 顶层 render → auto
-#   多规则站点在对应 section 内写 render / renderList / renderDetail 即可（见 _template.sections.yaml）。
-# render: auto                     # 单规则站点：整站统一模式（最常写）
-# renderList: ssr                  # 可选：仅列表页用 ssr（如产品列表是 SSR）
-# renderDetail: browser             # 可选：仅详情页用 browser（如详情是前端渲染、列表页已 SSR）
+#   【取值方式 · 四选一，决定从元素取哪类内容】
+#     1) 取文本   → 不写 attr（或显式 text: true）
+#     2) 取属性值 → attr: "href" / "src" / "data-src" …
+#     3) 取「一段」→ regex: '...'（在取值结果上抠第 1 捕获组，无捕获组取全匹配）
+#     4) 取富文本 → html: true（取 innerHTML，如 contents 的 bodyHtml；仅显式要求保留标签时用）
+#     · 取值优先级：attr > html > text（同时写 attr 与 html 时以 attr 为准）；
+#       regex 是对取值结果的「二次截取」，可与 text/attr/html 任一叠加。
+#
+#   【结构修饰 · 可叠加】
+#     list: true → 收集所有匹配为「数组」（默认只取第一个）
+#     map:  {…}  → 在匹配元素内再抽子字段，形成「对象」（配合 list 即「对象数组」）
+#
+#   【标量强转 · 可叠加，把字符串结果转成对应类型】
+#     number: true → 转数值（去千分位/币种符号，失败 null；价格等数值列必用）
+#     bool:   true → 转布尔（真值：有货/现货/true/1/是/有/在售/正常…；假值：缺货/下架/false/0/无/否/停售/售罄…；
+#                       表外值返回 null 不猜测）
+#
+#   【JSON 处理 · 可叠加；json:true 开启后 jsonPath/pick 才生效】
+#     json:     true → 把抽到的字符串当 JSON 解析（页面内联 JSON / 接口响应，宽松容错）
+#     jsonPath: "a.b" → json 后定位到数组/对象所在层级（点号路径，支持数组下标）
+#     pick:     {…}   → json 后键重命名 { 我方键: 站点键 }
+#
+#   【选择器哨兵 · 非取值方式，是 sel 的特殊值】
+#     sel: "$self" → 读「当前元素自身」的文本/属性（读 <option data-price> 这类自带属性）
+#
+#   上述可任意组合，如 { sel, text, regex, number } 抠价格数值；{ sel, list, map } 抽规格数组。
+#   ⚠️ 不存在 `sel: ".x"` 简写，也不存在 `img@src` 这类「选择器@属性」简写——属性必须用 attr: 声明。
 
-# ---------- 1.1) 代理（按需用，默认直连）----------
-# 什么时候需要：开了 VPN 之后，**境外站**（BioLegend / 义翘 / MCE / elabscience.com 等）仍被
-# WAF 拦时才加；国内站不要加（绕出国会变慢且更容易被拦）。
-# 原理：Chromium **不认** http_proxy / HTTPS_PROXY 环境变量（只读 Windows 系统代理设置），
-#      Node 的 fetch 也不认 → 不显式配就仍以本机国内 IP 直连，被按「国内 IP + 自动化」判爬虫。
-#      实测逸漠 XImo 同一页面：Chromium 直连 403 → 走代理 200。
-# 写法二选一：
-#   proxy: "http://127.0.0.1:7890"   # 直接写完整 URL（scheme + 主机 + 端口）
-#   proxy: '${CRAWL_PROXY}'          # 推荐：端口在 .env 的 CRAWL_PROXY 维护一处，换端口不动 YAML
-# 生效范围：写在站点顶层 = 整站走；写在某个 section 内 = 仅该栏目走（section.proxy 覆盖站点级）。
-# 不写 = 直连。留空字符串也视为直连。
+# ---------- 1) 站点标识 ----------
+domain: example.com              # 必填；同时是 YAML 文件名与适配器路由键（仅允许 字母/数字/./-_，不含 ..）
+company: 示例生物科技有限公司      # 站点归属公司规范全名（写入 companies.name；省略时回退为 domain）
+                                 # ★ 公司按 domain 唯一判别：同一公司多个域名 → 各配一个 YAML（共用同一 company 名，
+                                 #   每个域名一行 companies，website 随域名各自维护）；company 仅作展示/检索标签。
+# companyShort: 普诺赛             # 市场部简称标签（可选；落 companies.short_name，展示用；与 company 规范全名区分）
+# competitorType: 多肽合成试剂     # 竞品类型（可选；写入 companies.competitor_type，供筛选/分组）
+# role: competitor               # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
+# productLine: 细胞试剂           # 站点级默认产品线（可选；写入 sections.product_line；crawl --product-line 可据此过滤）
+# brand: Abcam                  # 站点级默认对标品牌（可选；写入 sections.brand 的回退值；产品入库 brand 缺省回退链
+                                 #   products.brand ?? section.brand ?? 站点 brand）
+currency: CNY                    # 站点币种（写入 products.currency；缺省 CNY，国际站填 USD）
+# contentType: products          # 整站采集类型（可选）：products（缺省，落 products 表）/ 其他值(news/announcement…)
+                                 #   落 contents 表（content_type=该值）。多规则站点通常在 section 上逐栏声明，见模板 B。
+# listOnly: false               # 仅列表模式（contents 内容管线专用）：无详情页、列表快照即终态时设 true；
+                                 #   products 产品管线不支持（价格/规格必须有详情阶段）。多规则站点不继承，需逐 section 声明。
+startUrl: "https://example.com/products"   # 列表页入口（单规则写法用；probe / crawl 抓取起点；多规则时作为各 section 默认起点）
+
+# ---------- 1.1) 渲染模式（Hybrid 站点：列表/详情/栏目可分别指定）----------
+# 取值：ssr（纯 Node fetch 静态 HTML，最快）/ browser（Playwright 真浏览器取执行后 DOM）/ auto（先 ssr，
+#       内容 <800 字符自动升级 browser，缺省兜底最稳）。spa 已于 2026-10-05 更名 browser（不保留别名）。
+#   render       : 站点级统一模式（单规则站点最常写）
+#   renderList   : 仅列表页（覆盖本栏目/站点 render）
+#   renderDetail : 仅详情页（覆盖本栏目/站点 render）
+#   回退链：列表 = renderList → render → 顶层 render → auto；详情 = renderDetail → render → 顶层 render → auto
+# render: auto
+# renderList: ssr
+# renderDetail: browser
+
+# ---------- 1.2) 代理（按需用，默认直连）----------
+# 什么时候需要：开了 VPN 后境外站（BioLegend / 义翘 / MCE / elabscience.com 等）仍被 WAF 拦时才加；
+#   国内站不要加（绕出国会变慢且更易被拦）。Chromium 不认 http_proxy 环境变量，必须显式配。
+# 写法二选一：写完整 URL，或 '${CRAWL_PROXY}'（端口只在 .env 维护一处）。
+# 生效优先级（高→低）：section.proxy > section.antiBot.proxy > 顶层 proxy > 顶层 antiBot.proxy > CRAWL_PROXY 环境变量。
 # proxy: '${CRAWL_PROXY}'
 
-# ---------- 1.2) 反爬/指纹（绝大多数站无需配，引擎默认值即可）----------
+# ---------- 1.3) 反爬/指纹（绝大多数站无需配，引擎默认值即可）----------
 # 引擎默认：mid 档 stealth + 时区 Asia/Shanghai + 语言 zh-CN + 1920×1080 + 有头最大化。
-# 只有个别站需特调（如境外代理需改时区/语言、CI 服务器需无头）才写下面这个块；
-# 字段全部可选，省略即引擎默认。proxy 也可直接写顶层（见上 1.1），二者等价。
+# 只有个别站需特调（境外代理需改时区/语言、CI 需无头）才写下面这个块；字段全部可选，省略即引擎默认。
 # antiBot:
 #   profile: mid                 # none=调试裸浏览器 / low / mid(默认) / high=加 Canvas/WebGL 噪声
-#   timezone: Asia/Shanghai      # 用境外代理时应与 IP 属地一致（如 America/New_York）
+#   timezone: Asia/Shanghai      # 用境外代理时应与 IP 属地一致
 #   locale: zh-CN                # 同时决定 Accept-Language
-#   maximize: true              # 有头时窗口最大化铺满（默认 true；要固定小视口调试设 false）
+#   maximize: true              # 有头时窗口最大化铺满（默认 true；固定小视口调试设 false）
 #   headless: false             # 无头开关（默认 false=有头；CI/服务器设 true）
 #   seed: 12345                 # Canvas/WebGL 噪声种子（同站固定，回访指纹稳定）
+#   proxy: '${CRAWL_PROXY}'     # 也可写在这里（等价于顶层 proxy）
 
-# ---------- 1.5) 分类归属（产品挂到 categories 通用分类树；三种来源按优先级取一）----------
-# 优先级：categoryFromPage（动态，最准）> categoryPath（静态数组）> category（单名兜底）
-# 三种都省略 → 产品不绑分类（category_id 记空）。
+# ---------- 1.4) 分类归属（产品挂到 categories 通用分类树；三种来源按优先级取一）----------
+# 优先级：categoryFromPage（动态，最准）> categoryPath（静态数组）> category（单名兜底）；都省略→不绑分类。
 #
-# a) categoryFromPage —— 面包屑动态分类（推荐）：从详情页 HTML 抽「根→叶」路径，爬取时自动建树，
-#    同一列表页的产品可自动分进不同子树；实例见 www.boxbio.cn.yaml（已真站实测）
+# a) categoryFromPage —— 面包屑动态分类（推荐）：从详情页 HTML 抽「根→叶」路径，爬取时自动建树。
 # categoryFromPage:
 #   itemSelector: ".breadcrumb li"   # 面包屑条目选择器（按文档顺序依次取文本）
-#   strip: ["首页", "产品分类"]       # 可选：剔除「首页/产品分类」等无意义段
-#   keepLast: true                   # 可选：保留末段（默认丢弃——末段通常是产品名本身）
+#   strip: ["首页", "产品分类"]       # 可选：剔除无意义段
+#   keepLast: true                   # 可选：保留末段（默认 false——末段通常是产品名本身）
 #   maxDepth: 4                      # 可选：路径最大深度（默认 4）
 #
 # b) categoryPath —— 静态面包屑路径（整站分类固定时直接写死，根→叶）
@@ -111,73 +110,67 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 # ---------- 2) 列表遍历（翻页策略）----------
 # strategy 六选一：
 #   pagination-html : Playwright 点击页码 → 整页重渲染 → cheerio 解析（最常用）
-#   pagination-api  : 点击触发 XHR，Playwright 监听 network 取 JSON（稳定无签名时可选）
+#   pagination-api  : 点击触发 XHR，监听 network 取 JSON（稳定无签名时可选）
 #   scroll-api      : 滚动到底 → 等待新节点（无限滚动）
 #   model-generic   : 找不到稳定结构时，交给模型通用适配器兜底
 #   pagination-url  : 用 URL 模板（?page={page} / &p={page}）逐页拼地址抓取，无需浏览器（SSR 站最快最稳）
-#   none            : 显式禁用翻页，只抓第一页（单页栏目/一次请求全量返回的栏目；
-#                     继承站点级翻页模板时用它局部关掉，防每页全量→翻满 maxPages 白抓上千页）
+#   none            : 显式禁用翻页，只抓第一页（单页/一次请求全量返回的栏目；继承站点级翻页时局部关掉，
+#                     防每页全量→翻满 maxPages 白抓上千页）
 listTraversal:
   strategy: pagination-html      # 见上；默认 pagination-html
   nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination-* 类必填；pagination-url 不需要）
   maxPages: 1000                 # 最大翻页数（防呆上限；默认 1000。实际终止主要靠「本页解析 0 条」；CLI --pages 与本值取小）
-  fallbackToUi: true             # 接口/模型模式失败自动回退 UI 驱动（默认 true，优先浏览器渲染）
+  fallbackToUi: true             # 接口/模型模式失败自动回退 UI 驱动（默认 true，优先浏览器渲染；pagination-url 不使用）
   # —— pagination-url 专用字段（其余策略留空即可）——
-  # urlTemplate: "?page={page}"  # 含 {page} 占位：完整 URL / 查询串后缀(?page= 或 &p=) / 绝对路径(/c/{page})
-  # pageStart: 1                 # 起始页码（默认 1；部分站点从 0 / 2 起算）
-  # pageEnd: 500                 # 终止页码（闭区间）；与 maxPages 取更近者（有效终点 = min(pageStart+maxPages-1, pageEnd)）
+  # urlTemplate: "?page={page}"  # 含 {page} 占位；三种写法：完整 URL / 绝对路径 / 查询串后缀（见 loader.ts 注释）
+  # pageStart: 1                 # 起始页码（默认 1；部分站点从 0 / 2 起算；仅 pagination-url）
+  # pageEnd: 500                 # 终止页码（闭区间；与 maxPages 取更近者；仅 pagination-url）
   # —— 条目级截取（所有翻页策略生效；CLI --offset / --per-page 可临时覆盖）——
   # offset: 0                    # 每页条目起始偏移（0 起）：跳过每页前 N 条
   # limit: 20                    # 每页最多取条数：offset 之后连取 limit 条（注意与 CLI --limit 详情总数上限不同）
   # —— 规模化护栏 ——
-  # splitThreshold: 5000         # 拆分类阈值（顶层/section 均可配）：单入口条数超此值时 crawl 提示
-  #                              # 「站点可能有翻页天花板，建议按分类/筛选拆成多个 startUrls」（默认 5000，0=关闭提示）
-  # waitSelector: ".product-card"  # 仅 browser 通道：goto 后先等该选择器「可见」再 settle（防抓到加载空壳）
-  #                              #   接口渲染/数据请求晚于 networkidle 时必配（Algolia 等；实测 Bio X Cell 首屏 ~57s 才出卡）
-  #                              #   ★ 用「内容级」选择器（浅层容器在重挂载时会被清空，配浅层会时好时坏）
+  # splitThreshold: 5000         # 拆分类阈值（顶层/section 均可配）：单入口条数超此值提示按分类/筛选拆多个 startUrls（默认 5000，0=关闭）
+  # waitSelector: ".product-card"  # 仅 browser 通道：goto 后先等该选择器「可见」再 settle（接口渲染晚于 networkidle 时必配；
+  #                              #   用「内容级」选择器，浅层容器重挂载时会被清空）
   # listRetry: 1                 # 仅 pagination-url：单页抓取失败重试次数（默认 1；0=不重试；规模化防丢页）
 
 # ---------- 3) 列表页解析（每个产品条目 → detailUrl + name）----------
 parseList:
   itemSelector: ".product-item"  # 必填：每个产品条目「容器」的选择器
   fields:
-    # detailUrl 必填：条目里指向详情页的链接（多规则路由 / 去重都用它）
+    # detailUrl 必填（列表抽出，身份键之一）：条目里指向详情页的链接
     detailUrl: { sel: "a", attr: href }
     # name 建议填：列表阶段就能拿到名称，便于样本核对
     name:      { sel: "h3", text: true }
-    # —— 列表页也能顺手抽更多字段（可选，写法同 parseDetail）——
-    #   ★ 两阶段并集入库：详情缺失时列表值兜底主列；两阶段都有 → 详情优先、列表值自动存 row._<字段>
+    # —— 列表页也能顺手抽更多字段（可选，写法同 parseDetail；与详情取并集入库，见「附 A」）——
+    #   ★ 两阶段并集入库：详情缺失时列表值兜底主列；两阶段都有 → 详情优先、列表值自动存 row._<字段>。
     # sku:     { sel: ".sku", text: true, regex: 'SKU[:：]\s*([\w-]+)' }
-    # cover:   { sel: "img", attr: "data-src" }
-    # tags:    { sel: ".tag", list: true }        # 列表条目上的多标签数组
+    # price:   { sel: ".price", text: true, number: true }   # 列表价常是展示价，详情价才是真实口径
+    # cover:   { sel: "img", attr: "data-src" }              # 非内置字段→进 row 兜底列
 
-# ---------- 4) 详情页解析（归一化为 NormalizedProduct）----------
+# ---------- 4) 详情页解析（归一化为 NormalizedProduct / 内容对象）----------
 parseDetail:
+  captureRest: true              # ★ 未声明的字段全量进 row 兜底（务必保留，零数据丢失；缺省 true）
   fields:
     # ======================================================================
-    # 一、四种取值方式（最常用，先吃透这四个）
+    # 一、取值方式（四选一，最常用）
     # ======================================================================
-    # 1) 取文本：不写 attr（或写 text: true）。两行等价，推荐显式 text:true 更可读
+    # 1) 取文本：不写 attr（或写 text: true）
     name: { sel: ".pd-name", text: true }
-    # name: { sel: ".pd-name" }                       # 与上一行等价（无 attr 即取文本）
-
     # 2) 取属性值：attr 指定要拿的属性名
-    cover:     { sel: "img.cover", attr: src }        # 取图片地址 src（cover 非注册表内建字段，会进 row 兜底列）
-    coverLazy: { sel: "img.cover", attr: "data-src" } # 懒加载图常见 data-src
     detailUrl: { sel: "a.pd-link", attr: href }       # 取链接 href
+    cover:     { sel: "img.cover", attr: src }        # 取图片地址（非内置字段→row）
+    # 3) 取一段：regex 优先第 1 捕获组
+    cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' }
+    sourceProductId: { sel: "a.pd-link", attr: href, regex: '/product/(\d+)' }
+    priceNum: { sel: ".price", text: true, regex: '[\d,]+\.?\d*', number: true } # 只留数字并转数值
+    # 4) 取富文本 innerHTML：html: true（保留标签；仅 contents.bodyHtml 等富文本字段需要）
+    #   ★ 内置富文本字段 bodyHtml（contents 管线专属）：{ sel: <正文容器>, html: true }；缺省不抽、body_html 恒 null
+    bodyHtml: { sel: "section.article", html: true }  # 仅 contents 栏目有效；products 站删掉此行
 
-    # 3) 取「文本/属性中的一段」：regex 优先第 1 捕获组，无捕获组则取全匹配
-    cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' } # 从标题抠克隆号
-    productId:   { sel: "a.pd-link", attr: href, regex: '/product/(\d+)' }     # 从 URL 抠产品 id
-    priceNum:    { sel: ".price", text: true, regex: '[\d,]+\.?\d*', number: true } # 只留数字并转数值（含千分位/小数；number:true 才能参与比价）
-
-    # 4) 取富文本 innerHTML：html: true（保留标签结构；需留存原始 HTML 时才用，默认取纯文本）
-    richText:  { sel: ".pd-desc", html: true }      # 结果含 <p>/<img> 等标签；非内置名会进 row 兜底
-    #   ★ 内置富文本字段 bodyHtml（contents 管线专属）写法同此：{ sel: <正文容器>, html: true }；缺省不抽、body_html 恒 null
-
-    # ★ 标量强转（number / bool，与取值方式 / 结构修饰任意叠加）：
-    inStock: { sel: ".stock", text: true, bool: true }  # 「现货/有货/在售/true/1」→ true；「缺货/下架/售罄/false/0」→ false；表外值 → null（不猜测）
-    #   number 示例见上 priceNum；bool 典型场景：列表卡「现货/缺货」角标、详情页「有货」状态位。
+    # ★ 标量强转（number / bool，与取值方式/结构修饰任意叠加）
+    inStock: { sel: ".stock", text: true, bool: true } # 「现货/有货/true/1」→true；「缺货/下架/false/0」→false；表外→null
+    #   number 示例见上 priceNum；bool 典型：列表卡「现货/缺货」角标、详情页「有货」状态位。
 
     # ======================================================================
     # 二、list: true —— 收集所有匹配为「数组」
@@ -189,25 +182,22 @@ parseDetail:
     # 三、嵌套 map —— 在匹配元素内再抽子字段
     # ======================================================================
     # 3a) list + map：每行规格 → 一个对象，组成「对象数组」（最常见：规格表）
-    #     ★ 规格 × 多种价格：spec=规格；priceNow=现价；priceOriginal=原价/划线价；
-    #       priceActivity=活动价；pricePromo=优惠价/券后价。缺哪个不写即可。
+    #     ★ 规格落库键（仅这 7 个生效，其它键被忽略）：spec / condition / sku / priceNow / priceOriginal / priceActivity / pricePromo
     #     ★ 形态 C（一品多货号）：同一产品每个规格自带货号 → map 里加 sku 键；
-    #       落库时 products.sku 存「默认规格」的货号、全量在 specs[].sku
-    #       （price/specText 同理 = 默认规格快照；比价/涨跌/历史统一用默认规格口径）。
+    #       落库 products.sku = 默认规格货号、全量在 specs[].sku（price/specText 同理=默认规格快照）。
     specs:
       sel: ".spec-row"
       list: true
       map:
         spec:          { sel: ".spec", text: true }
+        condition:     { sel: ".cond", text: true }       # 规格尾缀（常温/冻存）等，无则省略
         sku:           { sel: ".sku", text: true }        # 形态C 才需要；单货号产品省略此行
-        priceNow:      { sel: ".price-now", text: true, regex: '[\d\.]+', number: true } # ★ 价格必加 number:true 落库才是数值（否则比价/涨跌失效）
-        priceOriginal: { sel: ".price-origin", text: true, regex: '[\d\.]+', number: true }   # 原价/划线价
+        priceNow:      { sel: ".price-now", text: true, regex: '[\d\.]+', number: true } # ★ 价格必加 number:true
+        priceOriginal: { sel: ".price-origin", text: true, regex: '[\d\.]+', number: true }
         priceActivity: { sel: ".price-act", text: true }
         pricePromo:    { sel: ".price-promo", text: true }
-        buyUrl:        { sel: "a.buy", attr: href }
 
     # 3a-2) 形态 B：下拉框每个 option 自带属性 → 用 sel: '$self' 读「option 自己」的属性
-    #       <select id="spec"><option data-spec="100μL" data-price="1280" data-market-price="1600">
     specsAlt:
       sel: "select#spec option"
       list: true
@@ -215,27 +205,27 @@ parseDetail:
         spec:          { sel: "$self", attr: "data-spec" }
         priceNow:      { sel: "$self", attr: "data-price" }
         priceOriginal: { sel: "$self", attr: "data-market-price" }
-        priceActivity: { sel: "$self", attr: "data-activity-price" }
 
-    # 3a-3) 形态 C：页面内联 JSON → 用 json + jsonPath + pick 直接映射成 specs
-    #       <script>var skuList = [{"specName":"100μL","price":1280}];</script>
+    # 3a-3) 形态 C：页面内联 JSON → json + jsonPath + pick 直接映射成 specs
     specsInline:
       sel: "script"
       text: true
-      regex: 'skuList\s*=\s*(\[[\s\S]*?\]);'   # 抠出 JSON 串（优先第 1 捕获组）
-      json: true                               # 解析成数组/对象（宽松：失败时截取最外层 {}/[] 再试）
-      jsonPath: "data.skus"                    # 可选：定位到数组所在层级
-      pick:                                    # 站点键 → 我方键
+      regex: 'skuList\s*=\s*(\[[\s\S]*?\]);'
+      json: true
+      jsonPath: "data.skus"
+      pick:
         spec: "specName"
         priceNow: "price"
         priceOriginal: "marketPrice"
 
     # 3b) list + map，map 内再含 attr / regex（介绍图 + 描述）
+    #     ★ introMedia 落库键：image / video / description（仅这 3 个键生效）
     introMedia:
       sel: ".intro-block"
       list: true
       map:
         image:       { sel: "img", attr: src }
+        video:       { sel: "iframe", attr: src }   # 有介绍视频（iframe 播放器）才输出
         description: { sel: ".intro-desc", text: true }
 
     # 3c) 仅 map（无 list）：取「第一个」匹配内的子字段 → 单个「对象」
@@ -271,67 +261,89 @@ parseDetail:
             name: { sel: ".i-name", text: true }
             url:  { sel: "a", attr: href }
 
-  captureRest: true              # ★ 未声明的字段全量进 row 兜底（务必保留，零数据丢失）
-
   # ==========================================================================
   # 六、【形态 D】异步接口数据源（★ 默认注释掉，需要时才启用）
   # --------------------------------------------------------------------------
-  # 规格/价格在选中规格后才由 XHR 返回、静态 HTML 里没有 → probe 会判定为形态 D
-  # 并落 NEEDS_API_HINT 告警，同时打印下面这段配置模板。
-  # 操作：浏览器 F12 → Network（勾 XHR/Fetch）→ 切一次规格 → 找到请求 → 复制 URL → 填这里。
-  #
+  # 规格/价格在选中规格后才由 XHR 返回、静态 HTML 里没有 → probe 判定为形态 D 并落 NEEDS_API_HINT 告警，
+  # 同时打印下面这段配置模板。操作：浏览器 F12 → Network（勾 XHR/Fetch）→ 切一次规格 → 找到请求 → 复制 URL → 填这里。
+  #   target 写回：specs / introMedia / 其它名→row；url 支持 {字段名} 占位（取详情页已抽字段，含 {detailUrl}）。
   # api:
-  #   - target: specs                                  # 结果写回：specs / introMedia / 其他名→row
-  #     url: "https://example.com/api/goods/{sku}/skus" # {字段名} 用详情页已抽字段插值
-  #     method: GET                                     # 默认 GET
+  #   - target: specs
+  #     url: "https://example.com/api/goods/{sku}/skus"
+  #     method: GET
   #     headers:
   #       Referer: "https://example.com/"
-  #     rootPath: "data.list"                           # 从响应里定位数组
+  #     rootPath: "data.list"
   #     pick:
   #       spec: "specName"
   #       priceNow: "price"
   #       priceOriginal: "marketPrice"
+
   # ==========================================================================
+  # 七、【形态 E】模型兜底（★ 默认注释掉；静态选择器+异步接口都取不到规格/价格时才用）
+  # --------------------------------------------------------------------------
+  # 模型只「补空」不覆盖已抽到的值；走 MODEL_MODE / config/model.yaml 配置，失败落 MODEL_FAILURE 告警不阻塞。
+  # 多 Tab 详情页请先判断内容是否已在 HTML 里（在→直接写选择器，不需要点击），见 docs/05 §5.3.5。
+  # modelFallback: true                 # 简写，等价于 { enabled: true }
+  # modelFallback:
+  #   targets: [specs, sku]             # 只让模型抽这些目标；省略=全部
+  #   screenshot: true                 # 附整页截图给多模态模型（需视觉模型；成本高）
 
 # ============================================================================
-# 附：FieldSpec 速查（复制即用）
+# 附 A：两阶段字段并集规则（引擎自动处理，配 YAML 无需关心）
+# ----------------------------------------------------------------------------
+# · 每个入库字段同时从「列表」和「详情」抽取，取并集：
+#   - 详情缺失、列表有 → 列表值补主列；
+#   - 两阶段都有值 → 详情值落主列，列表值自动存 row._<字段>（前缀下划线保真，便于溯源）；
+#   - 任一阶段缺失 → 另一阶段兜底。
+# · 列表/详情同名字段两边都配不会冲突；列表值无论与详情是否一致都存 row._<字段>。
+# · 数组字段（specs/introMedia/applications）不参与此合并，以详情为准。
+# ============================================================================
+
+# ============================================================================
+# 附 B：内置字段速查（写这些名会被归一化到 products / contents 对应列；其余一律进 row 兜底）
+# ----------------------------------------------------------------------------
+# 【products 管线】16 个非站点级内置字段：
+#   身份：name* / sourceProductId* / sku / englishName / aliases / oldSkus / brand / detailUrl*
+#   可比：price / priceText / specText
+#   描述：description
+#   其它：cloneNumber / specs / introMedia / applications
+#   （* 为必填或身份键：name 与 detailUrl 是列表/详情必填与身份键，sourceProductId 为详情身份键二选一）
+#   站点级（非解析字段，写 YAML 顶层，不进 fields）：currency。
+# 【contents 管线】内置字段：title*(←name) / summary / body / bodyHtml / author / publishedAt /
+#   detailUrl* / sourceId* / listUrl（* 为必填/身份键；contentType!=products 时 name 等价于 title）。
+# ⚠️ sourceProductId 只装「站点自身产品 id」，没有就留空（绝不用货号兜底）。
+# ⚠️ sku = 默认规格货号（形态 C 每规格一个货号时全量在 specs[].sku，sku 列存默认规格）；
+#    price / specText 同理 = 默认规格的现价/规格文本快照（比价、涨跌、历史的统一口径）。
+# ⚠️ 示例里的 specsAlt / specsInline / meta / variants / groups 不是内置名 → 会进 row（示例用；要用作规格列表请改名为 specs）。
+# ============================================================================
+
+# ============================================================================
+# 附 C：FieldSpec 速查（复制即用）
 # ----------------------------------------------------------------------------
 #   纯文本        → { sel: "x", text: true }
 #   属性值        → { sel: "x", attr: "href" }
 #   文本抽一段    → { sel: "x", text: true, regex: '(\d+)' }
 #   属性抽一段    → { sel: "x", attr: "href", regex: '/p/(\d+)' }
-#   富文本        → { sel: "x", html: true }        （取 innerHTML，保留标签；仅 bodyHtml 等富文本字段用）
-#   转数值        → 上面任一 + number: true          （去千分位/币种符号；失败 null）
-#   转布尔        → 上面任一 + bool: true            （现货/有货/true/1→true；缺货/下架/false/0→false；表外→null）
-#   读元素自身    → { sel: "$self", attr: "data-price" }  （★ $self 是 sel 的特殊值，读匹配元素自己的属性，非取值方式）
+#   富文本        → { sel: "x", html: true }         （取 innerHTML，保留标签；仅 bodyHtml 等富文本字段用）
+#   转数值        → 上面任一 + number: true           （去千分位/币符；失败 null）
+#   转布尔        → 上面任一 + bool: true             （现货/有货/true/1→true；缺货/下架/false/0→false；表外→null）
+#   读元素自身    → { sel: "$self", attr: "data-price" }  （★ $self 是 sel 的特殊值，非取值方式）
 #   内联 JSON     → 上面任一 + json: true [+ jsonPath] [+ pick]
 #   多值数组      → 上面任一 + list: true
 #   单一子对象    → 上面任一 + map: { key: <FieldSpec> }
 #   子对象数组    → list: true + map: { key: <FieldSpec> }
 #   任意深度嵌套  → map 内再写 map（见「五、map 内再 map」）
 #   异步接口      → parseDetail.api: [{ target, url, rootPath, pick }]（见「六」）
-#   模型兜底      → parseDetail.modelFallback: true（形态 E / 懒加载 Tab；读可见文本，只补空）
-#                   也可是对象：{ targets: [specs, sku], screenshot: true }；不写=不调模型
-#                   ⚠️ 多 Tab 页先看内容在不在 HTML 里（在 → 直接写选择器，不用点击），见 docs/05 §5.3.5
-#
-# ★ 内置字段（写这些名字会被归一化到 products 对应列，其余一律进 row 兜底）：
-#   身份：name / englishName / aliases(别称) / sourceProductId / sku / oldSkus(曾用货号) / detailUrl
-#   可比：price / priceText / specText / brand
-#   描述：description
-#   其他：cloneNumber / applications / specs / introMedia
-#   ⚠️ sourceProductId 只装「站点自身产品 id」，没有就留空（绝不用货号兜底，见 docs/03 §3.4）
-#   ⚠️ sku = 默认规格的货号（形态 C 每规格一个货号时全量在 specs[].sku，sku 列存默认规格）；
-#      price / specText 同理 = 默认规格的现价/规格文本快照（比价、涨跌、历史的统一口径）
-#   ⚠️ 示例里的 specsAlt / specsInline / meta / variants / groups 不是内置名 → 会进 row
-#      （示例用；要用作规格列表请改名为 specs）
+#   模型兜底      → parseDetail.modelFallback: true（形态 E；读可见文本，只补空；见「七」）
 #
 # 下一步：
-#   pnpm probe --domain example.com                 # 单站验证 + ★自动判定规格价格形态（默认抽查 1 个详情页）
+#   pnpm probe --domain example.com                 # 单站验证 + 自动判定规格价格形态（默认抽查 1 个详情页）
 #   pnpm probe --domain example.com --detail 3      # 每栏目抽查 3 个详情页
 #   pnpm probe --domain example.com --detail 0      # 关闭详情页形态探测
-#   pnpm probe --domain example.com --render browser    # 需要 JS 渲染时指定 Playwright
-#   pnpm probe --domain example.com --section <key> # 多规则站点只验某个栏目
+#   pnpm probe --domain example.com --render browser
 #   pnpm crawl --site example.com --dry-run --limit 3        # crawl 默认 --source config（YAML 即爬取范围）
-#   pnpm crawl --site example.com,other.com --dry-run --limit 3   # 手动测试多个站：逗号分隔
+#   pnpm crawl --site example.com,other.com --dry-run --limit 3
 #   pnpm crawl --dry-run --limit 3                           # 不带 --site = 全量（config 目录所有 YAML）
+#   pnpm validate                                         # 校验全部站点配置（error 退出码 1，不阻断）
 # ============================================================================
