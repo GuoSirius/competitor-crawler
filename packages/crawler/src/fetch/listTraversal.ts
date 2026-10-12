@@ -90,7 +90,12 @@ function newStuckGuard(progress?: Progress) {
     stop(keys?: string[]): boolean {
       if (!keys) return false;
       let fresh = 0;
-      for (const k of keys) if (!seen.has(k)) seen.add(k), fresh++;
+      for (const k of keys) {
+        if (!seen.has(k)) {
+          seen.add(k);
+          fresh++;
+        }
+      }
       if (fresh > 0) {
         streak = 0;
         return false;
