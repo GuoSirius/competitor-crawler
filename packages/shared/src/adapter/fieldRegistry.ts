@@ -17,8 +17,14 @@ export type ContentKind = 'products' | 'contents';
 export interface FieldMeta {
   /** 内建字段名（YAML 里应配的 key，如 'name'） */
   name: string;
-  /** 值类型 */
+  /** 值类型（落库列类型；注意 publishedAt 虽落 integer 列，但 YAML 抽的是日期字符串，不要因此要求 number: true） */
   type: FieldType;
+  /**
+   * 校验时是否要求 YAML 标 `number: true`（默认 true：数值列必须显式 number 才能正确比价/排序）。
+   * 仅对「落库是数值、但 YAML 抽的是日期字符串、由引擎 parseDateStr 转 Unix 秒」的字段（如 publishedAt）置 false，
+   * 否则校验会错误地要求给日期字段加 number: true —— 这会把日期字符串强转成 null（见 docs/14 / gen-site 提示词）。
+   */
+  requireNumberInYaml?: boolean;
   /**
    * 可用阶段：
    * - 'list'   仅列表阶段抽取（如 detailUrl，由列表条目抽出）
@@ -82,7 +88,7 @@ export const CONTENT_FIELDS: FieldMeta[] = [
       "`bodyHtml: { sel: <正文容器>, html: true }` 才抽取落库；不配则 body_html 恒为 null，不浪费存储。",
   },
   { name: 'author', type: 'string', stage: 'detail', listFallback: true, auditMismatch: true, desc: '作者' },
-  { name: 'publishedAt', type: 'number', stage: 'detail', listFallback: true, auditMismatch: true, desc: '发布时间（Unix 秒；YAML 须 number: true）' },
+  { name: 'publishedAt', type: 'number', stage: 'detail', listFallback: true, auditMismatch: true, requireNumberInYaml: false, desc: '发布时间（Unix 秒，落库为 integer 列；YAML 抽日期**字符串**如 date/publishedAt，由 parseDateStr 自动转 Unix 秒。**不要**加 number: true，否则日期被强转 null）' },
   { name: 'detailUrl', type: 'string', stage: 'list', identity: true, desc: '详情页 URL（列表抽取，身份键之一）' },
   { name: 'sourceId', type: 'string', stage: 'detail', identity: true, listFallback: true, auditMismatch: true, desc: '站点自身内容 id（身份键之一）' },
   { name: 'listUrl', type: 'string', stage: 'list', desc: '列表页地址（溯源）' },

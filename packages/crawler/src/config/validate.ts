@@ -181,7 +181,7 @@ export function validateSiteConfig(cfg: SiteConfig): ConfigIssue[] {
       if (meta) {
         // 已知内建字段
         // 3a) 数值字段未标 number:true → 解析成字符串，排序/比价失真
-        if (meta.type === 'number') {
+        if (meta.type === 'number' && meta.requireNumberInYaml !== false) {
           const spec = detailFields[key] ?? listFields[key];
           if (spec && spec.number !== true) {
             issues.push({

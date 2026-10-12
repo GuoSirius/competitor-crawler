@@ -69,7 +69,7 @@
   <rect x="36" y="422" width="820" height="86" rx="12" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
   <circle cx="66" cy="454" r="15" fill="#22d3ee"/><text x="66" y="459" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">4</text>
   <text x="92" y="452" class="bt">Fetch 层 · 列表翻页</text>
-  <text x="92" y="472" class="bs">渲染模式 --render ssr | spa | auto（静态内容偏少自动回退 Playwright）　·　翻页四策略：<tspan font-weight="700">pagination-url</tspan> / pagination-html / pagination-api / scroll-api</text>
+  <text x="92" y="472" class="bs">渲染模式 --render ssr | browser | auto（静态内容偏少自动回退 Playwright）　·　翻页六策略：<tspan font-weight="700">pagination-url</tspan> / pagination-html / pagination-api / scroll-api / model-generic / none</text>
   <text x="92" y="492" class="bd">列表段先去重：canonical(detailUrl)，修掉「双模板 / 图文双链接」导致的重复抓取与计数虚高</text>
 
   <!-- ⑤ 适配器与形态 -->

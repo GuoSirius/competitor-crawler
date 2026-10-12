@@ -67,7 +67,7 @@ parseDetail:
 # 内容型栏目（contentType: contents）用同一套 parseList/parseDetail 写法，入库字段为：
 #   列表：detailUrl、name（=标题）
 #   详情：name（→title）、summary、body、bodyHtml（{ sel: <正文容器>, html: true }，显式配才落库）、
-#         author、publishedAt（number: true，Unix 秒）、sourceId（站点自身内容 id）、listUrl（列表页地址，溯源）
+#         author、publishedAt（抽日期**字符串**，如 date/publishedAt 字段，由引擎自动转 Unix 秒；**不要**加 number: true，否则日期被强转 null）、sourceId（站点自身内容 id）、listUrl（列表页地址，溯源）
 # 分类归属：若提供了详情页 HTML 且页面含面包屑导航（如 .breadcrumb / 面包屑列表 / 「当前位置」），
 # 输出顶层 categoryFromPage，让爬取时按面包屑动态建分类树：
 categoryFromPage:

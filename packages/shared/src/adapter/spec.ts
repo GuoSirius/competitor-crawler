@@ -1,10 +1,12 @@
 // 配置 YAML 适配器的字段抽取规范（单一事实源）
 //
-// 覆盖三种取值场景：
-//   1) 取元素文本            → 不填 attr（或写 text: true）
-//   2) 取某属性值            → attr: "href" / "src" / ...
-//   3) 取上述文本/属性中的一段 → regex: '...'（优先第 1 捕获组，无捕获组取全匹配）
-// 另支持 list（收集为数组）/ map（嵌套对象，list 项或单元素内再抽子字段）。
+// FieldSpec 字段抽取规范（单一事实源）。完整能力：
+//   取值方式（四选一）：① 取文本 → 不填 attr（或 text: true）；② 取属性值 → attr: "href"/"src"；
+//   ③ 取一段 → regex: '...'（优先第 1 捕获组，无捕获组取全匹配）；④ 取富文本 → html: true（innerHTML）
+//   结构修饰：list（收集为数组）/ map（嵌套对象，配合 list 即对象数组）
+//   标量强转：number（转数值，价格必用）/ bool（布尔，以 extract.ts 的 BOOL_TRUTHY/BOOL_FALSY 为准）
+//   JSON 处理：json（解析内联 JSON）+ jsonPath（点号路径）+ pick（键重命名）
+//   选择器哨兵：$self 读「当前元素自身」的文本/属性（详见 sel 字段注释）
 //
 // 抽取与具体 DOM 实现解耦：消费方只需提供 DomRead 实现（cheerio / Playwright 均可用）。
 
@@ -39,7 +41,8 @@ export interface FieldSpec {
   json?: boolean;
   /**
    * true=把文本/属性值强转成布尔（在 `number` 之外补齐第四种标量类型）。
-   * 真值：true/1/yes/y/on/是/有/有货/现货/在售/正常/缺省可购；假值：false/0/no/n/off/否/无/缺货/停售/下架/售罄。
+   * 真值：true/1/yes/y/on/是/有/有货/现货/在售/正常；假值：false/0/no/n/off/否/无/缺货/停售/下架/售罄。
+ * （以 extract.ts 的 BOOL_TRUTHY / BOOL_FALSY 正则为准，二者不含「缺省可购」。）
    * 不在表内的值返回 null（宁可空也不猜，错误映射会在比价侧变成脏数据）。
    * 典型场景：列表卡的「现货/缺货」角标、详情页「有货」状态位。
    */

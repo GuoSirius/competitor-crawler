@@ -97,6 +97,17 @@ describe('validateSiteConfig', () => {
     expect(issues.some((i) => i.code === 'NUMERIC_NOT_NUMBER' && i.field === 'price')).toBe(true);
   });
 
+  it('内容字段 publishedAt 不标 number: true 也不报 NUMERIC_NOT_NUMBER（日期字符串由 parseDateStr 转 Unix 秒，加 number 反而变 null）', () => {
+    const cfg = baseCfg({
+      contentType: 'news',
+      startUrl: 'https://x.com/news',
+      parseList: { itemSelector: '.i', fields: { detailUrl: { sel: 'a', attr: 'href' } } },
+      parseDetail: { fields: { name: { sel: 'h1' }, publishedAt: { sel: '.date', text: true } } },
+    });
+    const issues = validateSiteConfig(cfg);
+    expect(issues.some((i) => i.code === 'NUMERIC_NOT_NUMBER' && i.field === 'publishedAt')).toBe(false);
+  });
+
   it('多规则站点逐 section 校验且带 sectionKey', () => {
     const cfg = baseCfg({
       sections: [

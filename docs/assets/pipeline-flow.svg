@@ -204,7 +204,7 @@
 
   <!-- R1 翻页策略 -->
   <rect x="764" y="252" width="640" height="272" rx="14" fill="#ecfeff" stroke="#22d3ee" stroke-width="2"/>
-  <text x="784" y="278" class="rh">翻页四策略（listTraversal.strategy）</text>
+  <text x="784" y="278" class="rh">翻页策略（listTraversal.strategy，共六种）</text>
 
   <rect x="784" y="290" width="600" height="46" rx="8" fill="#fff" stroke="#a5f3fc"/>
   <text x="800" y="309" class="rt">pagination-url　URL 模板翻页</text>
@@ -222,7 +222,7 @@
   <text x="800" y="465" class="rt">scroll-api　无限滚动</text>
   <text x="800" y="482" class="rb">滚到底等新节点；页面高度不再增长即判定到底</text>
 
-  <text x="784" y="512" class="rb" fill="#0e7490">统一终止条件：本页解析 0 条 / 达 maxPages（取值 调用方 vs 配置 vs 硬上限 500）</text>
+  <text x="784" y="512" class="rb" fill="#0e7490">统一终止条件：本页解析 0 条 / 达 maxPages（取值 调用方 vs 配置 vs 硬上限 500）　·　六策略 = pagination-url / pagination-html / pagination-api / scroll-api / model-generic / none</text>
 
   <!-- R2 形态 -->
   <rect x="764" y="540" width="640" height="300" rx="14" fill="#eef2ff" stroke="#818cf8" stroke-width="2"/>

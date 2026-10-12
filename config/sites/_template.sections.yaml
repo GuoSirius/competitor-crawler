@@ -529,7 +529,7 @@ sections:
 #   MISSING_IDENTITY           products 既无 parseList.detailUrl 也无 parseDetail.sourceProductId
 #   HASH_PAGINATION_UNSUPPORTED  pagination-url 的 urlTemplate 含 '#'（HTTP 不发送 fragment）
 #   STAGE_MISMATCH             站点级字段（currency）误放进 fields / 详情专属字段只配在列表
-#   NUMERIC_NOT_NUMBER         price / publishedAt 等数值字段未标 number: true
+#   NUMERIC_NOT_NUMBER         price 等**数值字段**（价格类）未标 number: true；publishedAt 是日期字符串，不要求 number: true
 #   UNKNOWN_FIELD_TYPO         字段名拼写极近内建（编辑距离≤1）才告警，否则视为合法站点特有字段静默放行
 # ============================================================================
 
