@@ -18,6 +18,12 @@ export function extractField(node: DomRead, spec: FieldSpec): unknown {
   // 防御：模型产出 / 手写 YAML 里的 `field: null` 声明（表示「该字段不取」）→ 返回空值，
   // 不崩管线（曾使 gen-site 回验与 crawl 直接 TypeError，见 2026-09-30 普诺赛案例）
   if (!spec) return null;
+  // 固定值：不走 DOM，直接落值（与 sel 互斥，const 优先）；对象/数组深拷贝，
+  // 防止多条记录共享同一引用被下游原地改写互相污染
+  if ('const' in spec) {
+    const v = spec.const;
+    return v == null ? null : typeof v === 'object' ? structuredClone(v) : v;
+  }
   const matches = resolveMatches(node, spec);
 
   if (spec.map) {
@@ -36,8 +42,9 @@ export function extractField(node: DomRead, spec: FieldSpec): unknown {
   return first ? coerce(applyRegex(readRaw(first, spec), spec.regex), spec) : null;
 }
 
-/** 解析 sel：`$self` 表示当前节点自身，否则按选择器向下查找 */
+/** 解析 sel：`$self` 表示当前节点自身，否则按选择器向下查找；无 sel（如纯 const 场景被上层拦截，此处兜底）返回空 */
 function resolveMatches(node: DomRead, spec: FieldSpec): DomRead[] {
+  if (!spec.sel) return [];
   return spec.sel === SELF_SEL ? [node] : node.list(spec.sel);
 }
 

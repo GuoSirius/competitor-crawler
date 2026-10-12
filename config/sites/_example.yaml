@@ -78,6 +78,9 @@ categoryFromPage:
 #   价格(数值)      → 任一写法 + number: true            （必须加）
 #   有货/缺货       → 任一写法 + bool: true
 #   读元素自身属性  → { sel: "$self", attr: "data-price" } （如 <option data-price>）
+#   固定值          → { const: 值 }                       （不走页面，每条记录直接落这个值，如打标签）
+#     例：category: { const: 抗体 } / tags: { const: [热销, 新品] }
+#     注意：含前导零或日期样式的字符串必须加引号（{ const: "00123" }），否则会被当成数字/日期
 #   内联 JSON       → 任一写法 + json: true [+ jsonPath] [+ pick] （页面 <script> 里的数据，遇到再查）
 # ★ 注意：日期/时间字段（如 date / publishedAt）抽「字符串」即可，不要加 number:true，否则日期会变空。
 # ============================================================================

@@ -283,3 +283,39 @@ describe('bool 强转（标量第四类型）', () => {
     expect(extract(h, { tags: { sel: '.tag', bool: true, list: true } })).toEqual({ tags: [true, false] });
   });
 });
+
+describe('FieldSpec 固定值（const，不走 DOM）', () => {
+  const html = `<div class="box">内容</div>`;
+
+  it('标量原样落值（数字/字符串/布尔），不需要 sel', () => {
+    expect(extract(html, { a: { const: 123 }, b: { const: '张三' }, c: { const: true } })).toEqual({
+      a: 123,
+      b: '张三',
+      c: true,
+    });
+  });
+
+  it('数组/对象深拷贝：多条记录互不共享引用', () => {
+    const fields: Record<string, FieldSpec> = { tags: { const: ['热销', '新品'] } };
+    const r1 = extract(html, fields);
+    const r2 = extract(html, fields);
+    expect(r1.tags).toEqual(['热销', '新品']);
+    (r1.tags as string[]).push('被改写');
+    expect(r2.tags).toEqual(['热销', '新品']); // r2 不受 r1 改写影响
+  });
+
+  it('const 与 sel 并存时 const 优先（sel 被忽略）', () => {
+    expect(extract(html, { a: { sel: '.box', text: true, const: 456 } })).toEqual({ a: 456 });
+  });
+
+  it('const: null 显式落空（等价「该字段不取」）', () => {
+    expect(extract(html, { a: { const: null } })).toEqual({ a: null });
+  });
+
+  it('未注册字段名照常进对象（由上游落 row 兜底列）', () => {
+    expect(extract(html, { username: { const: '张三' }, level: { const: 3 } })).toEqual({
+      username: '张三',
+      level: 3,
+    });
+  });
+});

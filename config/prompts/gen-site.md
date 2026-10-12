@@ -83,6 +83,7 @@ categoryFromPage:
 · 标量强转（可叠加）：number: true（转数值，价格列必用）/ bool: true（现货/有货/true/1→true，缺货/下架/false/0→false，表外→null）
 · JSON 处理（可叠加）：json: true（解析内联 JSON）+ jsonPath: "a.b"（定位层级）+ pick: {我方键: 站点键}（键重命名）
 · 选择器哨兵：sel: "$self" 读「当前元素自身」的文本/属性（<option data-price> 这类自带属性，如 detailUrl: { sel: "$self", attr: href }）
+· 固定值：const: 值 不走 DOM 直接落值（仅当站点产品全部同属一个固定分类/品牌且页面无对应文本时才用，如 category: { const: 抗体 }；含前导零字符串须加引号）
 · 上述可任意组合（如 { sel, text, regex, number } 抠价格数值）；取值优先级 attr > html > text。
 
 只输出 YAML，不要解释。

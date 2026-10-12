@@ -7,6 +7,7 @@
 //   标量强转：number（转数值，价格必用）/ bool（布尔，以 extract.ts 的 BOOL_TRUTHY/BOOL_FALSY 为准）
 //   JSON 处理：json（解析内联 JSON）+ jsonPath（点号路径）+ pick（键重命名）
 //   选择器哨兵：$self 读「当前元素自身」的文本/属性（详见 sel 字段注释）
+//   固定值：const（不走 DOM，直接落该值——打标签/补站点级元数据用，详见 const 字段注释）
 //
 // 抽取与具体 DOM 实现解耦：消费方只需提供 DomRead 实现（cheerio / Playwright 均可用）。
 
@@ -15,8 +16,19 @@ export interface FieldSpec {
    * CSS 选择器；在「当前上下文」内查询。
    * 特殊值 `$self`：表示**当前节点自身**（用于读匹配元素自己的文本/属性，
    * 典型场景：`<option data-price>` 这类「属性挂在被选中的元素上」的结构）。
+   * 配了 `const` 时可省略（固定值不走 DOM）。
    */
-  sel: string;
+  sel?: string;
+  /**
+   * 固定值：不走 DOM 抽取，每条记录直接落该值（标量/数组/对象均可）。
+   * 用途：给抓到的数据打固定标签/补站点级元数据，如
+   *   category: { const: 抗体 } / source: { const: 官网 } / tags: { const: [热销, 新品] }。
+   * 字段名在注册表内 → 落对应数据库列；不在 → 随其它未知字段进 row 兜底 JSON。
+   * 注意：① 与 sel 互斥，同时写时 const 优先（sel 被忽略）；
+   *      ② 不参与 number/bool 强转（写什么落什么）；
+   *      ③ YAML 侧字符串含前导零/日期形态必须加引号（`{ const: "00123" }`），否则会被 YAML 解析成数值/日期。
+   */
+  const?: unknown;
   /** 取该属性值（如 href/src）；不填则取文本 */
   attr?: string;
   /** 显式声明取文本（与「无 attr」等价，仅提升可读性） */
