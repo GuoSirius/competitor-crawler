@@ -37,10 +37,10 @@
 # ============================================================================
 
 domain: example.com
-# 公司归属（写入 companies；同名=同一家公司，多域名共用同一 company）
-company: 示例生物科技有限公司        # 站点归属公司名；省略时回退为 domain
-# companyShort: 普诺赛               # 市场部简称标签（可选，仅展示用；validate 不拦、暂不落库）
-#                                   #   company=规范全名（聚合唯一键）；companyShort=市场叫法（如「Abcam」「百普赛斯」）
+# 公司归属（写入 companies；公司按 domain 唯一判别，同公司多域名各建一行、共用同一 company 名）
+company: 示例生物科技有限公司        # 站点归属公司规范全名；省略时回退为 domain
+# companyShort: 普诺赛               # 市场部简称标签（可选；落 companies.short_name，validate 不拦）
+#                                   #   company=规范全名；companyShort=市场叫法（如「Abcam」「百普赛斯」）
 # competitorType: 多肽合成试剂       # 竞品类型（可选；写入 companies.competitor_type）
 # role: competitor                  # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
 # ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）

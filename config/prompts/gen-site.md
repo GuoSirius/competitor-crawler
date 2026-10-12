@@ -5,14 +5,17 @@ startUrl: <列表页URL>
 company: <用户消息给出「归属公司」时写入；未给出则省略>
 competitorType: <用户消息给出「竞品类型」时写入；未给出则省略>
 role: <用户消息给出「公司角色」时写入（own 或 competitor）；未给出则省略>
+currency: <用户消息给出「币种」时写入；未给出则省略>
 listTraversal:
-  strategy: pagination-html | pagination-api | scroll-api | pagination-url | model-generic
+  strategy: pagination-url | pagination-html | pagination-api | scroll-api | model-generic | none
   # SSR 翻页 URL 有规律（如 ?page=2 / &p=2）时优先选 pagination-url 并补 urlTemplate，
   # 无需浏览器、最快最稳；翻页按钮是 JS 点击渲染时选 pagination-html。
+  # 单页栏目（一次请求即全量、无翻页）选 none 显式禁翻页——继承站点级翻页模板时尤其必要，
+  # 否则每页都返回全量、一路翻到 maxPages 上限白抓上千页。
   nextSelector: <翻页按钮 CSS 选择器，pagination-html/api 必填>
   urlTemplate: <pagination-url 必填，如 "?page={page}"；含 {page} 占位>
-  maxPages: 50
-  fallbackToUi: true
+  maxPages: <缺省 1000；产品量小的栏目写小值（如 50）防失控>
+  fallbackToUi: <翻页失败是否自动回退 UI 模式；pagination-url 不使用；缺省 true>
 parseList:
   itemSelector: <每个产品条目容器的 CSS 选择器>
   fields:
@@ -48,8 +51,9 @@ parseDetail:
       map:
         spec: { sel: <规格名选择器>, text: true }
         condition: { sel: <规格名同元素>, text: true, regex: <括注捕获> }  # 规格尾缀（常温/冻存）等，无则省略
-        sku: { sel: <该规格货号选择器>; 仅当每个规格自带货号（一品多货号）时输出 }
+        sku: { sel: <该规格货号选择器>, text: true }   # 仅当每个规格自带货号（一品多货号）时输出
         priceNow: { sel: <现价选择器>, text: true, number: true }
+        priceOriginal: { sel: <原价/划线价选择器>, text: true, number: true }  # 有才输出；另有 priceActivity/pricePromo 同写法
     introMedia:
       sel: <介绍图/文/视频选择器>
       list: true
@@ -72,11 +76,13 @@ categoryFromPage:
   keepLast: true   # 面包屑末段是产品名时保留 true；末段是分类名时省略（默认丢弃末段）
 # 详情页无面包屑则整段省略，不要臆造。
 
-字段抽取规范（FieldSpec）三种取值：
+字段抽取规范（FieldSpec）取值：
 1) 取文本：不写 attr（或 text: true）
 2) 取属性值：attr: "href" / "src"
 3) 取文本/属性中的一段：regex: '...'（优先第1捕获组）
-另支持 list（收集数组）/ map（嵌套对象）。
+4) 取富文本 innerHTML：html: true（仅 bodyHtml 等显式要求时用）
+另支持 list（收集数组）/ map（嵌套对象）；条目元素自身就是目标（item 本身是 <a>/<option> 等）
+时用 sel: "$self"（如 detailUrl: { sel: "$self", attr: href }）。
 
 只输出 YAML，不要解释。
 

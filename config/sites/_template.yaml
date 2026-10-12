@@ -12,7 +12,7 @@
 # ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
 #   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
 #
-# ★★ FieldSpec 字段抽取规范（每个字段只有「三种取值方式 + 两种结构修饰 + 三种附加处理」）★★
+# ★★ FieldSpec 字段抽取规范（每个字段只有「三种取值方式 + 两种结构修饰 + 五种附加处理」）★★
 #   取值方式（三选一）：
 #     1) 取文本        → 不填 attr（或显式 text: true）
 #     2) 取属性值      → attr: "href" / "src" / "data-src" …
@@ -31,14 +31,14 @@
 
 # ---------- 1) 站点标识 ----------
 domain: example.com              # 必填；同时是 YAML 文件名与适配器路由键
-company: 示例生物科技有限公司      # 站点归属公司名（写入 companies.name）；省略时回退为 domain
-                                 # ★ 公司按名字聚合：同名=同一家公司（同一公司多个域名/子域名 →
-                                 #   配多个 YAML 共用同一 company 即可，website 只补空不覆盖，零维护）
+company: 示例生物科技有限公司      # 站点归属公司规范全名（展示/检索标签；写入 companies.name）；省略时回退为 domain
+                                 # ★ 公司按 domain 唯一判别：同一公司多个域名 → 各配一个 YAML（共用同一 company 名，
+                                 #   每个域名一行 companies，website 随域名各自维护）
 # competitorType: 多肽合成试剂     # 竞品类型（可选；写入 companies.competitor_type，供筛选/分组）
 # role: competitor                # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
 # ↑ 两项 YAML 显式声明时以 YAML 为准（复用已有公司时值不同则更新；未声明则不动库中现有值）
-# companyShort: 普诺赛              # 市场部简称标签（可选，仅展示用；validate 不拦、暂不落库）
-#                                  #   company=规范全名（聚合唯一键，同名=同公司）；companyShort=市场叫法（如「Abcam」「百普赛斯」）
+# companyShort: 普诺赛              # 市场部简称标签（可选；落 companies.short_name，validate 不拦）
+#                                  #   company=规范全名；companyShort=市场叫法（如「Abcam」「百普赛斯」）
 currency: CNY                    # 站点币种（写入 products.currency）；缺省 CNY，国际站填 USD
 startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓取起点）
 
@@ -102,12 +102,14 @@ startUrl: "https://example.com/products"   # 列表页入口（probe / crawl 抓
 # category: 抗体
 
 # ---------- 2) 列表遍历（翻页策略）----------
-# strategy 五选一：
+# strategy 六选一：
 #   pagination-html : Playwright 点击页码 → 整页重渲染 → cheerio 解析（最常用）
 #   pagination-api  : 点击触发 XHR，Playwright 监听 network 取 JSON（稳定无签名时可选）
 #   scroll-api      : 滚动到底 → 等待新节点（无限滚动）
 #   model-generic   : 找不到稳定结构时，交给模型通用适配器兜底
 #   pagination-url  : 用 URL 模板（?page={page} / &p={page}）逐页拼地址抓取，无需浏览器（SSR 站最快最稳）
+#   none            : 显式禁用翻页，只抓第一页（单页栏目/一次请求全量返回的栏目；
+#                     继承站点级翻页模板时用它局部关掉，防每页全量→翻满 maxPages 白抓上千页）
 listTraversal:
   strategy: pagination-html      # 见上；默认 pagination-html
   nextSelector: "a.next"         # 翻页按钮 CSS 选择器（pagination-* 类必填；pagination-url 不需要）
@@ -137,6 +139,7 @@ parseList:
     # name 建议填：列表阶段就能拿到名称，便于样本核对
     name:      { sel: "h3", text: true }
     # —— 列表页也能顺手抽更多字段（可选，写法同 parseDetail）——
+    #   ★ 两阶段并集入库：详情缺失时列表值兜底主列；两阶段都有 → 详情优先、列表值自动存 row._<字段>
     # sku:     { sel: ".sku", text: true, regex: 'SKU[:：]\s*([\w-]+)' }
     # cover:   { sel: "img", attr: "data-src" }
     # tags:    { sel: ".tag", list: true }        # 列表条目上的多标签数组
