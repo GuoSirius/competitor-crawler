@@ -95,7 +95,10 @@ describe('toPendingContent · NormalizedProduct → PendingContent 映射', () =
     expect(c?.summary).toBe('摘要文本'); // row.summary 优先于 description
     expect(c?.body).toBe('正文文本');
     expect(c?.author).toBe('市场部');
-    expect(c?.publishedAt).toBe(Math.floor(new Date(2026, 8, 1).getTime() / 1000));
+    // 期望值必须用 unixFromBjParts（北京时间口径，dayjs.tz 实现，时区无关）。
+    // 不能写 new Date(2026, 8, 1)：那是运行机器的本地时区零点，本地(+8)恰好等于北京时间，
+    // CI(UTC) 会差 8 小时导致假失败（2026-10-12 线上暴露）。
+    expect(c?.publishedAt).toBe(unixFromBjParts(2026, 9, 1));
   });
 
   it('description 兜底为 summary；body/content/text 依次尝试', () => {
