@@ -42,7 +42,7 @@ parseDetail:
       sel: 'script[type="application/ld+json"]'
       text: true
       regex: '"sku":\s*"([^"]+)"'
-    brand:
+    competitorBrand:
       sel: 'script[type="application/ld+json"]'
       text: true
       regex: '"brand":\s*\{[\s\S]*?"name":\s*"([^"]+)"'

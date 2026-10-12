@@ -442,7 +442,7 @@ sections:
 # | category/catPath  | section.category/categoryPath| cfg.category/categoryPath | section.category 单层级 > cfg.category 单层级 |
 # | categoryFromPage  | section.categoryFromPage     | cfg.categoryFromPage      | 不绑                           |
 # | productLine       | section.productLine           | cfg.productLine           | 不绑                           |
-# | brand             | section.brand                 | cfg.brand                 | 不绑                           |
+# | competitorBrand   | section.competitorBrand      | cfg.competitorBrand      | 不绑                           |
 # | render            | section.render                | cfg.render                | auto                           |
 # | renderList        | section.renderList            | cfg.renderList            | 回退 render → auto             |
 # | renderDetail      | section.renderDetail          | cfg.renderDetail          | 回退 render → auto             |
@@ -493,7 +493,7 @@ sections:
 # 附 D：内置字段速查（写这些名会被归一化到 products / contents 对应列；其余一律进 row 兜底）
 # ----------------------------------------------------------------------------
 # 【products 管线】16 个非站点级内置字段：
-#   身份：name* / sourceProductId* / sku / englishName / aliases / oldSkus / brand / detailUrl*
+#   身份：name* / sourceProductId* / sku / englishName / aliases / oldSkus / competitorBrand / detailUrl*
 #   可比：price / priceText / specText
 #   描述：description
 #   其它：cloneNumber / specs / introMedia / applications

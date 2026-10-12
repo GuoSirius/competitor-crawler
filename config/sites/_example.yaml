@@ -16,7 +16,8 @@ company: 示例生物科技有限公司         # 站点归属公司全名（同
 # companyShort: 示例生物            # 可选：市场部简称，仅展示
 # currency: CNY                     # 币种（国际站填 USD，默认 CNY）。注意：写在站点级，不要写进 fields
 # productLine: 细胞试剂              # 可选：产品线标签，用于按产品线筛选爬取
-# brand: Abcam                     # 可选：站点默认对标品牌（产品没单独写品牌时套用）
+# companyBrand: 示例生物            # 可选：公司品牌（落 companies.company_brand；仅站点级，section 不能覆盖）
+# competitorBrand: ExampleBio      # 可选：竞对品牌默认值（落 sections.competitor_brand；section 可覆盖）
 # render: auto                     # 渲染方式，一般不用改（auto=自动判断 ssr/browser）
 # role: competitor                 # 可选：own=我方 / competitor=竞品（默认 competitor）
 # competitorType: 直接竞品          # 可选：竞品类型标签，仅展示
@@ -143,7 +144,7 @@ sections:
 #   englishName         英文名
 #   aliases             别称/曾用名
 #   oldSkus             曾用货号
-#   brand               本站产品品牌（缺省回退 section 品牌 → 站点 brand）
+#   competitorBrand      产品竞对品牌（页面抽取值优先；缺省回退 sections.competitor_brand 即栏目/站点默认）
 #   price               默认规格现价（number:true 抽取的数值）
 #   currency            币种（CNY/USD，写在站点级，不要写进 fields）
 #   priceText           价格原文（保真）
@@ -191,9 +192,10 @@ sections:
 # ② 只能写 section（多规则时才有意义）：
 #     key / name / match / startUrls（复数）/ listOnly（多规则下不继承顶层）
 # ③ 顶层可给默认、section 可覆盖（section 写了就用 section 的）：
-#     startUrl↔startUrls / contentType / productLine / brand /
+#     startUrl↔startUrls / contentType / productLine / competitorBrand /
 #     category / categoryPath / categoryFromPage / render(renderList/renderDetail) /
 #     antiBot / proxy / parseDetail 里的 api 与 modelFallback
+#     （companyBrand 仅站点级：写顶层，section 不覆盖）
 # ④ listTraversal：字段级合并
 #     section 只写一部分，其余自动继承顶层；但 waitSelector / listRetry / splitThreshold
 #     这三个不参与合并——section 一旦写 listTraversal 又需要它们，必须重抄。

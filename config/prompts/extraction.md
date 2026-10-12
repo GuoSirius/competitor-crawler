@@ -4,7 +4,7 @@
 {
   "specs": [ { "spec": "规格，如 100μL", "priceNow": "现价", "priceOriginal": "原价", "priceActivity": "活动价", "pricePromo": "优惠价" } ],
   "introMedia": [ { "image": "图片URL", "description": "图片说明" } ],
-  "scalars": { "name": "产品名", "sku": "货号", "englishName": "英文名", "brand": "品牌", "priceText": "价格原文", "specText": "规格原文", "description": "纯文本描述" },
+  "scalars": { "name": "产品名", "sku": "货号", "englishName": "英文名", "competitorBrand": "竞对品牌", "priceText": "价格原文", "specText": "规格原文", "description": "纯文本描述" },
   "confidence": 0.0 到 1.0 之间的数字,
   "notes": "一句话说明判断依据"
 }

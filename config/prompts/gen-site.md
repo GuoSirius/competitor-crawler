@@ -27,7 +27,7 @@ parseList:
     price: { sel: <价格选择器>, text: true, number: true }
     priceText: { sel: <价格原文选择器>, text: true }
     specText: { sel: <规格原文选择器>, text: true }
-    brand: { sel: <品牌选择器>, text: true }
+    competitorBrand: { sel: <竞对品牌选择器>, text: true }
     sourceProductId: { sel: <详情链接选择器>, attr: href, regex: <从链接抠产品 id> }  # 产品 id 常藏在链接里
 parseDetail:
   fields:
@@ -37,7 +37,7 @@ parseDetail:
     aliases: { sel: <别称/曾用名选择器>, text: true }   # 拼接串原样存（可能含现用名）
     oldSkus: { sel: <曾用货号选择器>, text: true }      # 拼接串原样存（可能含现用货号）
     sku: { sel: <货号选择器>, text: true }
-    brand: { sel: <品牌选择器>, text: true }
+    competitorBrand: { sel: <竞对品牌选择器>, text: true }
     price: { sel: <现价选择器>, text: true, number: true }
     priceText: { sel: <价格原文选择器>, text: true }
     specText: { sel: <规格原文选择器>, text: true }

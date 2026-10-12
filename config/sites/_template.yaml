@@ -58,8 +58,10 @@ company: 示例生物科技有限公司      # 站点归属公司规范全名（
 # competitorType: 多肽合成试剂     # 竞品类型（可选；写入 companies.competitor_type，供筛选/分组）
 # role: competitor               # 公司角色（可选）：own=我方 / competitor=竞品（缺省 competitor）
 # productLine: 细胞试剂           # 站点级默认产品线（可选；写入 sections.product_line；crawl --product-line 可据此过滤）
-# brand: Abcam                  # 站点级默认对标品牌（可选；写入 sections.brand 的回退值；产品入库 brand 缺省回退链
-                                 #   products.brand ?? section.brand ?? 站点 brand）
+# companyBrand: 普诺赛            # 公司品牌（可选；写入 companies.company_brand；仅站点级，section 不可覆盖）
+# competitorBrand: Abcam          # 竞对品牌（可选；站点级默认值，写入 sections.competitor_brand 的回退值；
+                                 #   section 可覆盖；产品入库竞对品牌缺省回退链：
+                                 #   products.competitor_brand ?? section.competitorBrand ?? 站点 competitorBrand）
 currency: CNY                    # 站点币种（写入 products.currency；缺省 CNY，国际站填 USD）
 # contentType: products          # 整站采集类型（可选）：products（缺省，落 products 表）/ 其他值(news/announcement…)
                                  #   落 contents 表（content_type=该值）。多规则站点通常在 section 上逐栏声明，见模板 B。
@@ -310,7 +312,7 @@ parseDetail:
 # 附 B：内置字段速查（写这些名会被归一化到 products / contents 对应列；其余一律进 row 兜底）
 # ----------------------------------------------------------------------------
 # 【products 管线】16 个非站点级内置字段：
-#   身份：name* / sourceProductId* / sku / englishName / aliases / oldSkus / brand / detailUrl*
+#   身份：name* / sourceProductId* / sku / englishName / aliases / oldSkus / competitorBrand / detailUrl*
 #   可比：price / priceText / specText
 #   描述：description
 #   其它：cloneNumber / specs / introMedia / applications
