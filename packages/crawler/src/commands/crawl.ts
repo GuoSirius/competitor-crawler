@@ -135,7 +135,7 @@ interface CrawlSummary {
   missingPages: string[];
   /**
    * 两阶段字段不一致统计（Q2）：键=字段名，值=出现次数。
-   * 列表与详情都抽到且归一后不同 → 计一次（列表值已存 row[<field>_list]，详情值落库）。
+   * 列表与详情都抽到且归一后不同 → 计一次（列表值已存 row[_<field>]，详情值落库）。
    * 非阻断，仅汇总告警，帮助发现「列表/详情解析规则漂移」。
    */
   fieldMismatches: Record<string, number>;
@@ -507,7 +507,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
     const mismatchEntries = Object.entries(summary.fieldMismatches).sort((a, b) => b[1] - a[1]);
     if (mismatchEntries.length > 0) {
       const total = mismatchEntries.reduce((s, [, c]) => s + c, 0);
-      progress.update(`[crawl] ⚠️ 两阶段字段不一致 ${total} 次（列表值已存 row[<字段>_list]，详情值落库）：`);
+      progress.update(`[crawl] ⚠️ 两阶段字段不一致 ${total} 次（列表值已存 row[_<字段>]，详情值落库）：`);
       for (const [f, c] of mismatchEntries.slice(0, 15)) {
         progress.update(`[crawl]   ⚠️ ${f}: ${c} 次`);
       }
@@ -1099,7 +1099,7 @@ async function collectSection(args: {
       let normalized = merged.product;
       for (const f of merged.mismatches) {
         fieldMismatches[f] = (fieldMismatches[f] ?? 0) + 1;
-        const listVal = (merged.product.row as Record<string, unknown>)[`${f}_list`];
+        const listVal = (merged.product.row as Record<string, unknown>)[`_${f}`];
         const detailVal = (merged.product as unknown as Record<string, unknown>)[f];
         (samples[f] ??= []).push(`${preKey} · 详情「${String(detailVal ?? '')}」/ 列表「${String(listVal ?? '')}」`);
       }
@@ -1187,13 +1187,14 @@ async function collectSection(args: {
 }
 
 /**
- * 详情优先、列表兜底合并（Q2，由字段注册表驱动，去掉硬编码 12 字段）：
- * 列表页常有货号/价格/规格而详情页反而缺 → 用列表值补空（不覆盖详情已有值）。
- * 仅合并 registry 中 `listFallback=true` 的标量/数值字段；数组字段（specs 等）不动。
- * 两阶段都抽到且「归一后不一致」的字段（`auditMismatch=true`）计入 mismatches，
- * 并把列表值存入 `row[<field>_list]` 供溯源；汇总进 summary.fieldMismatches（非阻断告警）。
+ * 两阶段字段并集合并（列表∩详情，由字段注册表驱动）：
+ * - 详情缺、列表有 → 列表值补入主列（「优先使用值不为空的」）。
+ * - 两阶段都有 → 详情值胜出（主列），列表值原样存 `row[_<field>]`（前缀下划线，保真溯源）。
+ * - 覆盖 registry 全部 `listFallback=true` 的标量/数值字段；数组字段（specs 等）不参与。
+ * - `auditMismatch=true` 字段两阶段「归一后不一致」→ 计入 mismatches，汇总进
+ *   summary.fieldMismatches（非阻断告警；存 row 与否不影响告警判定）。
  */
-function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>): {
+export function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>): {
   product: NormalizedProduct;
   mismatches: string[];
 } {
@@ -1209,17 +1210,17 @@ function mergeListFallback(np: NormalizedProduct, raw?: Record<string, unknown>)
       const l = toNumberOrNull(listVal);
       if (d === null) {
         if (l !== null) target[meta.name] = l;
-      } else if (meta.auditMismatch && l !== null && d !== l) {
-        (np.row as Record<string, unknown>)[`${meta.name}_list`] = listVal;
-        mismatches.push(meta.name);
+      } else if (l !== null) {
+        (np.row as Record<string, unknown>)[`_${meta.name}`] = listVal;
+        if (meta.auditMismatch && d !== l) mismatches.push(meta.name);
       }
     } else {
       const dStr = typeof detailVal === 'string' ? detailVal : '';
       const lStr = typeof listVal === 'string' ? listVal : '';
       if (dStr === '' && lStr !== '') target[meta.name] = lStr;
-      else if (meta.auditMismatch && dStr !== '' && lStr !== '' && !normEqual(dStr, lStr)) {
-        (np.row as Record<string, unknown>)[`${meta.name}_list`] = listVal;
-        mismatches.push(meta.name);
+      else if (lStr !== '') {
+        (np.row as Record<string, unknown>)[`_${meta.name}`] = listVal;
+        if (meta.auditMismatch && !normEqual(dStr, lStr)) mismatches.push(meta.name);
       }
     }
   }
@@ -1734,8 +1735,8 @@ export function toPendingContent(
 }
 
 /**
- * 行 JSON 两阶段合并：详情字段优先，列表阶段独有（详情没有、或详情抽到空值）的字段补进来。
- * 只补「详情没有的键」——同名的以详情为准，避免列表的脏值覆盖详情抽到的干净值。
+ * 行 JSON 两阶段并集合并：详情字段优先；列表阶段独有的字段直接补进来；
+ * 两阶段同名的字段 → 详情值为准，列表值存 `_<key>` 保真（与产品管线 mergeListFallback 同语义）。
  */
 function mergeListFields(
   row: Record<string, unknown>,
@@ -1743,11 +1744,18 @@ function mergeListFields(
 ): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...row };
   for (const [k, v] of Object.entries(raw)) {
-    if (k in merged) continue;
     if (typeof v === 'string') {
       if (v.trim() === '') continue;
+      if (k in merged) {
+        if (!(`_${k}` in merged)) merged[`_${k}`] = v.trim();
+        continue;
+      }
       merged[k] = v.trim();
     } else if (v !== null && v !== undefined) {
+      if (k in merged) {
+        if (!(`_${k}` in merged)) merged[`_${k}`] = v;
+        continue;
+      }
       merged[k] = v;
     }
   }

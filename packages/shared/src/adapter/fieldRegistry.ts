@@ -34,12 +34,13 @@ export interface FieldMeta {
   /**
    * Q2：参与「详情优先、列表兜底」合并（标量/数值字段）。
    * 数组字段（specs/introMedia/applications）不参与。
+   * 两阶段都有值时：详情值落主列，列表值存 `row[_<name>]`（前缀下划线保真）。
    */
   listFallback?: boolean;
   /**
-   * Q2：列表与详情两阶段都抽到且不一致时，把列表值存入 `row[<name>_list]`
-   * 并计入 summary.fieldMismatches（非阻断告警）。仅对「本应一致」的标量开启，
-   * 刻意不同的字段（如 description 列表是摘要、详情是全文）保持关闭以减少噪音。
+   * Q2：列表与详情两阶段都抽到且「归一后不一致」时计入 summary.fieldMismatches
+   * （非阻断告警）。仅对「本应一致」的标量开启，刻意不同的字段（如 description
+   * 列表是摘要、详情是全文）保持关闭以减少噪音。列表值无论是否一致都会存 `row[_<name>]`。
    */
   auditMismatch?: boolean;
   /** 给用户看的说明（field-docs 打印 + 校验提示复用） */
