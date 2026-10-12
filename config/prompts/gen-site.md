@@ -67,7 +67,7 @@ parseDetail:
 # 内容型栏目（contentType: contents）用同一套 parseList/parseDetail 写法，入库字段为：
 #   列表：detailUrl、name（=标题）
 #   详情：name（→title）、summary、body、bodyHtml（{ sel: <正文容器>, html: true }，显式配才落库）、
-#         author、publishedAt（number: true，Unix 秒）、sourceId（站点自身内容 id）
+#         author、publishedAt（number: true，Unix 秒）、sourceId（站点自身内容 id）、listUrl（列表页地址，溯源）
 # 分类归属：若提供了详情页 HTML 且页面含面包屑导航（如 .breadcrumb / 面包屑列表 / 「当前位置」），
 # 输出顶层 categoryFromPage，让爬取时按面包屑动态建分类树：
 categoryFromPage:
@@ -76,13 +76,14 @@ categoryFromPage:
   keepLast: true   # 面包屑末段是产品名时保留 true；末段是分类名时省略（默认丢弃末段）
 # 详情页无面包屑则整段省略，不要臆造。
 
-字段抽取规范（FieldSpec）取值：
-1) 取文本：不写 attr（或 text: true）
-2) 取属性值：attr: "href" / "src"
-3) 取文本/属性中的一段：regex: '...'（优先第1捕获组）
-4) 取富文本 innerHTML：html: true（仅 bodyHtml 等显式要求时用）
-另支持 list（收集数组）/ map（嵌套对象）；条目元素自身就是目标（item 本身是 <a>/<option> 等）
-时用 sel: "$self"（如 detailUrl: { sel: "$self", attr: href }）。
+字段抽取规范（FieldSpec，全部能力）：
+· 取值方式（四选一）：① 取文本 → 不写 attr（或 text: true）；② 取属性值 → attr: "href"/"src"；
+  ③ 取一段 → regex: '...'（优先第1捕获组）；④ 取富文本 → html: true（innerHTML，如 bodyHtml）
+· 结构修饰（可叠加）：list: true（收集数组）/ map: {…}（嵌套对象，配合 list 即对象数组）
+· 标量强转（可叠加）：number: true（转数值，价格列必用）/ bool: true（现货/有货/true/1→true，缺货/下架/false/0→false，表外→null）
+· JSON 处理（可叠加）：json: true（解析内联 JSON）+ jsonPath: "a.b"（定位层级）+ pick: {我方键: 站点键}（键重命名）
+· 选择器哨兵：sel: "$self" 读「当前元素自身」的文本/属性（<option data-price> 这类自带属性，如 detailUrl: { sel: "$self", attr: href }）
+· 上述可任意组合（如 { sel, text, regex, number } 抠价格数值）；取值优先级 attr > html > text。
 
 只输出 YAML，不要解释。
 

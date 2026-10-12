@@ -27,8 +27,8 @@
 #     body/content/text→body；author/source→author；date/publishedAt/publishTime/publishDate/time→publishedAt(自动转Unix秒)；
 #     其余字段进 row JSON。去重键 = COALESCE(source_id, canonical(detail_url))，软删口径与产品一致。
 #
-# ★ FieldSpec 字段抽取规范与模板 A 完全一致（四种取值方式 text/attr/regex/html + list/map 两种修饰
-#   + number 数值化 / sel:'$self' 读元素自身 / json+jsonPath+pick 解析内联 JSON），
+# ★ FieldSpec 字段抽取规范与模板 A 完全一致（四种取值方式 text/attr/regex/html + 两种结构修饰 list/map
+#   + 标量强转 number/bool + JSON 处理 json/jsonPath/pick + 选择器哨兵 sel:'$self'），
 #   此处不再重复列举，详见 _template.yaml 与 docs/05。
 # ★ 每个 section 的 parseDetail 均可单独配 `api:`（异步接口数据源，形态 D，见模板 A「六」）。
 #

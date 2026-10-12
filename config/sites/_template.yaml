@@ -12,7 +12,7 @@
 # ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
 #   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
 #
-# ★★ FieldSpec 字段抽取规范（每个字段由「四种取值方式 + 两种结构修饰 + 五种附加处理」组合而成）★★
+# ★★ FieldSpec 字段抽取规范（每个字段由「4 取值方式 + 2 结构修饰 + 2 标量强转 + 3 JSON 处理 + $self 选择器」组合而成）★★
 #   取值方式（决定从元素取什么内容，四选一）：
 #     1) 取文本        → 不填 attr（或显式 text: true）
 #     2) 取属性值      → attr: "href" / "src" / "data-src" …
@@ -23,13 +23,17 @@
 #   结构修饰（可叠加）：
 #     list: true     → 收集所有匹配为「数组」（默认只取第一个）
 #     map: {…}       → 在匹配元素内再抽子字段，形成「对象」（配合 list 即「对象数组」）
-#   附加处理（可叠加）：
-#     number: true   → 结果转数值（去千分位/币种符号），失败为 null（价格等数值列必用）
-#     sel: '$self'   → 读「当前元素自身」的文本/属性（读 <option data-price> 这类自带属性）
-#     json: true     → 把抽到的字符串当 JSON 解析（页面内联 JSON）
+#   标量强转（可叠加，把字符串结果转成对应类型）：
+#     number: true   → 转数值（去千分位/币种符号，失败为 null；价格等数值列必用）
+#     bool: true     → 转布尔（真值：有货/现货/true/1/是…；假值：缺货/下架/false/0/无…；
+#                       表外值返回 null 不猜测；典型：列表「现货/缺货」角标、详情「有货」状态位）
+#   JSON 处理（可叠加；json: true 开启后 jsonPath / pick 才生效）：
+#     json: true     → 把抽到的字符串当 JSON 解析（页面内联 JSON / 接口响应，宽松容错）
 #     jsonPath: "a.b"→ json 后定位到数组/对象所在层级（点号路径，支持数组下标）
 #     pick: {…}      → json 后键重命名 { 我方键: 站点键 }
-#   取值方式 × 结构修饰 × 附加处理可任意组合。
+#   选择器哨兵（非取值方式，是 sel 的特殊值）：
+#     sel: '$self'   → 读「当前元素自身」的文本/属性（读 <option data-price> 这类自带属性）
+#   取值方式 × 结构修饰 × 标量强转 × JSON 处理 可任意组合（$self 仅用于定位元素）。
 # ============================================================================
 
 # ---------- 1) 站点标识 ----------
@@ -158,7 +162,7 @@ parseDetail:
     # name: { sel: ".pd-name" }                       # 与上一行等价（无 attr 即取文本）
 
     # 2) 取属性值：attr 指定要拿的属性名
-    cover:     { sel: "img.cover", attr: src }        # 取图片地址 src
+    cover:     { sel: "img.cover", attr: src }        # 取图片地址 src（cover 非注册表内建字段，会进 row 兜底列）
     coverLazy: { sel: "img.cover", attr: "data-src" } # 懒加载图常见 data-src
     detailUrl: { sel: "a.pd-link", attr: href }       # 取链接 href
 
@@ -170,6 +174,10 @@ parseDetail:
     # 4) 取富文本 innerHTML：html: true（保留标签结构；需留存原始 HTML 时才用，默认取纯文本）
     richText:  { sel: ".pd-desc", html: true }      # 结果含 <p>/<img> 等标签；非内置名会进 row 兜底
     #   ★ 内置富文本字段 bodyHtml（contents 管线专属）写法同此：{ sel: <正文容器>, html: true }；缺省不抽、body_html 恒 null
+
+    # ★ 标量强转（number / bool，与取值方式 / 结构修饰任意叠加）：
+    inStock: { sel: ".stock", text: true, bool: true }  # 「现货/有货/在售/true/1」→ true；「缺货/下架/售罄/false/0」→ false；表外值 → null（不猜测）
+    #   number 示例见上 priceNum；bool 典型场景：列表卡「现货/缺货」角标、详情页「有货」状态位。
 
     # ======================================================================
     # 二、list: true —— 收集所有匹配为「数组」
@@ -294,7 +302,8 @@ parseDetail:
 #   属性抽一段    → { sel: "x", attr: "href", regex: '/p/(\d+)' }
 #   富文本        → { sel: "x", html: true }        （取 innerHTML，保留标签；仅 bodyHtml 等富文本字段用）
 #   转数值        → 上面任一 + number: true          （去千分位/币种符号；失败 null）
-#   读元素自身    → { sel: "$self", attr: "data-price" }  （★ 读匹配元素自己的属性）
+#   转布尔        → 上面任一 + bool: true            （现货/有货/true/1→true；缺货/下架/false/0→false；表外→null）
+#   读元素自身    → { sel: "$self", attr: "data-price" }  （★ $self 是 sel 的特殊值，读匹配元素自己的属性，非取值方式）
 #   内联 JSON     → 上面任一 + json: true [+ jsonPath] [+ pick]
 #   多值数组      → 上面任一 + list: true
 #   单一子对象    → 上面任一 + map: { key: <FieldSpec> }

@@ -4,7 +4,7 @@
 
 ## 1. 什么时候需要代码适配器
 
-绝大多数站点**只用 `config/sites/<domain>.yaml` 就能跑**（FieldSpec 覆盖文本/属性/regex/list/map/number/json/$self 五种取值）。
+绝大多数站点**只用 `config/sites/<domain>.yaml` 就能跑**（FieldSpec 覆盖文本/属性/regex/html 四种取值 + list/map 结构修饰 + number/bool 标量强转 + json/jsonPath/pick 解析内联 JSON，读取元素自身用 `sel: '$self'`）。
 只有以下情况才需要写代码适配器（`adapters/<domain>.ts`）：
 
 | 钩子 | 场景 | 说明 |
