@@ -8,7 +8,7 @@ function extract(html: string, fields: Record<string, FieldSpec>): Record<string
   return extractObject(CheerioDomRead.fromHtml(html), fields);
 }
 
-describe('FieldSpec 三种取值方式', () => {
+describe('FieldSpec 取值方式（text / attr / regex / html）', () => {
   const html = `
     <h2 class="pd-name">  CD3 Antibody  </h2>
     <a class="pd-link" href="/product/12345">详情</a>

@@ -12,11 +12,14 @@
 # ★ 本文件是「单规则写法」的穷举示例，覆盖所有可能出现的配置情况。
 #   若要「一个站点多套规则」，请用模板 B：config/sites/_template.sections.yaml。
 #
-# ★★ FieldSpec 字段抽取规范（每个字段只有「三种取值方式 + 两种结构修饰 + 五种附加处理」）★★
-#   取值方式（三选一）：
+# ★★ FieldSpec 字段抽取规范（每个字段由「四种取值方式 + 两种结构修饰 + 五种附加处理」组合而成）★★
+#   取值方式（决定从元素取什么内容，四选一）：
 #     1) 取文本        → 不填 attr（或显式 text: true）
 #     2) 取属性值      → attr: "href" / "src" / "data-src" …
-#     3) 取「一段」    → regex: '...'（优先第 1 捕获组，无捕获组取全匹配）
+#     3) 取「一段」    → regex: '...'（在取值结果上抠第 1 捕获组，无捕获组取全匹配）
+#     4) 取富文本      → html: true（取 innerHTML，如 bodyHtml；仅显式要求保留标签时用）
+#     ★ 取值优先级：attr > html > text（同时写 attr 与 html 时以 attr 为准）；
+#       regex 是对取值结果的「二次截取」，可与 text/attr/html 任一叠加。
 #   结构修饰（可叠加）：
 #     list: true     → 收集所有匹配为「数组」（默认只取第一个）
 #     map: {…}       → 在匹配元素内再抽子字段，形成「对象」（配合 list 即「对象数组」）
@@ -148,7 +151,7 @@ parseList:
 parseDetail:
   fields:
     # ======================================================================
-    # 一、三种取值方式（最常用，先吃透这三个）
+    # 一、四种取值方式（最常用，先吃透这四个）
     # ======================================================================
     # 1) 取文本：不写 attr（或写 text: true）。两行等价，推荐显式 text:true 更可读
     name: { sel: ".pd-name", text: true }
@@ -163,6 +166,10 @@ parseDetail:
     cloneNumber: { sel: ".title", text: true, regex: '克隆号[:：]\s*([\w-]+)' } # 从标题抠克隆号
     productId:   { sel: "a.pd-link", attr: href, regex: '/product/(\d+)' }     # 从 URL 抠产品 id
     priceNum:    { sel: ".price", text: true, regex: '[\d,]+\.?\d*', number: true } # 只留数字并转数值（含千分位/小数；number:true 才能参与比价）
+
+    # 4) 取富文本 innerHTML：html: true（保留标签结构；需留存原始 HTML 时才用，默认取纯文本）
+    richText:  { sel: ".pd-desc", html: true }      # 结果含 <p>/<img> 等标签；非内置名会进 row 兜底
+    #   ★ 内置富文本字段 bodyHtml（contents 管线专属）写法同此：{ sel: <正文容器>, html: true }；缺省不抽、body_html 恒 null
 
     # ======================================================================
     # 二、list: true —— 收集所有匹配为「数组」
@@ -285,6 +292,7 @@ parseDetail:
 #   属性值        → { sel: "x", attr: "href" }
 #   文本抽一段    → { sel: "x", text: true, regex: '(\d+)' }
 #   属性抽一段    → { sel: "x", attr: "href", regex: '/p/(\d+)' }
+#   富文本        → { sel: "x", html: true }        （取 innerHTML，保留标签；仅 bodyHtml 等富文本字段用）
 #   转数值        → 上面任一 + number: true          （去千分位/币种符号；失败 null）
 #   读元素自身    → { sel: "$self", attr: "data-price" }  （★ 读匹配元素自己的属性）
 #   内联 JSON     → 上面任一 + json: true [+ jsonPath] [+ pick]
