@@ -1143,7 +1143,9 @@ async function collectSection(args: {
         englishName: normalized.englishName ?? null,
         aliases: normalized.aliases ?? null,
         oldSkus: normalized.oldSkus ?? null,
-        brand: normalized.brand ?? null,
+        // 品牌回退链（types.ts 设计口径）：页面抽取值优先；没抽到 → 栏目默认
+        // （section.brand 已由 loader 按 section.brand ?? 站点 brand 解析），实现「栏目级默认品牌」
+        brand: normalized.brand ?? section.brand ?? null,
         detailUrl,
         listUrl: it.listUrl ?? null,
         price: normalized.price ?? null,
