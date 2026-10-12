@@ -13,17 +13,21 @@
 # ---------- 1) 站点基本信息 ----------
 domain: example.com                 # 必填：网站域名（也是文件名）
 company: 示例生物科技有限公司         # 站点归属公司全名（同一公司多个域名都填同一个名）
-# currency: CNY                     # 币种（国际站填 USD，默认 CNY）
+# companyShort: 示例生物            # 可选：市场部简称，仅展示
+# currency: CNY                     # 币种（国际站填 USD，默认 CNY）。注意：写在站点级，不要写进 fields
 # productLine: 细胞试剂              # 可选：产品线标签，用于按产品线筛选爬取
-# brand: Abcam                     # 可选：默认对标品牌（产品没单独写品牌时套用）
+# brand: Abcam                     # 可选：站点默认对标品牌（产品没单独写品牌时套用）
 # render: auto                     # 渲染方式，一般不用改（auto=自动判断 ssr/browser）
+# role: competitor                 # 可选：own=我方 / competitor=竞品（默认 competitor）
+# competitorType: 直接竞品          # 可选：竞品类型标签，仅展示
 
 # ---------- 2) 列表页入口与翻页 ----------
 startUrl: "https://example.com/products"   # 列表页地址（爬虫从这里开始）
 listTraversal:
-  strategy: pagination-html        # 翻页方式：pagination-html(点下一页) / pagination-url(URL 翻页) / scroll-api(无限滚动)
+  strategy: pagination-html        # 翻页方式：pagination-html(点下一页) / pagination-url(URL 翻页) / scroll-api(无限滚动) / none(默认单页)
   nextSelector: "a.next"           # 「下一页」按钮的选择器（pagination-url 不需要这行）
   maxPages: 1000                   # 最多翻多少页（抓到空页会自动停，这行是防呆上限）
+  # waitSelector: ".product-item"  # 可选：等这个容器出现再抽（CSR/异步渲染站点常需要）
 
 # ---------- 3) 列表页：抽出每个产品的链接和名字 ----------
 parseList:
@@ -46,6 +50,21 @@ parseDetail:
         spec:     { sel: ".spec", text: true }
         priceNow: { sel: ".price-now", text: true, regex: '[\d\.]+', number: true }
     inStock: { sel: ".stock", text: true, bool: true }    # 有货/缺货 → true/false
+
+# ---------- 5) 分类 / 面包屑（可选，强烈建议配）----------
+# 决定产品挂到「哪个分类树下」。三种方式，优先级从高到低；多规则时 section 写会覆盖顶层同名字段：
+#   A. categoryFromPage（动态，最准，推荐）：从详情页面包屑自动抽「根→叶」分类路径建树，产品挂叶子。
+#      同一栏目不同产品可挂不同叶子。适合详情页带面包屑的站点。
+#   B. categoryPath（静态）：所有产品统一挂到这个固定路径下，如 ['试剂','抗体']。
+#   C. category（兜底）：只挂一层分类（单名）。
+# 都不写：产品挂到栏目自身兜底锚点（<domain>::<sectionKey>），不报错，但没分类树。
+categoryFromPage:
+  itemSelector: ".breadcrumb li"   # 面包屑每一段的容器（按文档顺序取文本）
+  strip: ["首页", "产品中心"]       # 剔除的固定词（站点名/首页/导航词，精确匹配）
+  keepLast: false                  # false=末段是产品名、丢弃；true=末段是分类、保留（视站点而定）
+  # maxDepth: 4                   # 最多取前 N 段（防异常页超长），默认 4
+# categoryPath: ["试剂", "抗体"]   # 或者写静态面包屑（B 方式）
+# category: 抗体                  # 或者只挂一层（C 方式）
 
 # ============================================================================
 # 附 A：字段写法速查（FieldSpec）
@@ -71,6 +90,7 @@ parseDetail:
 #   · 顶层写的 listTraversal / parseList / parseDetail 变成「公共默认值」，
 #     section 没写的项自动继承；section 里写了就用 section 自己的（覆盖顶层）。
 #   · 每个 section 必须有 key（栏目名）和 startUrls（列表入口）。
+#   · 分类配置（categoryFromPage / categoryPath / category）同样可写进某个 section 做局部覆盖。
 # ============================================================================
 sections:
   - key: all-products              # 栏目 1：全部产品
@@ -107,13 +127,52 @@ sections:
         author: { sel: ".source", text: true }
 
 # ============================================================================
-# 附 B：内置字段名（写这些名会被自动存到对应列；其它名字会进「其它字段」备用）
+# 附 B：数据库字段对照（落库列一览）
 # ----------------------------------------------------------------------------
-# 产品(products)：name*(必填) / detailUrl*(必填,链接) / sourceProductId(站点自身产品ID) /
-#   sku / brand / price / specs / introMedia / applications / cloneNumber / description
-# 资讯(contents)：name→title*(必填) / detailUrl*(必填) / summary / body / author /
-#   date 或 publishedAt(发布时间,字符串) / bodyHtml(需 html:true)
-#   * 为必填或身份键。
+# 你 fields 里写的「字段名」会映射到下面这些列；写错名字的字段不会报错，会进 row 兜底（见文末）。
+# 标 ★ 为必填 / 身份键（缺失会影响去重或落库）。
+#
+# —— products 表（产品）——
+#   ★ name              产品名（必填）
+#   ★ detailUrl         详情页链接（必填；去重依据之一）
+#   ★ sourceProductId   站点自身产品 ID（有就写，无则空；与 detailUrl 共同决定去重）
+#   sku                 主货号（一品多货号时全量在 specs[].sku）
+#   englishName         英文名
+#   aliases             别称/曾用名
+#   oldSkus             曾用货号
+#   brand               本站产品品牌（缺省回退 section 品牌 → 站点 brand）
+#   price               默认规格现价（number:true 抽取的数值）
+#   currency            币种（CNY/USD，写在站点级，不要写进 fields）
+#   priceText           价格原文（保真）
+#   specText            默认规格文本（与 price 成对）
+#   description         描述
+#   specs               多规格明细 JSON [{spec, sku?, priceNow, priceOriginal?...}]
+#   introMedia          图文富文本 JSON
+#   cloneNumber         克隆号
+#   applications        应用场景数组 JSON
+#   ── 以下由系统自动管理，无需（也不能）在 fields 里配置 ──
+#   companyId / sectionId / categoryId / identityKey / status /
+#   listUrl(溯源) / firstSeenAt / lastSeenAt / missingSince / createdAt / updatedAt / row
+#
+# —— contents 表（资讯/新闻/公告，contentType=news 等时落这里）——
+#   ★ title            标题（对应 fields 里的 name）
+#   ★ detailUrl        详情页链接（必填）
+#   ★ sourceId         站点自身内容 ID
+#   summary            摘要
+#   body               正文文本
+#   bodyHtml           正文富文本（仅 YAML 配 html:true 时有值）
+#   author             作者
+#   publishedAt        发布时间（Unix 秒，抽字符串自动转，勿加 number:true）
+#   ── 系统管理列同上：companyId/sectionId/categoryId/identityKey/status/listUrl/.../row ──
+#
+# —— 其它表（由系统维护，配置不直填）——
+#   companies（公司）/ sections（栏目）/ categories（分类树）由 company / section key /
+#   categoryFromPage 等自动建立；你只需在 YAML 填对公司名与栏目结构。
+#
+# ★ 重要：fields 里写了但上面「没有列出」的名字（如 username、自定义备注、extraInfo），
+#   不会报错，也【不会】单独成列，而是全部打包进 products.row / contents.row 这个 JSON 字段里留底。
+#   也就是说——额外字段「能存、能查 row，但不会成为独立数据库列」。
+#   若你确实需要一个独立列（比如要按它筛选/比价），请反馈，由开发在字段注册表登记后才会成列。
 # ============================================================================
 
 # ============================================================================
