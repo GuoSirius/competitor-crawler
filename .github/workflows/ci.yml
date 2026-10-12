@@ -17,7 +17,12 @@ jobs:
     name: typecheck + test
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 = 拉全量历史。Commitlint 步骤用 HEAD~1..HEAD 校验最新提交，
+      # 而 actions/checkout 默认浅克隆（depth=1）下 HEAD~1 不存在 → git log fatal
+      # （2026-10-12 线上暴露；此前 lint 步骤一直先红，把这一步挡住从未跑到）。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 版本与本地一致（pnpm 12.5.1 / lockfileVersion 9.0）。
       # 若想改成以 package.json 的 packageManager 字段为准，可去掉 version 并补上该字段。
