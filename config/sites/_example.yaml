@@ -1,0 +1,148 @@
+# ============================================================================
+# 竞品爬虫 · 站点配置示例模板（_example.yaml）
+# ----------------------------------------------------------------------------
+# 用途：照着这个文件填，就能让爬虫去抓一个竞品网站，全程不用写代码。
+# 用法：
+#   1) 复制本文件，改名为 <域名>.yaml（例：abcam.com.yaml），放进 config/sites/ 目录；
+#   2) 把里面的选择器（sel: 后面的部分）换成你目标网站页面里真实存在的 class / 标签；
+#   3) 运行 `pnpm probe --domain <域名>` 验证抽得对不对。
+# 说明：config/sites/ 目录下每放一个 <域名>.yaml 就会爬一个站，删掉就不爬。
+#       本文件以 _ 开头，仅作示例，不会被当成真实站点去爬。
+# ============================================================================
+
+# ---------- 1) 站点基本信息 ----------
+domain: example.com                 # 必填：网站域名（也是文件名）
+company: 示例生物科技有限公司         # 站点归属公司全名（同一公司多个域名都填同一个名）
+# currency: CNY                     # 币种（国际站填 USD，默认 CNY）
+# productLine: 细胞试剂              # 可选：产品线标签，用于按产品线筛选爬取
+# brand: Abcam                     # 可选：默认对标品牌（产品没单独写品牌时套用）
+# render: auto                     # 渲染方式，一般不用改（auto=自动判断 ssr/browser）
+
+# ---------- 2) 列表页入口与翻页 ----------
+startUrl: "https://example.com/products"   # 列表页地址（爬虫从这里开始）
+listTraversal:
+  strategy: pagination-html        # 翻页方式：pagination-html(点下一页) / pagination-url(URL 翻页) / scroll-api(无限滚动)
+  nextSelector: "a.next"           # 「下一页」按钮的选择器（pagination-url 不需要这行）
+  maxPages: 1000                   # 最多翻多少页（抓到空页会自动停，这行是防呆上限）
+
+# ---------- 3) 列表页：抽出每个产品的链接和名字 ----------
+parseList:
+  itemSelector: ".product-item"    # 每个产品「卡片」容器的选择器
+  fields:
+    detailUrl: { sel: "a", attr: href }     # 必填：点进去的详情链接（去重依据之一）
+    name:      { sel: "h3", text: true }    # 产品名称
+
+# ---------- 4) 详情页：抽出价格、规格等 ----------
+parseDetail:
+  captureRest: true                # 必留：没单独写的字段也全部保留，不丢数据
+  fields:
+    name:   { sel: ".pd-name", text: true }
+    price:  { sel: ".price", text: true, number: true }   # ★ 价格必须加 number:true，否则比价失真
+    sku:    { sel: ".sku", text: true }
+    specs:                             # 规格表（每行一个规格 → 一个对象）
+      sel: ".spec-row"
+      list: true
+      map:
+        spec:     { sel: ".spec", text: true }
+        priceNow: { sel: ".price-now", text: true, regex: '[\d\.]+', number: true }
+    inStock: { sel: ".stock", text: true, bool: true }    # 有货/缺货 → true/false
+
+# ============================================================================
+# 附 A：字段写法速查（FieldSpec）
+# ----------------------------------------------------------------------------
+# 每个字段都用 { sel: <选择器>, ... } 描述。常用组合（复制即用）：
+#   纯文本          → { sel: "x", text: true }
+#   属性(链接/图片)  → { sel: "x", attr: "href" }        （href 或 src）
+#   抠其中一段数字  → 上面 + regex: '(\d+)'              （只取第 1 个括号里的内容）
+#   多个值(数组)    → 上面 + list: true
+#   规格/子对象      → list: true + map: { 子字段: { sel, text } }
+#   价格(数值)      → 任一写法 + number: true            （必须加）
+#   有货/缺货       → 任一写法 + bool: true
+#   读元素自身属性  → { sel: "$self", attr: "data-price" } （如 <option data-price>）
+#   内联 JSON       → 任一写法 + json: true [+ jsonPath] [+ pick] （页面 <script> 里的数据，遇到再查）
+# ★ 注意：日期/时间字段（如 date / publishedAt）抽「字符串」即可，不要加 number:true，否则日期会变空。
+# ============================================================================
+
+# ============================================================================
+# 进阶：一个网站有多个栏目 / 产品+资讯混排时，用 sections
+# ----------------------------------------------------------------------------
+# 上面是「单栏目」简写。若同一站点有多套列表页（如「全部产品」「促销专区」），
+# 或要同时抓「产品 + 新闻」，就把规则写成下面的 sections 列表：
+#   · 顶层写的 listTraversal / parseList / parseDetail 变成「公共默认值」，
+#     section 没写的项自动继承；section 里写了就用 section 自己的（覆盖顶层）。
+#   · 每个 section 必须有 key（栏目名）和 startUrls（列表入口）。
+# ============================================================================
+sections:
+  - key: all-products              # 栏目 1：全部产品
+    startUrls:
+      - "https://example.com/products"
+    parseList:
+      itemSelector: ".product-item"
+      fields:
+        detailUrl: { sel: "a", attr: href }
+        name:      { sel: "h3", text: true }
+    parseDetail:
+      fields:
+        name:  { sel: ".pd-name", text: true }
+        price: { sel: ".price", text: true, number: true }
+
+  - key: news                      # 栏目 2：新闻（落 contents 表，不参与比价）
+    contentType: news              # ★ 关键：声明这是资讯栏目（不写默认是产品）
+    startUrls:
+      - "https://example.com/news"
+    listTraversal:
+      strategy: pagination-url     # 资讯列表多为 URL 翻页，最快最稳
+      urlTemplate: "?page={page}"
+      maxPages: 10
+    parseList:
+      itemSelector: ".news-list li"
+      fields:
+        detailUrl: { sel: "a", attr: href }
+        name:      { sel: "a", text: true }
+        date:      { sel: ".news-date", text: true }   # 日期字符串，自动转时间
+    parseDetail:
+      fields:
+        name:   { sel: "h1", text: true }
+        body:   { sel: ".article-body", text: true }
+        author: { sel: ".source", text: true }
+
+# ============================================================================
+# 附 B：内置字段名（写这些名会被自动存到对应列；其它名字会进「其它字段」备用）
+# ----------------------------------------------------------------------------
+# 产品(products)：name*(必填) / detailUrl*(必填,链接) / sourceProductId(站点自身产品ID) /
+#   sku / brand / price / specs / introMedia / applications / cloneNumber / description
+# 资讯(contents)：name→title*(必填) / detailUrl*(必填) / summary / body / author /
+#   date 或 publishedAt(发布时间,字符串) / bodyHtml(需 html:true)
+#   * 为必填或身份键。
+# ============================================================================
+
+# ============================================================================
+# 附 C：配置作用域与继承速查（写之前先扫一眼，避免踩坑）
+# ----------------------------------------------------------------------------
+# 两种写法：
+#   · 单规则：全部写顶层（不写 sections），引擎自动当成一个栏目。
+#   · 多规则：顶层是「站点默认值」+ sections 列表，每个栏目用 key 区分、可覆盖顶层。
+#
+# ① 只能写顶层（站点级，全站一个意思）：
+#     domain / company / companyShort / competitorType / role / currency
+#     （currency 若误写进 fields 会告警）
+# ② 只能写 section（多规则时才有意义）：
+#     key / name / match / startUrls（复数）/ listOnly（多规则下不继承顶层）
+# ③ 顶层可给默认、section 可覆盖（section 写了就用 section 的）：
+#     startUrl↔startUrls / contentType / productLine / brand /
+#     category / categoryPath / categoryFromPage / render(renderList/renderDetail) /
+#     antiBot / proxy / parseDetail 里的 api 与 modelFallback
+# ④ listTraversal：字段级合并
+#     section 只写一部分，其余自动继承顶层；但 waitSelector / listRetry / splitThreshold
+#     这三个不参与合并——section 一旦写 listTraversal 又需要它们，必须重抄。
+# ⑤ parseList / parseDetail：整块覆盖（不合并）
+#     section 写了 parseList，就用 section 的整套，顶层那个整体作废（不是字段拼接）。
+#     parseDetail 同理（含里面的 api / modelFallback）。
+# ⑥ fields 里每个字段是 FieldSpec（{ sel, ... }），不是字面量：
+#     想写固定值（如 username: 张三）不被支持——固定值请用代码适配器 postParseDetail 注入。
+# ============================================================================
+
+# 验证与抓取：
+#   pnpm probe --domain example.com                  # 先跑这个，验证抽得对不对
+#   pnpm crawl --site example.com --dry-run --limit 3   # 试跑 3 条看看效果
+#   pnpm validate                                    # 检查所有配置格式
