@@ -16,19 +16,31 @@ listTraversal:
 parseList:
   itemSelector: <每个产品条目容器的 CSS 选择器>
   fields:
-    detailUrl: { sel: <a 标签选择器>, attr: href }
-    name: { sel: <名称选择器>, text: true }
-    # 以下可选，列表页可见就抽（写法同 FieldSpec）：
-    sku: { sel: <货号选择器>, text: true, regex: <从名称文本抠货号时用> }
-    specText: { sel: <规格文本选择器>, text: true }
-    priceText: { sel: <价格文本选择器>, text: true }
+    detailUrl: { sel: <a 标签选择器>, attr: href }   # 必配
+    name: { sel: <名称选择器>, text: true }          # 必配
+    # ↓ 全部入库字段（与 parseDetail 取并集入库：详情缺失时列表值兜底；两阶段都有时详情优先、
+    #   列表值自动存 row._<字段> 保真）。页面可见就配、不可见省略，禁止臆造选择器：
+    sku: { sel: <货号选择器>, text: true, regex: <从名称/链接文本抠货号时用> }
+    price: { sel: <价格选择器>, text: true, number: true }
+    priceText: { sel: <价格原文选择器>, text: true }
+    specText: { sel: <规格原文选择器>, text: true }
+    brand: { sel: <品牌选择器>, text: true }
+    sourceProductId: { sel: <详情链接选择器>, attr: href, regex: <从链接抠产品 id> }  # 产品 id 常藏在链接里
 parseDetail:
   fields:
+    # ↓ 全部入库字段（与 parseList 取并集；页面可见就配、不可见省略，禁止臆造选择器）：
     name: { sel: <名称选择器>, text: true }
     englishName: { sel: <英文名选择器>, text: true }
-    cloneNumber: { sel: <克隆号选择器>, text: true }
     aliases: { sel: <别称/曾用名选择器>, text: true }   # 拼接串原样存（可能含现用名）
     oldSkus: { sel: <曾用货号选择器>, text: true }      # 拼接串原样存（可能含现用货号）
+    sku: { sel: <货号选择器>, text: true }
+    brand: { sel: <品牌选择器>, text: true }
+    price: { sel: <现价选择器>, text: true, number: true }
+    priceText: { sel: <价格原文选择器>, text: true }
+    specText: { sel: <规格原文选择器>, text: true }
+    description: { sel: <纯文本描述选择器>, text: true }
+    cloneNumber: { sel: <克隆号选择器>, text: true }
+    sourceProductId: { sel: <产品 id 选择器>, text: true, regex: <需要时用> }
     applications: { sel: <应用 li 选择器>, list: true }
     specs:
       sel: <规格行选择器>
@@ -46,6 +58,12 @@ parseDetail:
         video: { sel: iframe, attr: src }   # 有介绍视频（iframe 播放器）才输出
         description: { sel: <描述选择器>, text: true }
   captureRest: true
+# 字段并集规则（引擎自动处理，模型无需关心）：两阶段同名以详情为准、列表值存 row._<字段>；
+# 任一阶段缺失由另一阶段兜底。故列表/详情同名字段两边都配不会冲突。
+# 内容型栏目（contentType: contents）用同一套 parseList/parseDetail 写法，入库字段为：
+#   列表：detailUrl、name（=标题）
+#   详情：name（→title）、summary、body、bodyHtml（{ sel: <正文容器>, html: true }，显式配才落库）、
+#         author、publishedAt（number: true，Unix 秒）、sourceId（站点自身内容 id）
 # 分类归属：若提供了详情页 HTML 且页面含面包屑导航（如 .breadcrumb / 面包屑列表 / 「当前位置」），
 # 输出顶层 categoryFromPage，让爬取时按面包屑动态建分类树：
 categoryFromPage:
