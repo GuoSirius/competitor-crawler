@@ -647,7 +647,9 @@ async function buildTargets(
   }
 
   // source === 'seeds'
-  const conds = [isNull(categories.removedAt)];
+  // 同时过滤 category 与 section 的软删：loadSeeds 第5步会真软删「种子源消失」的栏目，
+  // 若不在这里拦，残留分类行仍会把已删除栏目拉回爬取范围。
+  const conds = [isNull(categories.removedAt), isNull(sections.removedAt)];
   let rows = await db
     .select({ cat: categories, company: companies, section: sections })
     .from(categories)
@@ -835,10 +837,11 @@ async function resolveSectionId(
     productLine: section.productLine ?? null,
     competitorBrand: section.competitorBrand ?? null,
     renderMode: section.render ?? null,
-    source: 'config',
     updatedAt: t,
   };
   if (existing.length) {
+    // 不覆写 source：栏目可能最初由 seed 源创建（source='seed'），crawl 只更新其展示/路由字段，
+    // 保留原所有权，否则种子源后续的软删（loadSeeds 第5步按 source='seed' 对账）会失效 → 僵尸栏目。
     if (!dryRun) await db.update(sections).set(set).where(eq(sections.id, existing[0].id));
     return existing[0].id;
   }
@@ -848,7 +851,7 @@ async function resolveSectionId(
   }
   const [ins] = await db
     .insert(sections)
-    .values({ companyId, key: section.key, ...set, createdAt: t })
+    .values({ companyId, key: section.key, ...set, source: 'config', createdAt: t })
     .returning();
   return ins.id;
 }

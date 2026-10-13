@@ -33,6 +33,7 @@ export const sections = pgTable('sections', {
   competitorBrand: text('competitor_brand'), // 竞对品牌（YAML 顶层 competitorBrand 默认、section 可覆盖；products.competitor_brand 缺省回退到这里）
   renderMode: text('render_mode'), // 该栏目生效渲染模式（ssr/browser/auto）
   source: text('source').notNull().default('config'), // 配置来源：config / seed
+  removedAt: integer('removed_at'), // 软删时间（Unix 秒，NULL=未删除）；seed 源消失的栏目真软删
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => [

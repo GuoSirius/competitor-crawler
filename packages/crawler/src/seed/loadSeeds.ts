@@ -141,12 +141,14 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
     }
   }
 
-  // 5) 软标记本轮消失的种子栏目（source='seed' 且仅种子源维护）：按 (companyId, key) 对账
+  // 5) 真软删本轮消失的种子栏目（source='seed' 且仅种子源维护）：按 (companyId, key) 对账。
+  //    注意：crawl 的 resolveSectionId 不再覆写 source（保留 seed/config 所有权），
+  //    故此处只动 seed 源栏目，不会误删 config 驱动的栏目。
   const allSections = await db.select().from(sections).where(eq(sections.source, 'seed'));
   for (const sec of allSections) {
     const key = `${sec.companyId}|${sec.key}`;
     if (!seenSectionKeys.has(key)) {
-      await db.update(sections).set({ updatedAt: t }).where(eq(sections.id, sec.id));
+      await db.update(sections).set({ removedAt: t, updatedAt: t }).where(eq(sections.id, sec.id));
     }
   }
 

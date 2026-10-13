@@ -40,6 +40,7 @@ export const sections = mysqlTable('sections', {
   competitorBrand: varchar('competitor_brand', { length: 255 }), // 竞对品牌（YAML 顶层 competitorBrand 默认、section 可覆盖；products.competitor_brand 缺省回退到这里）
   renderMode: varchar('render_mode', { length: 32 }), // 该栏目生效渲染模式（ssr/browser/auto）
   source: varchar('source', { length: 32 }).notNull().default('config'), // 配置来源：config / seed
+  removedAt: int('removed_at'), // 软删时间（Unix 秒，NULL=未删除）；seed 源消失的栏目真软删
   createdAt: int('created_at').notNull(),
   updatedAt: int('updated_at').notNull(),
 }, (t) => [
