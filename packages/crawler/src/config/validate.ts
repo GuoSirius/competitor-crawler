@@ -24,6 +24,7 @@ export type IssueCode =
   | 'UNKNOWN_FIELD_TYPO'
   | 'STAGE_MISMATCH'
   | 'NUMERIC_NOT_NUMBER'
+  | 'JSON_NUMBER_CONFLICT'
   | 'HASH_PAGINATION_UNSUPPORTED'
   | 'INVALID_RENDER_MODE';
 
@@ -192,6 +193,17 @@ export function validateSiteConfig(cfg: SiteConfig): ConfigIssue[] {
               sectionKey: sec.key,
             });
           }
+        }
+        // 3a-2) json 与 number 互斥：同时声明自相矛盾（json 走对象解析、number 强转数值）
+        const specForMutex = detailFields[key] ?? listFields[key];
+        if (specForMutex && specForMutex.json === true && specForMutex.number === true) {
+          issues.push({
+            level: 'error',
+            code: 'JSON_NUMBER_CONFLICT',
+            message: `字段 '${key}' 同时声明 json: true 与 number: true —— 二者互斥（json 解析为对象、number 强转数值），请去掉其一。`,
+            field: key,
+            sectionKey: sec.key,
+          });
         }
         // 3b) 仅声明在列表阶段、却是详情专属（且不参与合并）→ 列表值不会进 typed 列
         if (listFields[key] !== undefined && meta.stage === 'detail' && meta.listFallback !== true) {
