@@ -24,7 +24,7 @@ export interface ReportRow {
   firstSeenAt: number | null;
 }
 
-/** 未绑定品类时的占位名（种子里的品类链接常是首页，未必能归到具体品类） */
+/** 未绑定品类时的占位名（栏目未声明 category 且无法按域名兜底时使用） */
 export const UNCATEGORIZED = '（未归类）';
 
 const nonEmpty = (v: string | null | undefined): boolean =>

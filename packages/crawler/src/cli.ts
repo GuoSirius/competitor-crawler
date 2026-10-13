@@ -1,7 +1,3 @@
-import path from 'node:path';
-import { dataDir } from '@competitor-crawler/shared';
-import { xlsxToSeeds } from './seed/xlsxToSeeds.js';
-import { loadSeeds } from './seed/loadSeeds.js';
 import { probe } from './commands/probe.js';
 import { genSite } from './commands/genSite.js';
 import { genSiteBatch } from './commands/genSiteBatch.js';
@@ -16,9 +12,6 @@ import { dbClear } from './commands/dbClear.js';
 import { startDaemon, runScheduledCrawl } from './scheduler.js';
 import { parseFlags, normalizeAliases } from './util/args.js';
 import { isRenderMode, RENDER_MODES } from './config/types.js';
-
-// 路径统一由 shared/src/paths.ts 提供（不再本地上溯算层级）
-const seedsJson = path.join(dataDir, 'seeds', 'seeds.json');
 
 async function main() {
   const cmd = process.argv[2];
@@ -38,12 +31,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (cmd === 'seed') {
-    const out = await xlsxToSeeds();
-    console.log(`[seed] 抽取完成 -> ${out}`);
-    const result = await loadSeeds(seedsJson);
-    console.log('[seed] 同步完成:', result);
-  } else if (cmd === 'probe') {
+  if (cmd === 'probe') {
     const domain = flags.domain;
     if (typeof domain !== 'string') throw new Error('probe 需要 --domain <domain>');
     await probe({
@@ -112,7 +100,6 @@ async function main() {
       perPage: num('page-size'),
       limit: num('limit'),
       render: typeof flags.render === 'string' ? flags.render : undefined,
-      source: typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : undefined,
       section: typeof flags.section === 'string' ? flags.section : undefined,
       category: typeof flags.category === 'string' ? flags.category : undefined,
       productLine: typeof flags['product-line'] === 'string' ? flags['product-line'] : undefined,
@@ -160,20 +147,16 @@ async function main() {
       yes: flags.yes === true || flags.yes === 'true' || flags.force === true || flags.force === 'true',
     });
   } else if (cmd === 'schedule') {
-    const source = typeof flags.source === 'string' ? (flags.source as 'config' | 'seeds') : 'config';
     if (flags.daemon === true || flags.daemon === 'true') {
       // 默认季度首月 1 日 03:00 触发（与 docs/06.4 一致）
-      const stop = startDaemon(
-        { months: [1, 4, 7, 10], daysOfMonth: [1], hours: [3], minutes: [0] },
-        { source },
-      );
+      const stop = startDaemon({ months: [1, 4, 7, 10], daysOfMonth: [1], hours: [3], minutes: [0] });
       console.log('[schedule] 守护进程已启动，按季度首月 1 日 03:00 触发（Ctrl+C 退出）');
       process.on('SIGINT', () => {
         stop();
         process.exit(0);
       });
     } else {
-      await runScheduledCrawl({ source });
+      await runScheduledCrawl();
     }
   } else {
     printHelp(cmd);
@@ -186,7 +169,7 @@ async function main() {
  */
 function printHelp(cmd?: string): void {
   const known = new Set([
-    'seed', 'probe', 'gen-site', 'gen-site-batch', 'gen-site-template',
+    'probe', 'gen-site', 'gen-site-batch', 'gen-site-template',
     'backfill', 'crawl', 'validate', 'field-docs', 'schedule', 'report', 'sweep', 'diagnose', 'db-clear',
   ]);
   const all = cmd === undefined || cmd === 'help' || !known.has(cmd);
@@ -199,7 +182,6 @@ function printHelp(cmd?: string): void {
     console.log('  gen-site --domain x 生成站点 YAML 草稿');
     console.log('  report              跑爬取报表（默认控制台；--excel --charts 出文件）');
     console.log('  schedule            定时抓取（--daemon 常驻；默认跑一次）');
-    console.log('  seed                从 Excel 提取种子并入库');
     console.log('  field-docs          打印内建字段字典');
     console.log('  diagnose            站点可达性/反爬归因（多通道对照 + 指纹体检 + 处置建议，只读不落库）');
   }
@@ -217,7 +199,6 @@ function printHelp(cmd?: string): void {
     console.log('  --page-size <n>     每页最多条数（旧名 --per-page；与总条数 --limit 不同）');
     console.log('  --limit <n>         详情阶段总条目上限');
     console.log('  --resume [<文件>]   断点续跑（不带值取 .crawl-state/ 最新断点）');
-    console.log('  --source config|seeds  爬取范围来源（默认 config）');
     console.log('  --category <名> / --product-line <线>  按品类/产品线过滤');
   }
   if (all || cmd === 'probe') {

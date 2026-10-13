@@ -29,7 +29,7 @@ export interface CrawlStateFile {
   /** Unix 秒 */
   startedAt: number;
   updatedAt: number;
-  /** 触发续跑所需的原始选项（site/source 等，仅供人读） */
+  /** 触发续跑所需的原始选项（site 等，仅供人读） */
   opts: Record<string, unknown>;
   domains: Record<string, Record<string, SectionState>>;
 }

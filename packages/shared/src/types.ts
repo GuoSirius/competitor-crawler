@@ -110,19 +110,6 @@ export interface NormalizedProduct {
   row: Record<string, unknown>;
 }
 
-// 种子源（xlsx-to-seeds 产出）
-export interface CategorySeed {
-  companyName: string;
-  website?: string;
-  competitorType?: string;
-  /** 公司属性：own=我方品牌，competitor=竞品。缺省按 competitor 处理。 */
-  role?: string;
-  productLine?: string;
-  categoryName: string;
-  categoryUrl: string;
-  sourceRow: Record<string, unknown>;
-}
-
 export interface ListItem {
   detailUrl: string;
   name?: string;

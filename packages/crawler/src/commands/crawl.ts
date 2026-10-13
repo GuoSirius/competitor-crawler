@@ -12,7 +12,6 @@ import {
   createDb,
   nowSeconds,
   absoluteUrl,
-  domainOf,
   normalizeDomain,
   pickIdentityKey,
   canonicalizeUrl,
@@ -23,7 +22,7 @@ import {
   type DbDialect,
   PRODUCT_FIELDS,
 } from '@competitor-crawler/shared';
-import { siteConfigPath, loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode, resolveTraversalLimits, slicePageItems } from '../config/loader.js';
+import { loadSiteConfig, resolveSections, listSiteConfigs, hasCodeAdapter, listRenderMode, detailRenderMode, resolveTraversalLimits, slicePageItems } from '../config/loader.js';
 import { validateSiteConfig, formatIssues } from '../config/validate.js';
 import { parseListWithConfig, parseDetailWithConfig } from '../adapter/yamlAdapter.js';
 import { parseBreadcrumb } from '../adapter/breadcrumb.js';
@@ -64,17 +63,11 @@ export interface CrawlOpts {
   limit?: number;
   /** 渲染模式 ssr/browser/auto */
   render?: string;
-  /**
-   * 爬取范围数据源（YAML 是唯一真相源，docs/05）：
-   * - 'config'（默认）：扫描 config/sites/*.yaml 作为范围真相源，公司/品类按 YAML 自动 upsert 入库
-   * - 'seeds'：读库内 categories（种子 Excel 入库）。Excel 已降级为一次性初始化导入工具，日常不用
-   */
-  source?: 'config' | 'seeds';
-  /** 仅跑指定栏目 key（逗号分隔）；两数据源均生效 */
+  /** 仅跑指定栏目 key（逗号分隔） */
   section?: string;
-  /** 仅跑指定品类名（子串匹配，不区分大小写）；两数据源均生效 */
+  /** 仅跑指定品类名（子串匹配，不区分大小写） */
   category?: string;
-  /** 仅跑指定产品线（对应 sections.product_line；config 模式在栏目级过滤，seeds 模式在查询级过滤） */
+  /** 仅跑指定产品线（对应 sections.product_line；在栏目级过滤） */
   productLine?: string;
   /** 触发来源：manual（手动/cli）/ schedule（调度器）；写入 crawls.trigger 便于追溯 */
   trigger?: 'manual' | 'schedule';
@@ -149,9 +142,8 @@ interface CrawlSummary {
 /**
  * 全量增量爬取。
  *
- * 关键事实：种子里的「品类链接」多为**站点首页**，不能直接当列表页用。
- * 因此按 **站点 → 栏目(sections) → startUrls** 抓取；栏目通过 `sections[].category`
- * 绑定到种子品类（categories.name），未绑定则按域名兜底（唯一品类则用它，否则 category_id 记空）。
+ * 按 **站点 → 栏目(sections) → startUrls** 抓取；栏目通过 `sections[].category`
+ * 绑定到既有品类（categories.name），未绑定则按域名兜底（唯一品类则用它，否则 category_id 记空）。
  *
  * - 单站/单条失败隔离：某栏目或某详情失败只计 failed 并继续，不整轮失败。
  * - 去重口径 B：写入冲突目标为 (company_id, section_id, identity_key)，见 docs/03 §3.4。
@@ -206,7 +198,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
       if (!state) throw new Error(`--resume 断点文件损坏或格式不对：${p}`);
       progress.update(`[crawl] 断点续跑：已完成 ${state.doneCount} 个栏目将被跳过（${p}）`);
     } else {
-      state = CrawlState.create({ site: opts.site ?? null, source: opts.source ?? null, trigger: opts.trigger ?? 'manual' });
+      state = CrawlState.create({ site: opts.site ?? null, trigger: opts.trigger ?? 'manual' });
     }
   }
 
@@ -224,12 +216,9 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   };
 
   try {
-    const source: 'config' | 'seeds' = opts.source === 'seeds' ? 'seeds' : 'config';
-
-    // 数据源切换：config 扫描 config/sites/*.yaml（默认，YAML 唯一真相源）/ seeds 读库内 categories（Excel 初始化导入后的一次性场景）
     // 代码适配器是**加性补充**（docs/05 §5.3）：与 YAML 共存不冲突、不跳过，只是给该站点多挂几个钩子。
 
-    const { targets: rawTargets, adapterSites } = await buildTargets(db, source, opts, progress);
+    const { targets: rawTargets, adapterSites } = await buildTargets(db, opts, progress);
     const targets = applyFilters(rawTargets, opts);
 
     if (adapterSites.length > 0) {
@@ -241,7 +230,7 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
 
     if (targets.size === 0) {
       const scope = opts.site ? `site=${opts.site}` : '全部';
-      progress.done(`[crawl] 没有匹配的站点配置（source=${source}, ${scope}）`);
+      progress.done(`[crawl] 没有匹配的站点配置（${scope}）`);
       await finalize(db, crawlRow.id, 'partial', summary, dryRun);
       return;
     }
@@ -555,24 +544,6 @@ export async function crawl(opts: CrawlOpts = {}): Promise<void> {
   }
 }
 
-/** 把栏目绑定到种子品类：优先 name + sectionId 精确匹配，否则按域名兜底 */
-function resolveCategoryId(
-  section: ResolvedSection,
-  list: Array<{ cat: { id: number; name: string; sectionId: number | null } }>,
-): number | null {
-  if (section.category) {
-    const hits = list.filter((r) => r.cat.name === section.category);
-    if (hits.length === 1) return hits[0].cat.id;
-    if (hits.length > 1) {
-      const f = hits.find((r) => r.cat.sectionId === (section.id ?? null));
-      if (f) return f.cat.id;
-      return null; // 同名多节点且无法靠栏目消歧，不瞎猜
-    }
-  }
-  const sameSection = list.filter((r) => r.cat.sectionId === (section.id ?? null));
-  return sameSection.length === 1 ? sameSection[0].cat.id : null;
-}
-
 /** 爬取目标：一个域名 → 归属公司 + 一组已绑定 DB 品类的栏目 */
 interface SiteTarget {
   domain: string;
@@ -586,14 +557,12 @@ interface SiteTarget {
 interface TargetSection {
   section: ResolvedSection;
   categoryId: number | null;
-  /** 用于 --category 过滤的品类名（config: section.category ?? `<domain>::<key>`；seeds: section.category ?? domain） */
+  /** 用于 --category 过滤的品类名（section.category ?? `<domain>::<key>`） */
   categoryName: string;
 }
 
 /**
- * 按数据源构建爬取目标（需求①·决策B）。
- * - config：扫描 `config/sites/*.yaml` 作为爬取范围真相源。
- * - seeds：读库内 categories（可按产品线过滤）。
+ * 构建爬取目标：扫描 `config/sites/*.yaml` 作为爬取范围真相源（站点唯一来源）。
  *
  * 代码适配器是**加性补充**（docs/05 §5.3）：与 YAML 共存不算冲突、**不跳过**，
  * 只是给该站点多挂几个可选钩子（过 WAF / 自定义分页 / 解析后补字段）。
@@ -601,7 +570,6 @@ interface TargetSection {
  */
 async function buildTargets(
   db: Db,
-  source: 'config' | 'seeds',
   opts: CrawlOpts,
   progress: Progress,
 ): Promise<{ targets: Map<string, SiteTarget>; adapterSites: string[] }> {
@@ -611,89 +579,42 @@ async function buildTargets(
   // --site 支持逗号分隔多个域名
   const siteSet = opts.site ? new Set(opts.site.split(',').map((s) => s.trim()).filter(Boolean)) : null;
 
-  if (source === 'config') {
-    for (const domain of listSiteConfigs()) {
-      if (siteSet && !siteSet.has(domain)) continue;
-      // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
-      if (hasCodeAdapter(domain)) adapterSites.push(domain);
-      const cfg = loadSiteConfig(domain);
-      const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? 'auto';
-      const sections = resolveSections(cfg);
-      const companyId = await resolveCompanyId(db, cfg, dryRun, progress);
-      const targetSections: TargetSection[] = [];
-      for (const section of sections) {
-        // --product-line 过滤（config 模式）：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
-        if (opts.productLine && section.productLine !== opts.productLine) continue;
-        // 先落栏目（sections 表一等公民），回填 section.id 供后续分类树 / 产品落库使用
-        const sectionId = await resolveSectionId(db, companyId, section, dryRun, progress);
-        section.id = sectionId;
-        const categoryName = section.category ?? `${domain}::${section.key}`;
-        const breadcrumb = section.categoryPath ?? [categoryName];
-        // 分类树按 section_id 归属（不再用 contentType 分区）；产品线已上移到 sections 表，不再作为树根。
-        const categoryId = await upsertCategoryPath(
-          db,
-          companyId,
-          sectionId,
-          breadcrumb,
-          section.startUrls[0] ?? cfg.startUrl ?? '',
-          dryRun,
-          progress,
-        );
-        targetSections.push({ section, categoryId, categoryName });
-      }
-      targets.set(domain, { domain, companyId, sections: targetSections, mode });
-    }
-    return { targets, adapterSites };
-  }
-
-  // source === 'seeds'
-  // 过滤已软删的 category / section：软删行不进入爬取范围
-  const conds = [isNull(categories.removedAt), isNull(sections.removedAt)];
-  let rows = await db
-    .select({ cat: categories, company: companies, section: sections })
-    .from(categories)
-    .innerJoin(companies, eq(categories.companyId, companies.id))
-    .innerJoin(sections, eq(categories.sectionId, sections.id))
-    .where(and(...conds));
-  // --product-line（seeds 模式）：按 sections.product_line 过滤（产品线已上移到 sections 表）
-  if (opts.productLine) rows = rows.filter((r) => r.section.productLine === opts.productLine);
-
-  const byDomain = new Map<string, typeof rows>();
-  for (const r of rows) {
-    const d = domainOf(r.cat.url);
-    if (!d) continue;
-    if (siteSet && !siteSet.has(d)) continue;
-    const list = byDomain.get(d) ?? [];
-    list.push(r);
-    byDomain.set(d, list);
-  }
-
-  for (const [domain, list] of byDomain) {
-    if (!fs.existsSync(siteConfigPath(domain))) {
-      progress.update(`[crawl] 跳过 ${domain}：无适配器配置 config/sites/${domain}.yaml`);
-      continue;
-    }
+  for (const domain of listSiteConfigs()) {
+    if (siteSet && !siteSet.has(domain)) continue;
     // 加性：有代码适配器也不跳过，只登记（其后按 YAML 解析 + 适配器钩子补齐）
     if (hasCodeAdapter(domain)) adapterSites.push(domain);
     const cfg = loadSiteConfig(domain);
     const mode: RenderMode = (opts.render as RenderMode) ?? (cfg.render as RenderMode) ?? 'auto';
     const sections = resolveSections(cfg);
-    const companyId = list[0].company.id;
-    // 先落栏目，回填 section.id 供分类树匹配（resolveCategoryId 按 sectionId 消歧）
-    for (const section of sections) section.id = await resolveSectionId(db, companyId, section, dryRun, progress);
-    const targetSections: TargetSection[] = sections.map((section) => {
-      // 内容栏目（contentType !== 'products'）不绑品类
-      const categoryId = section.contentType !== 'products' ? null : resolveCategoryId(section, list);
-      const categoryName = section.category ?? domain;
-      return { section, categoryId, categoryName };
-    });
+    const companyId = await resolveCompanyId(db, cfg, dryRun, progress);
+    const targetSections: TargetSection[] = [];
+    for (const section of sections) {
+      // --product-line 过滤：仅跑 productLine 命中的栏目；未声明产品线的栏目一律排除
+      if (opts.productLine && section.productLine !== opts.productLine) continue;
+      // 先落栏目（sections 表一等公民），回填 section.id 供后续分类树 / 产品落库使用
+      const sectionId = await resolveSectionId(db, companyId, section, dryRun, progress);
+      section.id = sectionId;
+      const categoryName = section.category ?? `${domain}::${section.key}`;
+      const breadcrumb = section.categoryPath ?? [categoryName];
+      // 分类树按 section_id 归属（不再用 contentType 分区）；产品线已上移到 sections 表，不再作为树根。
+      const categoryId = await upsertCategoryPath(
+        db,
+        companyId,
+        sectionId,
+        breadcrumb,
+        section.startUrls[0] ?? cfg.startUrl ?? '',
+        dryRun,
+        progress,
+      );
+      targetSections.push({ section, categoryId, categoryName });
+    }
     targets.set(domain, { domain, companyId, sections: targetSections, mode });
   }
 
   return { targets, adapterSites };
 }
 
-/** 按 --section / --category 过滤栏目（两数据源通用） */
+/** 按 --section / --category 过滤栏目 */
 function applyFilters(
   targets: Map<string, SiteTarget>,
   opts: CrawlOpts,

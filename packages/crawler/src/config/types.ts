@@ -207,8 +207,7 @@ export interface SectionConfig {
   /** @deprecated 旧名，等价 contentType */
   collects?: string;
   /**
-   * 绑定的种子品类名（对应 categories.name）。
-   * 种子里的「品类链接」多为站点首页，无法直接当列表页用，故用本字段把栏目挂到对应品类下。
+   * 绑定的品类名（对应 categories.name）：把栏目挂到对应品类节点下。
    * 缺省时按域名兜底（该域名只有一个品类就用它，否则 category_id 记空）。
    */
   category?: string;
@@ -319,9 +318,9 @@ export interface AntiBotConfig {
 export interface SiteConfig {
   domain: string;
   /**
-   * 站点归属公司名（写入 companies.name）。省略时 config 驱动模式回退为 domain。
-   * 用于「config 目录即爬取范围真相源」（crawl --source config）时，自动 upsert 公司 / 品类进库；
-   * 若公司已由种子 Excel 入库（website 命中域名或 name 命中本值），会复用而非新建，避免重复。
+   * 站点归属公司名（写入 companies.name）。省略时回退为 domain。
+   * crawl 以 config/sites/*.yaml 为范围真相源，自动 upsert 公司 / 品类进库：
+   * 按归一化域名优先复用已存在公司（website 命中域名或 name 命中本值），找不到才新建，避免重复。
    */
   company?: string;
   /**
@@ -425,7 +424,7 @@ export interface ResolvedSection {
   name?: string;
   /** 采集内容类型（透传自 SectionConfig.contentType，缺省回退顶层/ 'products'） */
   contentType: string;
-  /** 绑定的种子品类名（透传自 SectionConfig.category） */
+  /** 绑定的品类名（透传自 SectionConfig.category） */
   category?: string;
   /** 品类面包屑路径（透传自 SectionConfig.categoryPath，缺省由 category 推断为单层级） */
   categoryPath?: string[];

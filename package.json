@@ -7,7 +7,6 @@
     "node": ">=24"
   },
   "scripts": {
-    "seed": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts seed",
     "crawl": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts crawl",
     "report": "pnpm --filter @competitor-crawler/crawler exec tsx src/cli.ts report",
     "db:push": "pnpm --filter @competitor-crawler/shared exec drizzle-kit push",

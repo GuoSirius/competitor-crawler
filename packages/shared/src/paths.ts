@@ -34,7 +34,7 @@ function findRepoRoot(): string {
 
 export const repoRoot = findRepoRoot();
 
-/** 数据目录（`<repoRoot>/data`）：sqlite、seeds（输入）、exports（输出）都在其下。 */
+/** 数据目录（`<repoRoot>/data`）：sqlite、seeds（探针清单/模板）、exports（输出）都在其下。 */
 export const dataDir = path.join(repoRoot, 'data');
 
 /** 报告 / 导出产物的默认输出目录（`<repoRoot>/data/exports`）。调用方负责 mkdir -p。 */

@@ -64,7 +64,7 @@ export function domainOf(url: string | null | undefined): string {
 
 /**
  * 归一化全域名：去协议头、去末尾斜杠、转小写（例：HTTPS://WWW.X.com/ → www.x.com）。空串返回空串。
- * 公司唯一判别键即此归一化结果（companies.domain 唯一约束），crawl 与 seed 加载共用，避免两边口径漂移。
+ * 公司唯一判别键即此归一化结果（companies.domain 唯一约束），crawl 按 YAML upsert 公司时共用，避免口径漂移。
  */
 export function normalizeDomain(d: string | null | undefined): string {
   const s = (d ?? '').trim().toLowerCase();

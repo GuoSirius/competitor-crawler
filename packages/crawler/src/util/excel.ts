@@ -1,5 +1,5 @@
 /**
- * Excel 读取公共助手（docs/16 M9：genSiteBatch / xlsxToSeeds 的重复逻辑收敛于此）。
+ * Excel 读取公共助手（docs/16 M9：genSiteBatch / genSiteTemplate 的重复逻辑收敛于此）。
  * 只做「读值 / 识别列」，写表样式见 commands/report.ts（display 语义不同，不复用）。
  */
 import ExcelJS from 'exceljs';
