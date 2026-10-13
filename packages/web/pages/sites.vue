@@ -17,10 +17,20 @@ const msg = ref('');
 const msgOk = ref(true);
 
 async function loadSites() {
-  sites.value = await $fetch<Site[]>('/api/sites');
+  try {
+    sites.value = await $fetch<Site[]>('/api/sites');
+  } catch (e) {
+    msgOk.value = false;
+    msg.value = '加载站点列表失败：' + ((e as { statusMessage?: string })?.statusMessage ?? (e as Error)?.message ?? '未知错误');
+  }
 }
 async function viewYaml(domain: string) {
-  selected.value = await $fetch<{ domain: string; content: string }>(`/api/sites/${domain}`);
+  try {
+    selected.value = await $fetch<{ domain: string; content: string }>(`/api/sites/${domain}`);
+  } catch (e) {
+    msgOk.value = false;
+    msg.value = '查看 YAML 失败：' + ((e as { statusMessage?: string })?.statusMessage ?? (e as Error)?.message ?? '未知错误');
+  }
 }
 /** POST /api/sites 返回（server/api/sites.post.ts） */
 interface AddSiteResult {

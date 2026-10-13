@@ -1,4 +1,5 @@
 import type { AntiBotConfig, ListTraversalConfig } from '../config/types.js';
+import { existsSync } from 'node:fs';
 import {
   fetchPage,
   waitForBrowserSettle,
@@ -6,6 +7,7 @@ import {
   headlessEnv,
   GOTO_TIMEOUT_MS,
   BROWSER_MAX_WAIT_MS,
+  statePathOf,
   type RenderMode,
 } from './page.js';
 import { maximizeWindow, stealthArgs, stealthContextOptions, stealthInitSource } from './antiBot.js';
@@ -273,8 +275,9 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
   let items = 0;
   const stuck = newStuckGuard(opts.progress);
   try {
-    const ctx = await browser.newContext(
-      stealthContextOptions(
+    const sp = existsSync(statePathOf(url)) ? statePathOf(url) : undefined;
+    const ctx = await browser.newContext({
+      ...stealthContextOptions(
         {
           profile: ab?.profile,
           timezone: ab?.timezone,
@@ -287,7 +290,9 @@ export async function traverseList(opts: TraverseOpts): Promise<TraverseResult> 
         },
         { headless },
       ),
-    );
+      // 复用持久化会话：与 browserFetch 同口径，避免 pagination-html 站点每轮重过盾
+      ...(sp ? { storageState: sp } : {}),
+    });
     await ctx.addInitScript(stealthInitSource(ab?.profile ?? 'mid'));
     const page = await ctx.newPage();
     if (!headless && ab?.maximize !== false) await maximizeWindow(page);

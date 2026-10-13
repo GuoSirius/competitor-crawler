@@ -224,19 +224,23 @@ async function main() {
 
   // [4/5] 未提交改动
   header(`[4/${TOTAL_STEPS}] 检查未提交改动`);
-  const porcelain = (gitOrDie(['status', '--porcelain']).stdout ?? '').trim();
-  if (porcelain) {
-    console.log(dim('  检测到以下未提交改动：'));
-    for (const line of porcelain.split('\n')) console.log(dim(`    ${line}`));
-    const message = await askText('\n请输入提交信息（直接回车 = 取消发布）：');
-    if (!message) die('未输入提交信息，已取消发布。');
-    if (git(['add', '-A'], { stdio: 'inherit' }).status !== 0) die('git add 失败，发布终止。');
-    if (git(['commit', '-m', message], { stdio: 'inherit' }).status !== 0) {
-      die('提交失败（可能未通过提交门禁），发布终止。');
-    }
-    ok('已提交未提交改动');
+  if (dryRun) {
+    console.log(dim('  dry-run：跳过未提交改动检查与提交（不写文件、不提交、不打 tag）'));
   } else {
-    ok('工作区干净，无需提交');
+    const porcelain = (gitOrDie(['status', '--porcelain']).stdout ?? '').trim();
+    if (porcelain) {
+      console.log(dim('  检测到以下未提交改动：'));
+      for (const line of porcelain.split('\n')) console.log(dim(`    ${line}`));
+      const message = await askText('\n请输入提交信息（直接回车 = 取消发布）：');
+      if (!message) die('未输入提交信息，已取消发布。');
+      if (git(['add', '-A'], { stdio: 'inherit' }).status !== 0) die('git add 失败，发布终止。');
+      if (git(['commit', '-m', message], { stdio: 'inherit' }).status !== 0) {
+        die('提交失败（可能未通过提交门禁），发布终止。');
+      }
+      ok('已提交未提交改动');
+    } else {
+      ok('工作区干净，无需提交');
+    }
   }
 
   // [5/5] 选择类型 → 发布 → 收尾

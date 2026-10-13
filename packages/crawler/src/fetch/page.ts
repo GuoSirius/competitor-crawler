@@ -360,7 +360,7 @@ async function hasCaptchaWidget(page: import('playwright').Page): Promise<boolea
 }
 
 /** 会话持久化路径：按站点 host 一档（人工过盾成果长期复用的载体） */
-function statePathOf(url: string): string {
+export function statePathOf(url: string): string {
   const host = new URL(url).hostname;
   return join(repoRoot, '.runtime', 'state', `${host}.json`);
 }

@@ -1,4 +1,4 @@
-import { toNumber } from '@competitor-crawler/shared';
+import { toNumber, bjParts } from '@competitor-crawler/shared';
 import { UNCATEGORIZED, type ReportRow } from './summary.js';
 
 /**
@@ -164,8 +164,8 @@ export function buildIntakeTrend(rows: readonly ReportRow[]): {
   const perQuarter = new Map<string, number>();
   for (const r of rows) {
     if (typeof r.firstSeenAt !== 'number') continue;
-    const d = new Date(r.firstSeenAt * 1000);
-    const key = `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`;
+    const b = bjParts(new Date(r.firstSeenAt * 1000));
+    const key = `${b.year}-Q${Math.floor(b.month / 3) + 1}`;
     perQuarter.set(key, (perQuarter.get(key) ?? 0) + 1);
   }
   const quarters = [...perQuarter.keys()].sort(quarterKeyCompare);

@@ -1,6 +1,6 @@
 import { domainOf, createDb } from '@competitor-crawler/shared';
 import {
-  companies, categories, products, contents, crawls, priceHistory, productDiffs, alerts, sql, eq, inArray,
+  companies, categories, sections, products, contents, crawls, priceHistory, productDiffs, alerts, sql, eq, inArray,
 } from '@competitor-crawler/shared';
 
 export interface DbClearOpts {
@@ -10,8 +10,9 @@ export interface DbClearOpts {
   yes?: boolean;
 }
 
-// 8 张业务表（含父子关系），用于全量清空与预览计数。顺序无强制要求（sqlite FK 默认关闭；
-// mysql/pg 分支按外键安全顺序删子表再删父表）。
+// 9 张业务表（含 sections），用于全量清空与预览计数。删除顺序已按外键安全排序：
+// 所有引用 sections 的表（products/contents/categories）先于 sections 删，sections 先于 companies 删；
+// sqlite FK 默认关闭故顺序不强制，mysql/pg 下顺序错会触发外键报错。
 const ALL_TABLES: { name: string; table: unknown }[] = [
   { name: 'price_history', table: priceHistory },
   { name: 'product_diffs', table: productDiffs },
@@ -19,6 +20,7 @@ const ALL_TABLES: { name: string; table: unknown }[] = [
   { name: 'products', table: products },
   { name: 'contents', table: contents },
   { name: 'categories', table: categories },
+  { name: 'sections', table: sections },
   { name: 'crawls', table: crawls },
   { name: 'companies', table: companies },
 ];
@@ -117,6 +119,7 @@ export async function dbClear(opts: DbClearOpts): Promise<void> {
       await db.delete(products).where(eq(products.companyId, t.id));
       await db.delete(contents).where(eq(contents.companyId, t.id));
       await db.delete(categories).where(eq(categories.companyId, t.id));
+      await db.delete(sections).where(eq(sections.companyId, t.id));
       await db.delete(companies).where(eq(companies.id, t.id));
       console.log(`[db:clear] 已清空单站「${t.name}」(companyId=${t.id}) 的全部相关数据`);
     }
@@ -127,7 +130,7 @@ export async function dbClear(opts: DbClearOpts): Promise<void> {
 async function countSite(db: any, companyId: number): Promise<number> {
   let total = 0;
   // 直接挂 companyId 的子表
-  for (const t of [products, contents, categories, alerts]) {
+  for (const t of [products, contents, categories, sections, alerts]) {
     const [row] = await db.select({ c: sql<number>`count(*)` }).from(t).where(eq(t.companyId, companyId));
     total += Number(row?.c ?? 0);
   }

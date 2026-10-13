@@ -25,7 +25,7 @@ export async function backfill(opts: BackfillOpts): Promise<void> {
   for (const r of all) {
     const rowObj = (r.row ?? {}) as Record<string, unknown>;
     const val = rowObj[opts.rowKey];
-    if (val === undefined || val === null || val === '') continue;
+    if (val === undefined || val === null || val === '' || typeof val === 'object') continue;
     const current = (r as Record<string, unknown>)[opts.column];
     if (current !== undefined && current !== null && current !== '') continue; // 已填过，跳过
     affected++;
