@@ -2,12 +2,14 @@
 // 服务端（Nitro）直连共享 better-sqlite3 库（createDb 已在 shared 内按 repoRoot 解析，与爬虫共用同一库）。
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
-  // pinia 已停用（docs/16 M3）：全包无跨页共享状态（主题走 useTheme + localStorage），页面级 ref 即可。
-  // nuxt.config 已摘除模块注册（运行时不再加载）；package.json 的两条依赖待用户下次
-  // pnpm install 时一并删除（lockfile 需同步，AI 不代跑 install，见用户偏好 #1）。
+  // 无状态管理依赖：全包无跨页共享状态（主题走 useTheme + localStorage），页面级 ref 即可，
+  // 故未注册 @pinia/nuxt / pinia（依赖已从 web/package.json 移除）。
   modules: ['@unocss/nuxt'],
   devtools: { enabled: false },
-  // 监听所有网卡：局域网内其他设备 / 手机可直接通过本机 IP 访问（不仅限 localhost）
+  // 监听所有网卡：局域网内其他设备 / 手机可直接通过本机 IP 访问（不仅限 localhost）。
+  // ⚠️ 此配置**仅 `nuxt dev`（开发服务器）生效**；生产构建（node-server）不读 devServer，
+  // 其监听地址由部署环境 HOST 决定。配合写端点 WEB_TOKEN 鉴权（server/api/sites.post.ts），
+  // 局域网暴露时不会零鉴权（未配 WEB_TOKEN 时等同 dev 放行，由部署方决定是否设令牌）。
   devServer: {
     host: '0.0.0.0',
     port: 3000,

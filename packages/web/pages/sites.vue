@@ -13,6 +13,8 @@ const sites = ref<Site[]>([]);
 const selected = ref<{ domain: string; content: string } | null>(null);
 const showAdd = ref(false);
 const form = ref({ domain: '', company: '', startUrl: '', category: '' });
+/** 写端点令牌：生产环境由部署方告知；dev 模式（服务端未配 WEB_TOKEN）留空即可 */
+const webToken = ref('');
 const msg = ref('');
 const msgOk = ref(true);
 
@@ -42,7 +44,11 @@ interface AddSiteResult {
 async function submitAdd() {
   msg.value = '';
   try {
-    const r = await $fetch<AddSiteResult>('/api/sites', { method: 'POST', body: form.value });
+    const r = await $fetch<AddSiteResult>('/api/sites', {
+      method: 'POST',
+      body: form.value,
+      headers: webToken.value ? { 'x-web-token': webToken.value } : undefined,
+    });
     msgOk.value = true;
     msg.value = `已生成 ${r.file}，请运行 pnpm probe --domain ${r.domain} 验证后再爬取`;
     showAdd.value = false;
@@ -80,6 +86,7 @@ onMounted(loadSites);
       <input v-model="form.company" placeholder="公司名" class="input" />
       <input v-model="form.startUrl" placeholder="列表页 URL" class="input col-span-2" />
       <input v-model="form.category" placeholder="默认品类名（可选）" class="input col-span-2" />
+      <input v-model="webToken" placeholder="写端点令牌（生产环境填；dev 留空）" class="input col-span-2" />
       <button class="btn-primary col-span-2" @click="submitAdd">生成 YAML 配置</button>
     </div>
 
