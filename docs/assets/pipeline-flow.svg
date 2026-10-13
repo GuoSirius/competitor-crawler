@@ -6,7 +6,7 @@
       · 形态 E（模型兜底）节点旁新增「提示词中心 config/prompts/*.md」调用说明（loadPrompt 注入 TARGET_FIELDS）
       · ⑦ 输出新增「模型人话摘要（summary，默认关）」步骤：alerts → 摘要 → 前置到推送文本
       · ③ mergeListFallback 注明归一化为确定性映射（非模型调用）
-      · ②/③ 注明代码适配器契约 = SiteAdapter（shared/types.ts），示例见 adapters/_example.ts（当前未接线，docs/16 🔴-2）
+      · ②/③ 注明代码适配器契约 = SiteAdapter（shared/types.ts），示例见 adapters/_example.ts（已接线，crawl/probe 真实调用）
     配套：architecture.svg（端到端架构总览）
   -->
   <defs>
@@ -84,7 +84,7 @@
   <text x="64" y="586" class="bd">按 canonical(detailUrl) 去重 —— 修掉「pc/web 双模板 + 图文双链接」造成的重复抓取与计数虚高</text>
 
   <rect x="48" y="610" width="680" height="40" rx="10" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
-  <text x="64" y="635" class="bd" fill="#4338ca">代码适配器（SiteAdapter）钩子点：listTraversal / parseList / parseDetail 可被 adapters/&lt;domain&gt;.ts 加性补充（示例 _example.ts；当前未接线，docs/16 🔴-2）</text>
+  <text x="64" y="635" class="bd" fill="#4338ca">代码适配器（SiteAdapter）钩子点：listTraversal / parseList / parseDetail 可被 adapters/&lt;domain&gt;.ts 加性补充（示例 _example.ts；已接线，crawl/probe 真实调用）</text>
 
   <!-- 详情 -->
   <text x="36" y="676" class="bs" font-weight="700" fill="#4338ca">③ 详情抓取与字段兜底（三级防线）</text>

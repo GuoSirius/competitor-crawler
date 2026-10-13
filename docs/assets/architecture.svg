@@ -5,7 +5,7 @@
     相对 v1 的更新：
       · 新增「提示词中心 config/prompts/*.md」作为贯穿所有模型环节的单一事实源（docs/04 §4.4 已落地）
       · 模型辅助层四阶段标注真实状态：extraction(已接) / normalization(确定性·非模型) / attribution(待接) / summary(已接·默认关)
-      · ⑤ 适配器明确为 SiteAdapter 契约（shared/types.ts），当前设计就绪但尚未接线（docs/16 🔴-2）
+      · ⑤ 适配器明确为 SiteAdapter 契约（shared/types.ts），契约已落地并接线（adapterLoader 注册，crawl/probe 真实调用，示例见 src/adapters/_example.ts）
       · ⑦ 告警链路补上「模型人话摘要」前置步骤
     配套：pipeline-flow.svg（数据流转与处理细节）
   -->
@@ -78,7 +78,7 @@
   <text x="92" y="556" class="bt">站点适配器 · 异构页面归一</text>
   <text x="92" y="576" class="bs">YAML 配置适配器（FieldSpec = 取值 × 结构 × 附加）　→　代码 Adapter（YAML 表达不了时的加性钩子）　→　模型兜底（最后防线）</text>
   <text x="92" y="596" class="bs">规格 × 多价格五形态：A 表格行 · B 下拉项 $self · C 内联 JSON · D 异步接口 · E 前端计算（模型兜底）；多 Tab（T1/T2/T3）为与五形态正交的维度</text>
-  <text x="92" y="616" class="bd">代码适配器契约 = SiteAdapter（shared/types.ts：match/listTraversal/parseList/parseDetail）　·　示例见 src/adapters/_example.ts（当前尚未接线，docs/16 🔴-2）</text>
+  <text x="92" y="616" class="bd">代码适配器契约 = SiteAdapter（shared/types.ts：match/listTraversal/parseList/parseDetail）　·　示例见 src/adapters/_example.ts（已接线，crawl/probe 真实调用）</text>
   <text x="92" y="632" class="bd">输出 NormalizedProduct；未声明字段全量进 row 兜底，零数据丢失</text>
 
   <!-- ⑥ 归一化 -->
