@@ -76,9 +76,14 @@ async function main() {
     const rowKey = flags['row-key'];
     if (typeof column !== 'string') throw new Error('backfill 需要 --column <列名>');
     if (typeof rowKey !== 'string') throw new Error('backfill 需要 --row-key <row中的key>');
+    const batchRaw = flags.batch;
+    const batch =
+      typeof batchRaw === 'string' && batchRaw !== '' && Number.isFinite(Number(batchRaw)) ? Number(batchRaw) : undefined;
     await backfill({
       column,
       rowKey,
+      domain: typeof flags.domain === 'string' ? flags.domain : undefined,
+      batch,
       dry: flags.dry === true || flags.dry === 'true',
     });
   } else if (cmd === 'gen-site-batch') {
@@ -230,6 +235,13 @@ function printHelp(cmd?: string): void {
   if (all || cmd === 'diagnose') {
     console.log('\ndiagnose：--domain <d>（必填） --url <url> --mode <ssr|chromium-headless|chromium-headful|chrome-headful|chrome-headless> --rounds <n> --fingerprint/--no-fingerprint --json');
     console.log('  cdp:<url> 也可作 --mode，连你本机开着的 Chrome（须 --remote-debugging-port=9222），可复现「用户视角」并带走过盾 cookie');
+  }
+  if (all || cmd === 'backfill') {
+    console.log('\nbackfill：--column <c>（必填，物理列） --row-key <k>（必填，row 中的源字段 key）');
+    console.log('  --domain <d>   只回填指定站点（按域名；省略=全站）');
+    console.log('  --batch <n>    游标分页每批大小（默认 500，避免全表载入内存）');
+    console.log('  --dry          只统计影响行数，不写库');
+    console.log('  例：pnpm backfill -- --column clone_number --row-key "Clone Number" --domain www.x.com --dry');
   }
   if (all || cmd === 'db-clear') {
     console.log('\ndb-clear：一键清空数据库（单站测试排查用，默认预览不删）');
