@@ -40,7 +40,7 @@ function slugKey(s: string | null | undefined): string {
  * - 公司：按归一化域名（domain）upsert（name 仍记录，仅作业务名，不再唯一）
  * - 栏目（sections 一等公民）：按 (companyId, key) 业务主键 upsert，每 productLine 一行；产品线已上移此处
  * - 品类（categories）：按 (companyId, sectionId, path) 业务主键 upsert，挂到对应种子栏目下
- * - 本轮种子中消失的行：软标记 removedAt（物理不删）
+ * - 本轮种子中消失的品类：软标记 removedAt（物理不删）；栏目不做对账删除（种子为一次性初始化导入，见 docs/11）
  */
 export async function loadSeeds(seedsPath: string): Promise<{ companies: number; sections: number; categories: number }> {
   const { db } = createDb();
@@ -141,17 +141,6 @@ export async function loadSeeds(seedsPath: string): Promise<{ companies: number;
     }
   }
 
-  // 5) 真软删本轮消失的种子栏目（source='seed' 且仅种子源维护）：按 (companyId, key) 对账。
-  //    注意：crawl 的 resolveSectionId 不再覆写 source（保留 seed/config 所有权），
-  //    故此处只动 seed 源栏目，不会误删 config 驱动的栏目。
-  const allSections = await db.select().from(sections).where(eq(sections.source, 'seed'));
-  for (const sec of allSections) {
-    const key = `${sec.companyId}|${sec.key}`;
-    if (!seenSectionKeys.has(key)) {
-      await db.update(sections).set({ removedAt: t, updatedAt: t }).where(eq(sections.id, sec.id));
-    }
-  }
-
   return { companies: companyIdByDomain.size, sections: sectionCount, categories: categoryCount };
 }
 
@@ -188,7 +177,6 @@ async function upsertSeedSection(
       name: productLine ?? 'default',
       contentType: 'products',
       productLine,
-      source: 'seed',
       createdAt: t,
       updatedAt: t,
     })
