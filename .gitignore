@@ -19,13 +19,15 @@ data/exports/
 *.local
 
 
-# 临时工作目录（探针 HTML / 调试产物），用完即删，不入库
-# 约定：一次性探针脚本一律放这里（.tmp/），**不要**写进 packages/*/src/ —— 那里会被
-# typecheck/vitest 扫到，且容易变成漏提交的历史遗留。
+# 临时工作目录：**全仓唯一顶层临时入口**，用完即删，不入库
+# 约定：一切一次性脚本 / 探针 / 调试产物 / dump 都放这里，按用途建子目录区分，例如：
+#   .tmp/probe/     一次性探针脚本（tsx 直跑，如 smoke.ts）及其 dump
+#   .tmp/debug/     fetch 层调试 dump（page.ts 写入）
+#   .tmp/sweep/     sweep 报告；.tmp/site-analysis/ 与 .tmp/probe-html/ 为 scripts/ 探针产物
+#   .tmp/test-db/   测试数据库（testing/testDb.ts 写入）
+# **绝不写进 packages/*/src/ 或 scripts/**：src 会被 typecheck/vitest 扫到、scripts/ 入库即沉淀。
+# 需要长期保留的脚本才进 scripts/ 并登记到 docs/11。
 .tmp/
-# 一次性脚本目录（迁移/临时工具等，用完即弃，不入库）：AI 自用，绝不写进 packages/*/src/
-# 或 scripts/。需要长期保留的脚本才进 scripts/ 并登记到 docs/11。
-scratch/
 # 断点续跑状态（crawl 运行期生成，成功自动清理、失败保留供 --resume）
 .crawl-state/
 # 运行期会话状态（storageState cookie / 过盾会话），含真实 cookie，绝不入库
