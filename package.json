@@ -49,7 +49,6 @@
     "@types/nodemailer": "latest",
     "eslint": "latest",
     "husky": "latest",
-    "prettier": "latest",
     "standard-version": "latest",
     "tsx": "latest",
     "typescript": "^6.0.3",

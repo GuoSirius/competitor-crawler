@@ -10,11 +10,9 @@
   },
   "dependencies": {
     "@competitor-crawler/shared": "workspace:*",
-    "@pinia/nuxt": "latest",
     "@unocss/nuxt": "latest",
     "echarts": "latest",
     "nuxt": "latest",
-    "pinia": "latest",
     "vue": "latest"
   },
   "devDependencies": {
