@@ -51,19 +51,15 @@
   <text x="36" y="126" class="bs" font-weight="700" fill="#0369a1">① 确定爬取范围</text>
   <rect x="48" y="136" width="680" height="54" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
   <text x="64" y="157" class="bt">pnpm crawl</text>
-  <text x="64" y="176" class="bd">--source seeds|config　--site　--section　--category　--product-line　--render　--pages　--limit　--dry-run（全程零写入）</text>
+  <text x="64" y="176" class="bd">--site　--section　--category　--product-line　--render　--pages　--limit　--dry-run（全程零写入）</text>
 
   <rect x="48" y="202" width="680" height="46" rx="10" fill="#fefce8" stroke="#eab308" stroke-width="2"/>
-  <text x="64" y="221" class="bt">决策：范围真相源？</text>
-  <text x="64" y="238" class="bd">seeds = 库内 categories（旧行为，默认）　|　config = 扫描 config/sites/*.yaml（后期驱动）</text>
+  <text x="64" y="221" class="bt">范围：config/sites/*.yaml（站点唯一来源）</text>
+  <text x="64" y="238" class="bd">一站点一 YAML　·　公司按域名 / name 复用或新建　·　sections 决定跑哪些栏目</text>
 
-  <rect x="48" y="260" width="330" height="52" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
-  <text x="64" y="280" class="bt">seeds 分支</text>
-  <text x="64" y="298" class="bd">读 categories（可 --product-line 过滤）→ 按 URL 域名分组</text>
-
-  <rect x="398" y="260" width="330" height="52" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
-  <text x="414" y="280" class="bt">config 分支</text>
-  <text x="414" y="298" class="bd">listSiteConfigs() → 逐域解析 YAML（按 company 归公司）</text>
+  <rect x="48" y="260" width="680" height="52" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
+  <text x="64" y="280" class="bt">范围落地</text>
+  <text x="64" y="298" class="bd">listSiteConfigs() → 逐域解析 YAML → resolveSections() → ResolvedSection[]（按 company 归公司）</text>
 
   <rect x="48" y="324" width="680" height="50" rx="10" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
   <text x="64" y="344" class="bt">SiteTarget[] : domain → companyId → sections[ ResolvedSection ]</text>

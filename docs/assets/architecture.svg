@@ -39,30 +39,30 @@
   <rect width="1400" height="1140" fill="url(#bg)"/>
 
   <text x="36" y="46" class="t1">竞品爬虫 · 端到端架构总览（v2）</text>
-  <text x="36" y="72" class="t2">Excel 种子清单 → 站点适配器解析 → 统一产品库 → 交付 / 告警　·　提示词中心贯穿模型辅助层　·　细节流转见图 docs/assets/pipeline-flow.svg</text>
+  <text x="36" y="72" class="t2">站点 YAML 配置 → 站点适配器解析 → 统一产品库 → 交付 / 告警　·　提示词中心贯穿模型辅助层　·　细节流转见图 docs/assets/pipeline-flow.svg</text>
 
   <!-- ================= 左侧主流水线 ================= -->
   <text x="36" y="100" class="rail" fill="#94a3b8">主流水线（左）　/　支撑与不变量（右）</text>
 
-  <!-- ① 种子源 -->
+  <!-- ① 站点配置源 -->
   <rect x="36" y="110" width="820" height="86" rx="12" fill="#fffbeb" stroke="#f59e0b" stroke-width="2"/>
   <circle cx="66" cy="142" r="15" fill="#f59e0b"/><text x="66" y="147" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">1</text>
-  <text x="92" y="140" class="bt">种子源 · 竞对清单 Excel</text>
-  <text x="92" y="160" class="bs">Elabscience竞对清单 · Procell竞对清单 · 补充-竞品清单　→　按表头关键字识别列（公司 / 产品线 / 品类 / 品类链接 / 官网 / 类型）</text>
-  <text x="92" y="180" class="bd">data/seeds/*.xlsx　·　品类链接优先取 cell.hyperlink.target，否则取 http(s) 文本</text>
+  <text x="92" y="140" class="bt">站点配置源 · config/sites/*.yaml</text>
+  <text x="92" y="160" class="bs">一站点一 YAML：company / startUrls / listTraversal / parseList / parseDetail / sections 多栏目多规则</text>
+  <text x="92" y="180" class="bd">站点范围唯一来源　·　公司 / 品类随 YAML upsert 进库（website 命中域名或 name 命中则复用）</text>
 
-  <!-- ② pnpm seed -->
-  <rect x="36" y="214" width="820" height="86" rx="12" fill="#fff7ed" stroke="#fb923c" stroke-width="2"/>
-  <circle cx="66" cy="246" r="15" fill="#fb923c"/><text x="66" y="251" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">2</text>
-  <text x="92" y="244" class="bt">pnpm seed · 种子增量同步</text>
-  <text x="92" y="264" class="bs">xlsxToSeeds（脏 Excel → 标准 seeds.json）→ loadSeeds（公司按 name upsert；品类按 公司+产品线+品类名 upsert）</text>
-  <text x="92" y="284" class="bd">本轮消失的行软标记 removed_at（物理不删）　·　产出 companies / categories</text>
+  <!-- ② crawl upsert -->
+  <rect x="36" y="214" width="820" height="86" rx="12" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
+  <circle cx="66" cy="246" r="15" fill="#38bdf8"/><text x="66" y="251" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">2</text>
+  <text x="92" y="244" class="bt">crawl · 公司 / 品类 / 栏目 upsert</text>
+  <text x="92" y="264" class="bs">公司按归一化域名 upsert　·　栏目按 (company_id, key)　·　品类按分类树路径（categoryPath / category / 页面包屑）</text>
+  <text x="92" y="284" class="bd">产出 companies / categories / sections　·　--dry-run 全程零写入</text>
 
   <!-- ③ 范围与配置 -->
   <rect x="36" y="318" width="820" height="86" rx="12" fill="#f0f9ff" stroke="#38bdf8" stroke-width="2"/>
   <circle cx="66" cy="350" r="15" fill="#38bdf8"/><text x="66" y="355" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">3</text>
   <text x="92" y="348" class="bt">爬取范围与站点配置</text>
-  <text x="92" y="368" class="bs">范围源 <tspan font-weight="700">--source seeds（默认）| config</tspan>　·　过滤 --site / --section / --category / --product-line　·　--dry-run 全程零写入</text>
+  <text x="92" y="368" class="bs">范围源 <tspan font-weight="700">config/sites/*.yaml（唯一来源）</tspan>　·　过滤 --site / --section / --category / --product-line　·　--dry-run 全程零写入</text>
   <text x="92" y="388" class="bd">config/sites/&lt;domain&gt;.yaml（单规则 或 sections 多规则）→ resolveSections() → ResolvedSection[]</text>
 
   <!-- ④ Fetch -->
@@ -179,7 +179,7 @@
   <text x="920" y="658" class="bd">sku 只用于跨公司对齐 / 比价（报告层）</text>
 
   <text x="904" y="682" class="bs" fill="#92400e">③ category ≠ section，互不替代</text>
-  <text x="920" y="699" class="bd">category = 种子品类（Excel 一行）；section = 抓取栏目（站点栏目 + 规则）</text>
+  <text x="920" y="699" class="bd">category = 品类树节点；section = 抓取栏目（站点栏目 + 规则）</text>
 
   <text x="904" y="723" class="bs" fill="#92400e">④ 栏目 key 稳定后勿改名</text>
   <text x="920" y="740" class="bd">改名 = 换去重键 = 同批产品会重复入库</text>
@@ -202,7 +202,7 @@
   <text x="920" y="981" class="bd">pnpm release = typecheck → test → 未提交检查 → 方向键选 bump → tag + push</text>
   <text x="920" y="997" class="bd">pnpm schedule --daemon 启定时（季度首月1日03:00，spec 可改）</text>
 
-  <text x="904" y="1024" class="bd">图例：橙 种子 / 蓝 配置 / 青 采集 / 靛 适配器 / 灰 归一化 / 绿 存储与交付 / 红 告警 / 紫 模型辅助 / 深紫 提示词中心</text>
+  <text x="904" y="1024" class="bd">图例：蓝 配置 / 青 采集 / 靛 适配器 / 灰 归一化 / 绿 存储与交付 / 红 告警 / 紫 模型辅助 / 深紫 提示词中心</text>
   <text x="904" y="1048" class="bd">本图与 docs/02 架构设计、docs/03 数据库设计、docs/04 模型方案、docs/05 站点接入指南一一对应</text>
 </g>
 </svg>
