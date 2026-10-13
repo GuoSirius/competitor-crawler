@@ -1,36 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { detectChallenge, maximizeWindow, stealthArgs, stealthInitSource, stealthContextOptions } from './antiBot.js';
+import { maximizeWindow, stealthArgs, stealthInitSource, stealthContextOptions } from './antiBot.js';
+import { assessChallenge } from './challenge.js';
 
-describe('detectChallenge — 挑战页/风控页识别', () => {
+describe('assessChallenge — 挑战页/风控页识别（单真相源）', () => {
   it('Cloudflare "Just a moment" 挑战页', () => {
     const html = '<html><title>Just a moment...</title><body>Checking your browser before accessing.</body></html>';
-    expect(detectChallenge(html)?.kind).toBe('cloudflare');
+    expect(assessChallenge({ html }).hit?.kind).toBe('cloudflare');
   });
 
   it('阿里云盾滑块', () => {
     const html = '<div class="nc_wrapper"><span>请完成安全验证后继续访问</span></div>'.repeat(3);
-    expect(detectChallenge(html)?.kind).toBe('aliyun');
+    expect(assessChallenge({ html }).hit?.kind).toBe('aliyun');
   });
 
   it('Imperva（CST 一类）', () => {
     const html = '<html><body>Request unsuccessful. Incapsula incident ID: 123.</body></html>';
-    expect(detectChallenge(html)?.kind).toBe('imperva');
+    expect(assessChallenge({ html }).hit?.kind).toBe('imperva');
   });
 
   it('reCAPTCHA / hCaptcha', () => {
     // 真实挑战页：reCAPTCHA v2 挑战控件 + 挑战脚本
-    expect(detectChallenge('<div class="g-recaptcha" data-sitekey="x"></div><iframe src="https://www.google.com/recaptcha/anchor?ar=1"></iframe>' + 'x'.repeat(300))?.kind).toBe('captcha');
-    // 反误报：站点富文本编辑器白名单里出现 .g-recaptcha / [data-sitekey] 属正常页
-    expect(detectChallenge('<script id="rtm-style-config" type="application/json">{"allowlist":[".g-recaptcha","[data-sitekey]"]}</script>' + 'x'.repeat(300))).toBeNull();
+    expect(
+      assessChallenge({
+        html:
+          '<div class="g-recaptcha" data-sitekey="x"></div><iframe src="https://www.google.com/recaptcha/anchor?ar=1"></iframe>' +
+          'x'.repeat(300),
+      }).hit?.kind,
+    ).toBe('captcha');
+  });
+
+  it('反误报：大页面内嵌组件文案（富文本白名单）不判挑战', () => {
+    // 站点富文本编辑器白名单里出现 .g-recaptcha / [data-sitekey] 属正常页（Promega 已踩坑）。
+    // 真实页面体积大（>=500 字符），命中宽泛词但无验证控件 → 误报放行。
+    const html =
+      '<script id="rtm-style-config" type="application/json">{"allowlist":[".g-recaptcha","[data-sitekey]"]}</script>' +
+      'x'.repeat(2000);
+    const r = assessChallenge({ html });
+    expect(r.hit).toBeNull();
+    expect(r.falseAlarm).toBe(true);
   });
 
   it('正常页面返回 null', () => {
     const html = `<html><body>${'<div class="product">细胞培养基 500mL ¥298</div>'.repeat(40)}</body></html>`;
-    expect(detectChallenge(html)).toBeNull();
+    expect(assessChallenge({ html }).hit).toBeNull();
   });
 
   it('过短内容不误判（防截断误报）', () => {
-    expect(detectChallenge('<html>403</html>')).toBeNull();
+    expect(assessChallenge({ html: '<html>403</html>' }).hit).toBeNull();
   });
 });
 

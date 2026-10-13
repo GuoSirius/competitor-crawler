@@ -378,55 +378,7 @@ export function stealthInitSource(profile: StealthProfile = 'mid'): string {
 })();`;
 }
 
-// ───────────────── 挑战页 / 诱饵页识别 ─────────────────
-
-export type ChallengeKind =
-  | 'cloudflare'
-  | 'aliyun'
-  | 'imperva'
-  | 'perimeterx'
-  | 'captcha'
-  | 'traffic'
-  | 'unknown';
-
-export interface ChallengeHit {
-  kind: ChallengeKind;
-  /** 命中的特征片段，便于日志定位 */
-  matched: string;
-}
-
-/**
- * 特征表：顺序即判定优先级。
- *
- * ⚠️ 为什么必须有这个：挑战页常返回 **HTTP 200 + 一个长得像正常页的框**，
- * 解析出来 0 个产品锚点。旧逻辑把「0 锚点」当作合法语义（空栏目自动停页），
- * 于是「被 WAF 拦」被静默记成「抓取成功、该栏目没有产品」——数据缺了没人知道。
- * 有了识别，就能把它显式升级成 SITE_CHALLENGED 失败。
- */
-const CHALLENGE_PATTERNS: Array<[ChallengeKind, RegExp]> = [
-  ['cloudflare', /just a moment|checking your browser|cf-browser-verification|cf_chl_opt|attention required!\s*\|\s*cloudflare|_cf_chl|enable javascript and cookies to continue|verify you are (a|the) human/i],
-  ['imperva', /incapsula|request unsuccessful\.{3}|_incapsula_resource|nx-?domain|access to this page has been denied/i],
-  ['perimeterx', /perimeterx|_px|captcha\.px|perimeterx\.com/i],
-  ['aliyun', /滑动验证|请完成安全验证|阿里云|security check|nc_wrapper|slider-verify|输入验证码|please verify/i],
-  // captcha 必须匹配「真实验证控件/挑战脚本」，不能只命中组件名——
-  // 实测坑：Promega 正常页把 .g-recaptcha / [data-sitekey] 写进富文本编辑器白名单
-  // （{"allowlist":[".g-recaptcha","[data-sitekey]"]}），裸匹配 `g-recaptcha` 会 100% 误报，
-  // 导致脚本干等 180s 人工过盾一个根本不存在的盾。
-  ['captcha', /recaptcha\/anchor|recaptcha\/frames|rc-anchor|rc-anti-bot|g-recaptcha-response|grecaptcha\.(render|execute|verify)|grecaptcha\.api|hcaptcha\.com\/|#h-captcha|turnstile[^\s"';]{0,40}challenge|cf-turnstile/i],
-  ['traffic', /unusual traffic|too many requests|请稍后再试|try again later|access denied|please enable cookies/i],
-  ['unknown', /页面正在|redirecting\.\.\.|verify\b.*\bhuman/i],
-];
-
-/** 识别挑战页/风控页；返回 null 表示正常页面 */
-export function detectChallenge(html: string): ChallengeHit | null {
-  if (!html || html.length < 60) return null; // 极短内容（截断/占位）不值得匹配，防误报
-  for (const [kind, re] of CHALLENGE_PATTERNS) {
-    const m = re.exec(html);
-    if (m) return { kind, matched: m[0].slice(0, 60) };
-  }
-  return null;
-}
-
-export function isChallengeKind(hit: ChallengeHit | null, kinds: ChallengeKind[]): boolean {
-  return !!hit && kinds.includes(hit.kind);
-}
+// ───────────────── 挑战页 / 诱饵页识别：单真相源在 challenge.ts ─────────────────
+// `assessChallenge` / `detectChallengeLike` 是唯一的判定实现；本文件只转发其类型，
+// 不再维护第二份特征表（避免与 challenge.ts 分叉漂移，见 docs/11 的 N2 复盘）。
+export type { ChallengeKind, ChallengeHit } from './challenge.js';
