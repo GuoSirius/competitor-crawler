@@ -23,6 +23,9 @@ data/exports/
 # 约定：一次性探针脚本一律放这里（.tmp/），**不要**写进 packages/*/src/ —— 那里会被
 # typecheck/vitest 扫到，且容易变成漏提交的历史遗留。
 .tmp/
+# 一次性脚本目录（迁移/临时工具等，用完即弃，不入库）：AI 自用，绝不写进 packages/*/src/
+# 或 scripts/。需要长期保留的脚本才进 scripts/ 并登记到 docs/11。
+scratch/
 # 断点续跑状态（crawl 运行期生成，成功自动清理、失败保留供 --resume）
 .crawl-state/
 # 运行期会话状态（storageState cookie / 过盾会话），含真实 cookie，绝不入库
