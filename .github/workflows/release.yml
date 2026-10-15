@@ -1,0 +1,34 @@
+name: Release
+
+# 每次打 tag（pnpm release 经 git push --follow-tags 推送 vX.Y.Z）自动在 GitHub 创建 Release，
+# 并把 CHANGELOG.md 中对应版本的段落作为 Release Notes 展示。
+# 仅监听 tag 推送，普通 push / PR 不触发，避免与 ci.yml 冲突或误建 Release。
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract changelog for this version
+        run: node scripts/extract-changelog.mjs "${GITHUB_REF_NAME}" > "${{ runner.temp }}/release-notes.md"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file "${{ runner.temp }}/release-notes.md"
