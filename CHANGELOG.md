@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.10.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.9.0...v1.10.0) (2026-10-15)
+
+
+### 🐛 缺陷修复 (Bug Fixes)
+
+* 复核 docs/16-17 修复已确认真实问题 ([c0075c1](https://github.com/GuoSirius/competitor-crawler/commit/c0075c1d925930c71be62e18b3a8fbc339a840dc))
+* **config:** validate 增加 json/number 互斥校验 ([6c78f13](https://github.com/GuoSirius/competitor-crawler/commit/6c78f1394fbccaf13a31c2c22517c1deab0a9fb2))
+* **crawler:** 修 crawl-content 测试时区依赖——期望值改 unixFromBjParts，CI(UTC) 不再假失败 ([b2af917](https://github.com/GuoSirius/competitor-crawler/commit/b2af91715fab5a71d8e501ac39f4db34694e52d8))
+* **fetch:** 收敛挑战识别双表到 challenge.ts 单真相源 ([5fc2626](https://github.com/GuoSirius/competitor-crawler/commit/5fc2626863c972aaa3175c313be1602e4667ab7e))
+* **sections:** resolveSectionId 不覆写 source；sections 加 removedAt 并真软删 ([988e9f3](https://github.com/GuoSirius/competitor-crawler/commit/988e9f3b09750524be7df40a2ae7759d8862589c))
+* **web:** 写端点加 WEB_TOKEN 鉴权，devServer 仅 dev 监听 ([0d6616a](https://github.com/GuoSirius/competitor-crawler/commit/0d6616abaf97e894e61f17b20a41daaf9aeaa8f9))
+
+
+### 🏠 其他 (Miscellaneous)
+
+* .gitignore 忽略 scratch/ 一次性脚本目录 ([616d15b](https://github.com/GuoSirius/competitor-crawler/commit/616d15b25f8750ad61267fd132e3843d96e00c5b))
+* 临时目录收敛为唯一顶层 .tmp/（删 scratch/，包内 .tmp 并入 .tmp/probe/） ([f7d26f7](https://github.com/GuoSirius/competitor-crawler/commit/f7d26f7e2a55779d6280dc3f814dcf26461eceea))
+* **deps:** 删除未使用的 prettier 与 pinia 依赖 ([b718be9](https://github.com/GuoSirius/competitor-crawler/commit/b718be945e4b389b8c3b2304d95e3d92a54774fd))
+* **deps:** 同步 lockfile，移除 prettier 与 pinia ([be6bad6](https://github.com/GuoSirius/competitor-crawler/commit/be6bad697ae4d2bf8adfc3bfdfdb69bc3d18a6cb))
+
+
+### ♻️ 代码重构 (Refactors)
+
+* **crawler:** 移除种子导入链路，站点来源统一为 YAML ([29ba0ab](https://github.com/GuoSirius/competitor-crawler/commit/29ba0ab33bd6ef22862a2cfd88d9a0208968dc28))
+* **crawler:** backfill 支持 domain 过滤与游标分页 ([0e43999](https://github.com/GuoSirius/competitor-crawler/commit/0e439991c669e69a044747b5fe7ad2f2d17ead00))
+* **sections:** 移除 source 列与 seed 所有权逻辑 ([8292bb5](https://github.com/GuoSirius/competitor-crawler/commit/8292bb5430e3dddf79406bb97c43516b1f490d26))
+
+
+### 📚 文档 (Documentation)
+
+* 代码质量体检第三轮报告（docs/17） ([7b846b6](https://github.com/GuoSirius/competitor-crawler/commit/7b846b67481ef2ddc01976c42917755090177324))
+* 清理种子来源描述，站点来源统一为 YAML ([e73ab35](https://github.com/GuoSirius/competitor-crawler/commit/e73ab35e8eea5f43c9b6a2fcdcf529aab1aa0063))
+* 修正 16/17 复核发现的文档漂移 ([d0459a4](https://github.com/GuoSirius/competitor-crawler/commit/d0459a44c31737e95dd9b1c2afa07cd2dce7b2a1))
+* 修正 prettier 口径（ESLint 未管格式化）并同步临时目录引用 ([5c243d7](https://github.com/GuoSirius/competitor-crawler/commit/5c243d7c722846bbc0f84af356b60bd46090cee6))
+
+
+### 🔄 持续集成 (CI)
+
+* checkout 改全量历史，修 commitlint 步骤浅克隆下 HEAD~1 不存在的 fatal ([922097f](https://github.com/GuoSirius/competitor-crawler/commit/922097f2e857ccc3d61eabaaf0c9edabc9d5e6e0))
+* **release:** 自动创建 GitHub Release 并抽取 changelog 段落 ([e03ff3a](https://github.com/GuoSirius/competitor-crawler/commit/e03ff3ad9165db152a7ecd7af98def94055ffb96))
+
 ## [1.9.0](https://github.com/GuoSirius/competitor-crawler/compare/v1.8.0...v1.9.0) (2026-10-12)
 
 
